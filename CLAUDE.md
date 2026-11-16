@@ -182,12 +182,23 @@ Every schema below is normative. Additions are allowed; renaming or removing a k
 
 ## 5. Phased Execution Runbook & Cumulative Pest Gates
 
-0. **Phase 0 (Baseline)**: Composer `>= 2.2`, Laravel 13 skeleton, Git init, `SettingService` (pre-install bypass), `/install` + `EnsureInstalledMiddleware` (`/up` exempt), core enums/DTOs/contracts, core migration, `Money`, `audit_logs`. The queue tables (`jobs`, `failed_jobs`, `job_batches`) and cache tables come from the skeleton's own `0001_01_01_*` migrations and MUST NOT be recreated in the core migration. See `docs/phase0-bootstrap.md`. Gate: `./vendor/bin/pest --group=phase0` & `./vendor/bin/phpstan analyse` (level 5).
-1. **Phase 1 (First E2E Closed Loop)**: Auth + RBAC -> Local Product & Quote -> Combo Invoice & Freeze -> `EpayGateway` + `payment_attempts` + `HandlePaymentCallbackAction` + Outbox -> `RedemptionCodeDriver` -> `/console` -> `FulfillmentTaskResource` retry + `TelegramBotDriver` failure alerts + `ProcessInstanceLifecycleCommand` scheduler skeleton. Gate: `./vendor/bin/pest --group=phase0,phase1`.
-2. **Phase 2 (Classic ZJMF)**: `ZjmfFinanceDriver`, tiered sync, `upstream_operations` logging, `/api/host/sync`, `InstanceResource` hot-swap (with binding history) & `/provision/default` via `ProvisionCommand`. Gate: `./vendor/bin/pest --group=phase0,phase1,phase2`.
-3. **Phase 3 (Extensions & Growth)**: `ProxmoxDriver`, `Sub2ApiDriver`, `ZjmfLegacyKycDriver`, `YansongdaGateway`, `user_oauth_accounts`, `Coupons` + `coupon_claims`, `AffiliateRuleResource` + `MatureAffiliateCommissionsAction`, `Tickets`, SSR Storefront + CMS/GEO. Gate: full `./vendor/bin/pest`.
+0. **Phase 0 (Baseline)** — **COMPLETE**. Composer `>= 2.2`, Laravel 13 skeleton, Git init, `SettingService` (pre-install bypass), `/install` + `EnsureInstalledMiddleware` (`/up` exempt), core enums/DTOs/contracts, core migration (34 tables), `Money`, `audit_logs`, models and factories for the Phase 1 closed loop. The queue tables (`jobs`, `failed_jobs`, `job_batches`) and cache tables come from the skeleton's own `0001_01_01_*` migrations and MUST NOT be recreated in the core migration. See `docs/phase0-bootstrap.md`. Gate: `./vendor/bin/pest --group=phase0` & `./vendor/bin/phpstan analyse` (level 5).
+1. **Phase 1 (First E2E Closed Loop)**: Auth + RBAC -> Local Product & Quote -> Combo Invoice & Freeze -> `EpayGateway` + `payment_attempts` + `HandlePaymentCallbackAction` + Outbox -> `RedemptionCodeDriver` -> `/console` -> `FulfillmentTaskResource` retry + `TelegramBotDriver` failure alerts + `ProcessInstanceLifecycleCommand` scheduler skeleton. Gate: `./vendor/bin/pest` (all specs for Phase 1 moved to `tests/Feature`).
+2. **Phase 2 (Classic ZJMF)**: `ZjmfFinanceDriver`, tiered sync, `upstream_operations` logging, `/api/host/sync`, `InstanceResource` hot-swap (with binding history) & `/provision/default` via `ProvisionCommand`. Gate: `./vendor/bin/pest`.
+3. **Phase 3 (Extensions & Growth)**: `ProxmoxDriver`, `Sub2ApiDriver`, `ZjmfLegacyKycDriver`, `YansongdaGateway`, `user_oauth_accounts`, `Coupons` + `coupon_claims`, `AffiliateRuleResource` + `MatureAffiliateCommissionsAction`, `Tickets`, SSR Storefront + CMS/GEO. Gate: full `./vendor/bin/pest` with `tests/Specs` empty.
 
-**Gate discipline**: a phase gate is only meaningful if the tests are runnable. The repository MUST contain a working skeleton (`artisan`, `bootstrap/app.php`, `config/`, `routes/`, `vendor/`) before Phase 0 is declared complete. A test file referencing classes that do not exist is a specification, not a gate.
+**Two test modes — read this before running anything:**
+
+| Command | Meaning |
+|---|---|
+| `./vendor/bin/pest` | The only gate. Must be green. Red here is a real regression. |
+| `./vendor/bin/pest --group=spec` | Pending specifications. Red by design until implemented. |
+| `./vendor/bin/phpstan analyse` | Must be 0 errors, no ignores. |
+| `./vendor/bin/pint --test` | Must be clean. |
+
+`tests/Specs/FulfillmentSpecsTest.php` holds the unimplemented cases and is excluded from the default run by the `spec` group. `SpecIntegrityTest` asserts its exact case count, so a case cannot be deleted or skipped — only implemented and moved.
+
+**Gate discipline**: a phase gate is only meaningful if the tests are runnable. The repository MUST contain a working skeleton (`artisan`, `bootstrap/app.php`, `config/`, `routes/`, `vendor/`) before Phase 0 is declared complete. A test file referencing classes that do not exist is a specification, not a gate. Working rules for agents are in `docs/agent-guardrails.md`.
 
 ## 6. Definition of Done
 

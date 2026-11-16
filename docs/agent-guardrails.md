@@ -20,7 +20,7 @@ Forbidden, without exception:
 | Changing an expected value to match actual output | Enshrines the bug as the contract |
 | Adding `->skip()`, `->todo()`, `markTestSkipped()` | Makes red look like green |
 | Weakening a matcher (`toBe` → `toBeTruthy`, exact → partial) | Silently accepts wrong values |
-| Editing `tests/Specs/FulfillmentSpecs.php` | `SpecIntegrityTest` asserts its exact case count |
+| Editing `tests/Specs/FulfillmentSpecsTest.php` | `SpecIntegrityTest` asserts its exact case count |
 | Adding `@phpstan-ignore`, `@phpstan-ignore-next-line`, or a baseline entry | Hides a real type error |
 | Adding `ignoreErrors` to `phpstan.neon` for a pattern that matches a real error | Same, one level up |
 | Wrapping a call in `try/catch` that swallows the failure | Turns a crash into corrupt data |
@@ -73,7 +73,7 @@ if ($instance->driver_type === 'zjmf_api') { ... }
 In order, and do not skip step 2:
 
 1. `docs/domain-invariants.md` — the normative rules, with stable `INV-*` IDs.
-2. `tests/Specs/FulfillmentSpecs.php` — the behaviour that must exist, written as executable assertions. This is the closest thing to a definition of done.
+2. `tests/Specs/FulfillmentSpecsTest.php` — the behaviour that must exist, written as executable assertions. This is the closest thing to a definition of done.
 3. `CLAUDE.md` §2 — where the file belongs and what it may depend on.
 4. `docs/zjmf-api-spec.md` / `docs/external-drivers-spec.md` — wire protocol only.
 
@@ -94,7 +94,7 @@ Then:
 1. Pick one spec case from `tests/Specs/`.
 2. Implement it: Action + driver + model support as the case requires.
 3. Make it pass. `./vendor/bin/pest --filter='the case name'`.
-4. Move the case from `tests/Specs/FulfillmentSpecs.php` to `tests/Feature/` unchanged.
+4. Move the case from `tests/Specs/FulfillmentSpecsTest.php` to `tests/Feature/` unchanged.
 5. Decrement `EXPECTED_SPEC_CASES` in `tests/Unit/SpecIntegrityTest.php` by exactly one.
 6. Run all three commands. All green.
 7. Report what you did, what you did not do, and anything you had to decide.
