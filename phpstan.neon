@@ -1,0 +1,20 @@
+includes:
+    - vendor/larastan/larastan/extension.neon
+
+parameters:
+    paths:
+        - app/
+        - database/migrations/
+
+    # Level 5 is the Phase 0 baseline. Raise to 6 once the model layer exists;
+    # level 6 without models produces noise on every Eloquent call.
+    level: 5
+
+    checkModelProperties: true
+    checkOctaneCompatibility: false
+
+    # Filament generates a large amount of meta-programmed surface (resources,
+    # widgets, table schemas) that static analysis cannot follow usefully.
+    ignoreErrors:
+        - '#Call to an undefined method Filament\\#'
+        - '#Parameter \#1 \$record of method .*Filament\\#'
