@@ -13,8 +13,6 @@ parameters:
     checkModelProperties: true
     checkOctaneCompatibility: false
 
-    # Filament generates a large amount of meta-programmed surface (resources,
-    # widgets, table schemas) that static analysis cannot follow usefully.
-    ignoreErrors:
-        - '#Call to an undefined method Filament\\#'
-        - '#Parameter \#1 \$record of method .*Filament\\#'
+    # No ignores. When Filament resources land in Phase 1, add patterns that
+    # actually match reported errors — an unmatched pattern is itself an error.
+    ignoreErrors: []

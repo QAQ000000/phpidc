@@ -25,7 +25,9 @@ return new class extends Migration
             $table->decimal('credit', 12, 2)->unsigned()->default(0)->after('kyc_verified_at');
             $table->decimal('frozen_credit', 12, 2)->unsigned()->default(0)->after('credit');
             $table->decimal('affiliate_balance', 12, 2)->unsigned()->default(0)->after('frozen_credit');
-            $table->foreignId('referred_by')->nullable()->constrained('users')->nullOnDelete()->after('affiliate_balance');
+            // after() belongs to ColumnDefinition; constrained() returns a
+            // ForeignKeyDefinition, so the order here is load-bearing.
+            $table->foreignId('referred_by')->nullable()->after('affiliate_balance')->constrained('users')->nullOnDelete();
             $table->timestamp('anonymized_at')->nullable()->after('referred_by');
             $table->softDeletes();
         });

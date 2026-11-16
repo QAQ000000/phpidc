@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Middleware\EnsureInstalledMiddleware;
 use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
 use Illuminate\Foundation\Configuration\Middleware;
@@ -15,7 +16,7 @@ return Application::configure(basePath: dirname(__DIR__))
     ->withMiddleware(function (Middleware $middleware): void {
         // Install redirects must not trap /up or /install (charter §3.6).
         $middleware->web(append: [
-            \App\Http\Middleware\EnsureInstalledMiddleware::class,
+            EnsureInstalledMiddleware::class,
         ]);
     })
     ->withExceptions(function (Exceptions $exceptions): void {

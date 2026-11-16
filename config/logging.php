@@ -1,6 +1,8 @@
 <?php
 
 declare(strict_types=1);
+use Monolog\Handler\NullHandler;
+use Monolog\Handler\StreamHandler;
 
 return [
     'default' => env('LOG_CHANNEL', 'stack'),
@@ -35,14 +37,14 @@ return [
         'stderr' => [
             'driver' => 'monolog',
             'level' => env('LOG_LEVEL', 'debug'),
-            'handler' => Monolog\Handler\StreamHandler::class,
+            'handler' => StreamHandler::class,
             'handler_with' => ['stream' => 'php://stderr'],
             'replace_placeholders' => true,
         ],
 
         'null' => [
             'driver' => 'monolog',
-            'handler' => Monolog\Handler\NullHandler::class,
+            'handler' => NullHandler::class,
         ],
     ],
 ];
