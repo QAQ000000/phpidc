@@ -11,7 +11,22 @@
         <testsuite name="Feature">
             <directory>tests/Feature</directory>
         </testsuite>
+        <!--
+            Specifications for unimplemented behaviour. Excluded from the
+            default run so that red always means a real regression.
+            Run deliberately: ./vendor/bin/pest tests/Specs
+        -->
+        <testsuite name="Specs">
+            <directory>tests/Specs</directory>
+        </testsuite>
     </testsuites>
+
+    <groups>
+        <exclude>
+            <group>spec</group>
+        </exclude>
+    </groups>
+
     <source>
         <include>
             <directory>app</directory>
