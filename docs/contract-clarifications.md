@@ -141,3 +141,9 @@
 用户明确批准 `docs/refund-decisions.md` 的 C10/C11，允许定向澄清 INV-W5/INV-R4 后实施退款：钱包退款统一记 credit_in；pending 佣金只撤销、不扣余额；available 佣金扣回可用佣金余额，差额以唯一流水明确登记应收款，不扣普通钱包。本轮不实现应收款自动清偿。§4 第 1、2 项以这次批准为准，其余历史批准范围不变。
 
 此次批准不允许修改迁移、枚举、DTO、契约或规格断言。仍逐个实现并原样迁移规格，每个提交只迁移一个用例。
+
+## 9. 经典 ZJMF 完整生命周期补充批准（2026-11-17）
+
+用户明确批准 `docs/classic-zjmf-expansion-decisions.md` 的 C12–C14：新增纯商品配置快照 DTO，SyncableCatalog 返回快照并由 Action 落库；RenewableResource 新增独立 quoteRenewal；续费唯一键改为续费前认证到期边界，支持同月多次时付/日付。已定向修改接口、DTO 和 INV-K1/章程对应文字，其余原规则不变。
+
+降级继续仅降低未来续费价，不执行上游降配、不退款；取消/过期续费单不隐式重开；未授权真实供应商交易与业务数据库迁移。本轮 Specs 已为 0，不改任何原测试或计数。现状与验收边界以 `docs/classic-zjmf-integration.md` 为准。

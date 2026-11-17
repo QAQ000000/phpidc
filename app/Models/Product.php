@@ -46,16 +46,19 @@ class Product extends Model
         return $this->belongsTo(Category::class);
     }
 
+    /** @return BelongsTo<UpstreamApi, $this> */
     public function upstreamApi(): BelongsTo
     {
         return $this->belongsTo(UpstreamApi::class);
     }
 
+    /** @return HasMany<ProductOptionGroup, $this> */
     public function optionGroups(): HasMany
     {
         return $this->hasMany(ProductOptionGroup::class);
     }
 
+    /** @return HasMany<ProductCustomField, $this> */
     public function customFields(): HasMany
     {
         return $this->hasMany(ProductCustomField::class);
@@ -72,8 +75,23 @@ class Product extends Model
         $query->where('is_hidden', false)->whereHas('category', fn (Builder $category) => $category->where('is_hidden', false))
             ->where(fn (Builder $driver) => $driver
                 ->where(fn (Builder $local) => $local->whereIn('driver_type', [DriverType::REDEMPTION, DriverType::SUB2API])->whereNull('upstream_api_id'))
+                ->orWhere(fn (Builder $remote) => $remote->where('driver_type', DriverType::SUB2API)
+                    ->whereHas('upstreamApi', fn (Builder $account) => $account->where('is_active', true)->where('driver', DriverType::SUB2API)
+                        ->where('config->mode', 'remote_api')->where('config->protocol', 'balance-codes-v1')))
                 ->orWhere(fn (Builder $upstream) => $upstream->where('driver_type', DriverType::ZJMF_API)
                     ->whereHas('upstreamApi', fn (Builder $account) => $account->where('is_active', true)->where('driver', DriverType::ZJMF_API))));
+    }
+
+    /** @return HasMany<RedemptionCode, $this> */
+    public function redemptionCodes(): HasMany
+    {
+        return $this->hasMany(RedemptionCode::class);
+    }
+
+    /** @param Builder<self> $query */
+    public function scopeLocalCardPool(Builder $query): void
+    {
+        $query->whereIn('driver_type', [DriverType::REDEMPTION, DriverType::SUB2API])->whereNull('upstream_api_id');
     }
 
     public function publicPath(): string

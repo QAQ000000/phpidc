@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Contracts;
 
 use App\Data\ProvisionResult;
+use App\Data\QuoteResult;
 use App\Models\Instance;
 
 /**
@@ -13,9 +14,10 @@ use App\Models\Instance;
  */
 interface RenewableResource
 {
+    public function quoteRenewal(Instance $instance, string $billingCycle): QuoteResult;
+
     public function renew(Instance $instance, string $billingCycle): ProvisionResult;
 
-    /** Called after a confirmed renewal; extends `next_due_at` from the current due date. */
     public function suspend(Instance $instance, string $reason = ''): ProvisionResult;
 
     public function unsuspend(Instance $instance): ProvisionResult;

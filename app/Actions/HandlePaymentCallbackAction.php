@@ -67,7 +67,8 @@ class HandlePaymentCallbackAction
             } elseif ($invoice->status === InvoiceStatus::PAID) {
                 $this->credit($user, $invoice, $callback, $payment->paidAmount);
                 $this->finish($callback, Outcome::PROCESSED_OVERPAYMENT);
-            } elseif ($invoice->status !== InvoiceStatus::UNPAID || $invoice->type !== InvoiceType::NEW_ORDER) {
+            } elseif ($invoice->status !== InvoiceStatus::UNPAID || ! in_array($invoice->type, [InvoiceType::NEW_ORDER, InvoiceType::RENEW, InvoiceType::UPGRADE], true)
+                || ($invoice->type !== InvoiceType::NEW_ORDER && ! isset($invoice->line_items['encrypted_operation']))) {
                 $this->finish($callback, Outcome::REJECTED_INVALID_STATE);
             } elseif (Money::gt($invoice->gateway_amount, $payment->paidAmount)) {
                 $this->finish($callback, Outcome::REJECTED_SHORT_AMOUNT);
@@ -86,7 +87,11 @@ class HandlePaymentCallbackAction
                 if (! Money::isZero($excess)) {
                     $this->credit($user, $invoice, $callback, $excess, "overpaid:{$callback->id}");
                 }
-                app(CreatePurchaseFulfillmentAction::class)->execute($invoice);
+                if ($invoice->type === InvoiceType::NEW_ORDER) {
+                    app(CreatePurchaseFulfillmentAction::class)->execute($invoice);
+                } else {
+                    app(CreateServiceFulfillmentAction::class)->execute($invoice);
+                }
                 $this->finish($callback, Money::isZero($excess) ? Outcome::PROCESSED_PAID : Outcome::PROCESSED_OVERPAYMENT);
             }
 

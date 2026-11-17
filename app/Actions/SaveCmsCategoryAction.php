@@ -6,13 +6,21 @@ namespace App\Actions;
 
 use App\Enums\CmsArticleType;
 use App\Models\CmsCategory;
+use App\Models\User;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Gate;
 use Illuminate\Validation\Rule;
+use Illuminate\Validation\ValidationException;
 
 class SaveCmsCategoryAction
 {
-    public function execute(array $input, string $reason): CmsCategory
+    public function execute(array $input, string $reason, ?User $actor = null, ?int $categoryId = null): CmsCategory
     {
+        if ($actor !== null) {
+            Gate::forUser($actor)->authorize('cms.view');
+            Gate::forUser($actor)->authorize('cms.edit');
+            Gate::forUser($actor)->authorize('cms.publish');
+        }
         $data = validator([...$input, 'reason' => trim($reason)], [
             'type' => ['required', Rule::enum(CmsArticleType::class)], 'slug' => ['required', 'max:100', 'regex:/^[a-z0-9]+(?:-[a-z0-9]+)*$/D'],
             'name' => ['required', 'string', 'max:255'], 'is_hidden' => ['sometimes', 'boolean'],
@@ -22,9 +30,16 @@ class SaveCmsCategoryAction
         ])->validate();
         unset($data['reason']);
 
-        return DB::transaction(function () use ($data, $reason): CmsCategory {
-            $category = CmsCategory::updateOrCreate(['type' => $data['type'], 'slug' => $data['slug']], $data);
-            DB::table('audit_logs')->insert(['actor_type' => 'system', 'action' => 'cms.category_save', 'subject_type' => CmsCategory::class,
+        return DB::transaction(function () use ($data, $reason, $actor, $categoryId): CmsCategory {
+            if ($actor !== null && CmsCategory::where('type', $data['type'])->where('slug', $data['slug'])
+                ->when($categoryId !== null, fn ($q) => $q->whereKeyNot($categoryId))->exists()) {
+                throw ValidationException::withMessages(['slug' => '此类型下已存在相同栏目 slug。']);
+            }
+            $category = $categoryId === null ? CmsCategory::firstOrNew(['type' => $data['type'], 'slug' => $data['slug']])
+                : CmsCategory::whereKey($categoryId)->lockForUpdate()->firstOrFail();
+            $category->fill($data)->save();
+            DB::table('audit_logs')->insert(['actor_type' => $actor === null ? 'system' : 'user', 'actor_id' => $actor?->id,
+                'action' => 'cms.category_save', 'subject_type' => CmsCategory::class,
                 'subject_id' => $category->id, 'reason' => $reason, 'after' => json_encode($data, JSON_THROW_ON_ERROR), 'created_at' => now(), 'updated_at' => now()]);
 
             return $category;

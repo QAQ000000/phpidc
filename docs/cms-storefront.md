@@ -1,5 +1,7 @@
 # CMS 与公开商城交付契约
 
+2026-11-17 补充：已增加 `/admin/content` 管理、CMS 独立角色、按 ID 编辑、操作者审计和预约/预览入口；账户流程、C15 裁决、配置及当前验收见 [cms-identity-decisions.md](cms-identity-decisions.md)。以下阶段性状态为历史记录。
+
 本轮范围：Blade 服务端渲染商城、新闻/帮助 CMS、SEO/GEO 输出，以及 Sub2API 本地卡池销售。沿用现有表、枚举、DTO、契约、安装门禁与支付流程，不迁移剩余两个退款规格。管理入口沿用受信服务器命令，暂不宣称 Filament/RBAC 已交付。
 
 ## 页面与状态
@@ -22,9 +24,9 @@ Markdown 使用已安装的 CommonMark（禁用原始 HTML 与危险链接），
 
 `cms:category` 按 type+slug 创建/更新分类；`cms:article` 按 category_id+slug 创建/更新文章，从本地文件读取正文，默认草稿，显式 `--publish` 发布，`--publish-at` 支持预约。省略 `--publish` 再次保存会撤回文章。公开 slugs 限小写字母、数字和单短横线，避免与 `.md` 后缀冲突。所有写入由 Action 在事务内完成，要求非空 reason 并写 system 审计；不提供公开写接口。
 
-`products:describe` 修改商品名称/纯文本说明及显式可见性，不修改驱动、价格或实例绑定。`cards:create-product --driver=sub2api` 创建一次性 Sub2API 充值卡；`cards:import` 导入现成卡密，复用加密库存、唯一交付与 owner-only/no-store 页面。SUB2API 不绑定 upstream_api_id 即明确采用 local_pool；带上游账号的 remote_api 当前拒绝解析。用户仍须自行去对应 Sub2API 服务兑换已交付卡密。
+`products:describe` 修改商品名称/纯文本说明及显式可见性，不修改驱动、价格或实例绑定。`cards:create-product --driver=sub2api` 创建一次性 Sub2API 充值卡；`cards:import` 导入现成卡密，复用加密库存、唯一交付与 owner-only/no-store 页面。SUB2API 不绑定 upstream_api_id 即明确采用 local_pool；带上游账号且明确启用 verified 协议的 remote_api 后续已接入，见 [远程发码与真实兑换验收](sub2api-remote.md)。用户仍须自行去对应 Sub2API 服务兑换已交付卡密。
 
-PVE 需要新增资源表；Sub2API 远程接口需目标部署协议证据。它们不是本轮的默认实现，不新增字段或猜测接口。
+PVE 需要新增资源表；Sub2API 远程接口的后续协议证据与交付范围见 `sub2api-remote.md`。它们不是本轮的默认实现，不新增字段或猜测接口。
 
 ## 操作示例
 
@@ -75,3 +77,8 @@ python3 scripts/verify-cms-sub2api-sale.py
 - INV-I2/W2/W3/P2/C1–C3/L4/R3 沿用现有报价、资金事务、唯一流水、outbox 和卡密预留；新增产品驱动只读，不绕过 Action。隐藏商品分类同时阻止 checkout，钱包保持不变。
 - 完整上游选项、续费/升级/退款、PVE、Sub2API remote_api 和下载中心不在本轮范围。未验证 MySQL 并发、真实支付或远程产品资源分配。
 - sitemap/llms 当前针对本项目的单站规模，尚未实现海量 sitemap 分片；搜索使用数据库标题匹配，不声称已有独立全文搜索服务。
+
+
+## 后续交付说明（2026-11-17）
+
+上文验收范围是本地卡池阶段的历史记录。库存运营后台已实现，见 `inventory-admin.md`；退款闭环已实现，见 `refund-decisions.md`。Sub2API remote_api 已按固定面额发码模式接入，并对专用测试账号完成一次真实 1 单位兑换及重复兑换拒绝验收，见 `sub2api-remote.md`。这些结果不表示业务库已迁移、真实商品已上线或直接用户充值模式已实现。

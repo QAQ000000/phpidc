@@ -78,17 +78,19 @@ new EpayGateway(
 
 ---
 
-## 2. Sub2API Recharge Card Key Driver (`App\Drivers\SelfHosted\Sub2ApiDriver`) — Phase 3
+## 2. Sub2API Recharge Card Key Drivers — local pool and remote issuance
 
-> **Verification Note**: exact remote admin API paths must be verified against the deployed Sub2API instance before implementing `remote_api` mode. `local_pool` mode works immediately via `RedemptionCodeDriver`.
+- **Billing Cycle**: `onetime`; local price authority via `LocalPriced`, no `RenewableResource`.
+- **local_pool**: `Sub2ApiDriver` delegates to the pure `RedemptionCodeDriver`; no upstream account. Import/reservation/sold delivery remains Action-owned (INV-C1..C3).
+- **remote_api**: `Sub2ApiRemoteDriver`, only for active SUB2API accounts with `config.mode=remote_api` and `config.protocol=balance-codes-v1`. The administrator key lives in `upstream_apis.encrypted_secret` (F09). No customer model API key or global SettingService credential is substituted.
+- **Verified protocol**: `x-api-key`, JSON, `GET /api/v1/admin/redeem-codes/stats`, `POST /api/v1/admin/redeem-codes/generate` with `{count:1,type:balance,value:integer}` and a durable `Idempotency-Key`; success `code=0` and exactly one `data[]` record. Validate positive ID, nonempty code, type, face value and unused status. `GET /api/v1/admin/redeem-codes/{id}` is read-only recovery. See [source evidence and live verification](sub2api-remote.md).
+- **Pricing/face value**: first delivery uses fixed-face SKUs (`products.provisioning_rules.sub2api_face_value`, positive integer string). Sale price remains `local_prices.onetime`; face value and endpoint are encrypted in the purchase snapshot before payment. Discounts, wallet split, later product edits and customer input cannot change the issued amount.
+- **Durable handoff**: `ProvisionRemoteCardAction` commits the task's remote intent before HTTP; the driver mutates no models. HTTP runs outside locks, through `CallUpstreamAction`, with response strings omitted from logs to protect admin keys/cards (F10, INV-L3, INV-U1).
+- **No blind replay**: timeouts, 5xx, invalid/mismatched responses and interrupted requested intents remain blocked for manual reconciliation, even after a generic task retry. Explicit rejection also retains its intent. Do not depend on the upstream default 24h idempotency TTL for indefinite safety.
+- **Delivery/refunds**: encrypted result evidence is retained independently of worker lease. Only current Paid/lease/binding/endpoint matches can commit an encrypted sold `redemption_codes` row plus encrypted instance credentials and Active state. A refunded or rebound request never delivers. Remote sold cards reuse existing non-reclaimable refund-loss behavior (INV-R3).
+- **Actual redemption**: the customer logs into the Sub2API site and uses its authenticated `/api/v1/redeem` endpoint. CMS does not store customer Sub2API passwords/JWTs or automatically debit/credit existing upstream users. The separate `create-and-redeem` API is outside this delivery scope.
 
-- **Billing Cycle**: `onetime` (`FulfillmentDriver` with `LocalPriced` for the local price authority; NOT `RenewableResource`).
-- **`local_pool` Mode**: an admin pre-imports keys into `redemption_codes` through an Action. `ProvisionInstanceAction` reserves and binds the code before `Sub2ApiDriver` delegates to the pure `RedemptionCodeDriver`; drivers return credentials without mutating inventory or instances. The Action atomically commits sold state and encrypted credentials before delivery. Because `code` is encrypted with a randomized IV, imports are deduplicated on `code_hash` (`unique(product_id, code_hash)`) — importing the same batch twice is a no-op, not a duplicate (INV-C1, INV-C2, F10).
-- **`remote_api` Mode**: reads account credentials from `upstream_apis` (`base_url`, `encrypted_secret`, `config` JSON). Every call is logged to `upstream_operations`.
-- **Reservations**: a reserved code is already bound by `instance_id` and carries a `reserved_until` lease. An Action-backed sweeper releases only expired, undelivered reservations and clears the binding and lease under locks. Sold/delivered codes are never reclaimed (INV-C2, INV-C3, INV-R3).
-- **No renewal**: because it is not a `RenewableResource`, the overdue scheduler skips it entirely (INV-S2).
-
-Current local-pool implementation and operator commands are documented in `docs/cms-storefront.md`. An unbound SUB2API product uses the local pool; supplying an upstream account is rejected until the remote protocol is verified. No remote redemption or account credit API is called when a local card is sold.
+Deployment/operator commands, the one-unit live result and remaining limits are documented in `docs/sub2api-remote.md`. Unverified/legacy connection configs continue to be rejected.
 
 ---
 
@@ -98,9 +100,17 @@ Current local-pool implementation and operator commands are documented in `docs/
 
 - **Dynamic Settings (`system_settings` group: `kyc`)**: `kyc.zjmf_base_url`, `kyc.zjmf_api_key` (`is_encrypted = true`).
 - **Privacy Rule**: store ONLY a masked summary (`{"name":"*国松","id_last4":"1234"}`) in `kyc_verifications.masked_summary`; NEVER log plaintext ID numbers.
-- **Single source of truth**: `kyc_verifications` rows are the KYC history and the only writer is the driver's callback handler. On a `verified` transition it also sets `users.kyc_verified_at`; nothing else may set that column. Rejecting an application clears it. This keeps the denormalized flag and the record from disagreeing.
+- **Single source of truth (human-approved C15)**: drivers verify protocol and return `KycInitiateResult` / `KycStatusResult`, never mutate models. Initiation Actions own pending history; the state-application Action is the sole writer of verified/failed transitions and `users.kyc_verified_at`. It locks the user then the matching current verification and changes history/flag atomically. Current verified sets the flag; current failed clears it. Old attempts and duplicate/contradictory terminal callbacks cannot replace current results. Callbacks and authenticated queries share this Action; browser return pages are never proof. See `cms-identity-decisions.md`.
 
 ---
+
+### 3.1 Approved direct idcsmartali polling adapter
+
+The human selected `certification/idcsmartali` and approved the polling-only difference on 2026-11-17. `App\Drivers\Kyc\IdcsmartAliKycDriver` connects directly to the supplier's `certapi.php`, using encrypted `kyc.idcsmartali_api` / `kyc.idcsmartali_key` settings, a configured HTTPS endpoint and enabled scene. This is separate from the still-unverified classic ZJMF KYC endpoint above.
+
+The source-verified chain is initialize (status=200 and certify_id), then certify (url), then query (status=200 means verified). InitiateKycAction commits the masked pending intent before HTTP and persists the returned external ID before a separate user-requested authorization step. An uncertain initialize is never automatically repeated. QueryKycAction obtains the result outside locks and applies it through the approved C15 writer; non-success query states stay pending. Browser return does not verify. There is no callback route; handleCallback explicitly rejects calls because no signed supplier callback protocol exists.
+
+Current source evidence, configuration keys, isolated TLS tests, privacy and operator limits are in `identity-provider-integration.md`. The user requested skipping the unavailable real supplier; production remains disabled, with no real SMS or paid identity initiation performed.
 
 ## 4. Proxmox Driver (`App\Drivers\SelfHosted\ProxmoxDriver`) — Phase 3
 
@@ -116,5 +126,6 @@ Current local-pool implementation and operator commands are documented in `docs/
 - `TelegramBotDriver` implements `BotDriverInterface`.
 - `LogSmsDriver` implements `SmsDriverInterface`; it writes to the log and returns `true`, so development never sends real SMS.
 - `LogMailDriver` implements `MailDriverInterface` — mail previously had no contract at all, while the fan-out assumed one.
+- `IdcsmartSmsDriver` implements the existing SmsDriverInterface using the human-selected classic plugin's domestic form protocol. Runtime credentials, HTTPS endpoint, sign and approved template map come from SettingService; its accepted response is not proof of phone ownership. Real transport configuration and enabled binding are required before PhoneBindingAction can issue a challenge. See `identity-provider-integration.md`; the unavailable real supplier remains disabled at the user's request.
 - **Fan-out**: `NotificationManager` renders `notification_templates` per channel, applies `variable_mapping`, and enqueues one `SendNotificationJob` per verified binding. A channel failure is recorded in `notification_logs` and does not cancel the other channels.
 - **Fallback**: when a user has no verified `mail` binding, the manager falls back to `users.email` and records the fallback. Billing and overdue notifications are never silently dropped (charter §3.7).

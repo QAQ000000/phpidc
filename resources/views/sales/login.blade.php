@@ -1,5 +1,7 @@
 @extends('sales.layout')
+@section('title', '登录账户')
 @section('content')
-<h1>登录</h1><form method="post" action="/login">@csrf<label>邮箱 <input name="email" type="email" required></label><label>密码 <input name="password" type="password" required></label><button>登录</button></form>
-<h2>注册</h2><form method="post" action="/register">@csrf<label>姓名 <input name="name" required></label><label>邮箱 <input name="email" type="email" required></label><label>密码（至少 12 位） <input name="password" type="password" minlength="12" required></label><label>确认密码 <input name="password_confirmation" type="password" required></label><button>注册</button></form>
+<h1>登录</h1><form method="post" action="/login" class="account-form">@csrf<label>邮箱 <input name="email" type="email" value="{{ old('email') }}" required maxlength="255" autocomplete="email"></label><label>密码 <input name="password" type="password" required maxlength="255" autocomplete="current-password"></label><label><input type="checkbox" name="remember" value="1">记住登录</label><button>登录</button></form>
+<p><a href="/forgot-password">忘记密码？</a> · <a href="/register">注册新账户</a></p>
+@foreach($providers as $provider => $details)@if($details['enabled'])<form method="post" action="/auth/{{ $provider }}/redirect">@csrf<button>使用 {{ $details['label'] }} 登录</button></form>@endif@endforeach
 @endsection

@@ -1,0 +1,9 @@
+<x-filament-panels::page>
+@include('filament.inventory-feedback')
+<div class="inventory-box"><p>仅显示已付款、尚未交付且绑定有效的本地卡池任务。</p><p class="inventory-note">库存为 0 是缺货候选，其他失败需核查原因。待执行/执行中任务由队列和调度器恢复，请勿重置租约。</p>
+<form method="get" class="inventory-form"><label>搜索商品<input name="q" value="{{ request('q') }}" maxlength="100"></label><button class="inventory-button">筛选</button><a href="/admin/fulfillment" class="inventory-link">重置</a></form></div>
+<div class="inventory-box inventory-scroll"><table class="inventory-table inventory-tasks"><thead><tr><th>账单 / 商品</th><th>任务状态</th><th class="inventory-secondary">重试 / 原因</th><th>人工处理</th></tr></thead><tbody>
+@forelse ($tasks as $task)<tr><td>{{ $task->invoice_no }}<br>{{ $task->product_name }}<div class="inventory-meta">实例 #{{ $task->instance_id }} · 任务 #{{ $task->id }}</div></td><td>{{ ['pending'=>'待执行','running'=>'执行中','failed'=>'失败，需人工处理'][$task->status] }}<br><span class="inventory-meta">尝试 {{ $task->attempts }}/{{ $task->max_attempts }} · 可用 {{ $task->available_count }}</span>@if ($task->available_count === 0)<br><strong>缺货候选</strong>@endif</td><td class="inventory-secondary"><span class="inventory-meta">{{ $task->available_at }}</span><br>{{ Illuminate\Support\Str::limit($task->error_message ?? '—', 200) }}</td><td class="inventory-wide"><a class="inventory-link" href="/admin/inventory/cards?product_id={{ $task->product_id }}">查看库存 / 补货</a>
+@can('inventory.retry')@if ($task->status === 'failed')<form class="inventory-form" method="post" action="{{ route('inventory.retry', $task->id) }}">@csrf<label>重试原因<input name="reason" required maxlength="1000" placeholder="确认库存及失败原因"></label><label><span><input type="checkbox" name="confirm" value="1" required> 确认恢复此任务</span></label><button class="inventory-button">确认重试</button></form>@endif@endcan
+</td></tr>@empty<tr><td colspan="4">没有已付待交付任务。</td></tr>@endforelse</tbody></table>{{ $tasks->links() }}</div>
+</x-filament-panels::page>

@@ -6,6 +6,7 @@ namespace App\Actions;
 
 use App\Contracts\UpstreamAccount;
 use App\Data\ProvisionResult;
+use App\Drivers\SelfHosted\Sub2ApiRemoteDriver;
 use App\Enums\FulfillmentTaskStatus;
 use App\Enums\InstanceStatus;
 use App\Models\FulfillmentTask;
@@ -21,6 +22,9 @@ class ProvisionInstanceAction
     public function execute(Instance $instance, array $params, ?int $taskId = null, ?string $worker = null): ProvisionResult
     {
         $driver = $this->drivers->fulfillment($instance->driver_type, $instance->upstream_api_id);
+        if ($driver instanceof Sub2ApiRemoteDriver) {
+            return app(ProvisionRemoteCardAction::class)->execute($instance, $driver, $params, $taskId, $worker);
+        }
         if ($driver instanceof UpstreamAccount) {
             return app(ProvisionUpstreamInstanceAction::class)->execute($instance, $driver, $params, $taskId, $worker);
         }

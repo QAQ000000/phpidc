@@ -1,0 +1,22 @@
+<?php
+
+declare(strict_types=1);
+
+namespace App\Actions;
+
+use App\Models\User;
+use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Str;
+use Illuminate\Validation\ValidationException;
+
+class AuthenticateCustomerAction
+{
+    public function execute(string $email, string $password, bool $remember = false): void
+    {
+        // Legacy mixed-case addresses remain usable without merging ambiguous identities.
+        $matches = User::whereRaw('LOWER(email) = ?', [Str::lower(trim($email))])->limit(2)->get(['id']);
+        if ($matches->count() !== 1 || ! Auth::attempt(['id' => $matches->first()->id, 'password' => $password], $remember)) {
+            throw ValidationException::withMessages(['email' => '邮箱或密码错误。']);
+        }
+    }
+}

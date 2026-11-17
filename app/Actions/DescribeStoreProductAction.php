@@ -31,6 +31,6 @@ class DescribeStoreProductAction
         }
 
         return ['cycles' => $cycles, 'live' => ! $local,
-            'stock' => $local ? RedemptionCode::where('product_id', $product->id)->where('status', 'available')->whereNull('instance_id')->count() : null];
+            'stock' => $local && $product->upstream_api_id === null ? RedemptionCode::where('product_id', $product->id)->where('status', 'available')->whereNull('instance_id')->count() : null];
     }
 }

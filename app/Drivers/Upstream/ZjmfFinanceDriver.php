@@ -4,10 +4,13 @@ declare(strict_types=1);
 
 namespace App\Drivers\Upstream;
 
+use App\Contracts\ConfigurableResource;
 use App\Contracts\FulfillmentDriver;
 use App\Contracts\LiveQuotable;
 use App\Contracts\RenewableResource;
+use App\Contracts\SyncableCatalog;
 use App\Contracts\UpstreamAccount;
+use App\Data\CatalogSnapshotResult;
 use App\Data\InstanceInfoResult;
 use App\Data\ProvisionResult;
 use App\Data\QuoteResult;
@@ -20,7 +23,7 @@ use App\Support\ProvisioningValidator;
 use DomainException;
 use Illuminate\Support\Carbon;
 
-class ZjmfFinanceDriver implements FulfillmentDriver, LiveQuotable, RenewableResource, UpstreamAccount
+class ZjmfFinanceDriver implements ConfigurableResource, FulfillmentDriver, LiveQuotable, RenewableResource, SyncableCatalog, UpstreamAccount
 {
     public function __construct(private readonly ZjmfClient $client, private readonly UpstreamApi $account) {}
 
@@ -56,7 +59,30 @@ class ZjmfFinanceDriver implements FulfillmentDriver, LiveQuotable, RenewableRes
 
     public function quoteUpgrade(Instance $instance, array $targetOptions): QuoteResult
     {
-        throw new DomainException('Upgrade settlement requires a separate approved workflow.');
+        return (new ZjmfLifecycleProtocol($this->client, $this->account))->quoteUpgrade($instance, $targetOptions);
+    }
+
+    public function quoteRenewal(Instance $instance, string $billingCycle): QuoteResult
+    {
+        return (new ZjmfLifecycleProtocol($this->client, $this->account))->quoteRenewal($instance, $billingCycle);
+    }
+
+    public function probeVersions(array $upstreamPids): array
+    {
+        $body = $this->client->request('GET', '/api/product/proinfo', ['pids' => $upstreamPids]);
+        if (($body['status'] ?? null) !== 200 || ! is_array($body['data']['info'] ?? null)) {
+            throw new DomainException('Catalog version probe is unavailable.');
+        }
+
+        return collect($body['data']['info'])->keyBy('id')->all();
+    }
+
+    public function syncProductConfig(Product $product): CatalogSnapshotResult
+    {
+        $data = $this->productConfiguration($product);
+
+        return new CatalogSnapshotResult((string) $product->upstream_pid, (int) ($data['products']['location_version'] ?? 0),
+            $data['products'], $data['product_pricings'] ?? [], $data['config_groups'] ?? [], $data['customfields'] ?? [], $data['advanced'] ?? []);
     }
 
     public function checkBalance(): array
@@ -139,11 +165,42 @@ class ZjmfFinanceDriver implements FulfillmentDriver, LiveQuotable, RenewableRes
 
     public function renew(Instance $instance, string $billingCycle): ProvisionResult
     {
-        return ProvisionResult::fail('Renewal settlement is not enabled yet.');
+        // One durable stage: create the upstream invoice. The Action records its ID before payment.
+        $body = $this->client->request('POST', '/host/renew', ['hostid' => $instance->upstream_instance_id, 'billingcycles' => $billingCycle], ['instance_id' => $instance->id]);
+
+        return ($body['status'] ?? null) === 200 && isset($body['data']['invoiceid'])
+            ? ProvisionResult::ok(rawResponse: ['invoice_id' => (string) $body['data']['invoiceid']])
+            : ProvisionResult::fail('Renewal invoice result requires manual reconciliation.');
+    }
+
+    public function changeConfig(Instance $instance, array $targetOptions): ProvisionResult
+    {
+        return (new ZjmfLifecycleProtocol($this->client, $this->account))->createUpgrade($instance, $targetOptions);
+    }
+
+    public function operationBill(Instance $instance, string $invoiceId, int $localInvoiceId): array
+    {
+        return $this->client->request('GET', '/use_credit_page', ['invoiceid' => $invoiceId], ['instance_id' => $instance->id, 'invoice_id' => $localInvoiceId]);
+    }
+
+    public function payOperation(Instance $instance, string $invoiceId, int $localInvoiceId): ProvisionResult
+    {
+        $body = $this->client->request('POST', '/apply_credit', ['invoiceid' => $invoiceId, 'use_credit' => 1, 'enough' => 1], ['instance_id' => $instance->id, 'invoice_id' => $localInvoiceId]);
+
+        return ($body['status'] ?? null) === 1001 ? ProvisionResult::ok() : ProvisionResult::fail('Payment result unresolved; only read-only reconciliation is allowed.', retryable: true);
+    }
+
+    public function configurationMatches(Instance $instance, array $target): bool
+    {
+        return (new ZjmfLifecycleProtocol($this->client, $this->account))->configurationMatches($instance, $target);
     }
 
     public function terminate(Instance $instance, string $reason = ''): ProvisionResult
     {
-        return ProvisionResult::fail('Upstream termination requires an explicit cancellation workflow.');
+        $body = $this->client->request('POST', '/host/cancel', ['id' => $instance->upstream_instance_id, 'type' => 'Immediate', 'reason' => $reason], ['instance_id' => $instance->id]);
+
+        // Acknowledgement is only a cancellation request, never confirmation of deletion (INV-R1).
+        return ($body['status'] ?? null) === 200 ? ProvisionResult::ok(rawResponse: ['requested' => true])
+            : ProvisionResult::fail('Cancellation request unresolved; reconcile manually.');
     }
 }

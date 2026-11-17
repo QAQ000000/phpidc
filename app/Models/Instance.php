@@ -43,6 +43,7 @@ class Instance extends Model
         ];
     }
 
+    /** @return BelongsTo<User, $this> */
     public function user(): BelongsTo
     {
         return $this->belongsTo(User::class);
@@ -54,6 +55,7 @@ class Instance extends Model
         return $this->belongsTo(Product::class);
     }
 
+    /** @return BelongsTo<UpstreamApi, $this> */
     public function upstreamApi(): BelongsTo
     {
         return $this->belongsTo(UpstreamApi::class);

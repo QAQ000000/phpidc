@@ -7,6 +7,7 @@ namespace App\Models;
 use Database\Factories\RedemptionCodeFactory;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 class RedemptionCode extends Model
 {
@@ -16,6 +17,12 @@ class RedemptionCode extends Model
     protected $guarded = ['id'];
 
     protected $hidden = ['code', 'code_hash'];
+
+    /** @return BelongsTo<Product, $this> */
+    public function product(): BelongsTo
+    {
+        return $this->belongsTo(Product::class);
+    }
 
     protected function casts(): array
     {

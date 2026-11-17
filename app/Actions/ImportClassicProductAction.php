@@ -8,16 +8,21 @@ use App\Enums\BillingCycle;
 use App\Enums\DriverType;
 use App\Models\Category;
 use App\Models\Product;
+use App\Models\User;
 use App\Services\DriverManager;
 use App\Support\Money;
 use DomainException;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Str;
 
 class ImportClassicProductAction
 {
-    public function execute(int $accountId, string $pid, BillingCycle $cycle, string $currency, string $markup, string $reason): Product
+    public function execute(int $accountId, string $pid, BillingCycle $cycle, string $currency, string $markup, string $reason, ?User $actor = null): Product
     {
+        if ($actor !== null) {
+            Gate::forUser($actor)->authorize('upstream.import');
+        }
         if (trim($reason) === '' || ! ctype_digit($pid) || (int) $pid < 1 || ! preg_match('/^[A-Z]{3}$/D', $currency)) {
             throw new DomainException('A product ID, currency and operator reason are required.');
         }
@@ -36,7 +41,7 @@ class ImportClassicProductAction
         $cost = Money::of($value);
         $price = Money::add($cost, Money::percentOf($cost, $markup));
 
-        return DB::transaction(function () use ($accountId, $pid, $cycle, $currency, $markup, $reason, $configuration, $cost, $price): Product {
+        return DB::transaction(function () use ($accountId, $pid, $cycle, $currency, $markup, $reason, $configuration, $cost, $price, $actor): Product {
             $product = Product::where('upstream_api_id', $accountId)->where('upstream_pid', $pid)->lockForUpdate()->first();
             if ($product !== null && ($product->driver_type !== DriverType::ZJMF_API || $product->currency !== $currency)) {
                 throw new DomainException('Existing mapping has a different driver or currency.');
@@ -52,7 +57,7 @@ class ImportClassicProductAction
             $local[$cycle->value] = ['price' => $price, 'setup_fee' => Money::zero(), 'enabled' => true];
             $product->fill(['name' => $configuration['products']['name'] ?? 'Cloud '.$pid, 'markup_percent' => $markup,
                 'upstream_base_prices' => $prices, 'local_prices' => $local])->save();
-            DB::table('audit_logs')->insert(['actor_type' => 'system', 'action' => 'upstream.classic_product_import', 'subject_type' => Product::class,
+            DB::table('audit_logs')->insert(['actor_type' => $actor ? 'user' : 'system', 'actor_id' => $actor?->id, 'action' => 'upstream.classic_product_import', 'subject_type' => Product::class,
                 'subject_id' => $product->id, 'reason' => $reason, 'after' => json_encode(['upstream_pid' => $pid, 'cycle' => $cycle->value,
                     'currency' => $currency, 'markup_percent' => $markup]), 'created_at' => now(), 'updated_at' => now()]);
 

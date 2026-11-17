@@ -76,9 +76,10 @@
     | `RESCUE_SYSTEM` | `rescueSystem` | `system` |
   - **Success Check**: `$res['status'] === 'success' || $res['status'] === 200`.
   - `REINSTALL` and `RESCUE_SYSTEM` are destructive: they require explicit user confirmation and an `audit_logs` row.
-- **Terminate**: `POST {host}/host/cancel` with `{id: dcimid, type: "Immediate", reason: "立即删除"}`.
-- **Renew**: `POST {host}/host/renew` (`hostid={dcimid}`, `billingcycles={cycle}`) -> then `POST /apply_credit` (`invoiceid`, `use_credit=1`, `1001` = paid).
-- **Upgrade / Downgrade**: `POST /upgrade/upgrade_config_post` -> `POST /upgrade/checkout_config_upgrade` -> `POST /apply_credit`.
+- **Terminate**: `POST {host}/host/cancel` with `{id: dcimid, type: "Immediate", reason}`. A 200 only records a cancellation request; keep the task pending until an authenticated header reports Deleted. Never use acceptance as proof for refunds.
+- **Renew quote (approved C13)**: read-only `GET /host/renewpage` with explicit `hostid` and `billingcycles`. For the existing cycle, use `data.host.amount` and `data.currency.code`; `data.pay_type`/cycle duration describe the period. Do not use POST renewal as a quotation.
+- **Renew execution**: persist create_requested before `POST /host/renew` (`hostid`, `billingcycles`), save `data.invoiceid`, verify `GET /use_credit_page` cost/currency, persist payment_requested, then `POST /apply_credit` (`invoiceid`, `use_credit=1`, `enough=1`). Confirm the expected due extension after payment. No blind create/pay replay; new-purchase P2 recovery is not a renewal recovery contract.
+- **Upgrade / Downgrade**: `POST /upgrade/upgrade_config_post` validates/caches selection; `GET /upgrade/upgrade_config_page?hid=...` returns `data.total`/currency; then `POST /upgrade/checkout_config_upgrade` creates an invoice (200/data.invoiceid) or returns zero-paid 1001. Check invoice cost/currency before apply_credit. Serialize prepare/page/checkout per account+host because the upstream selection cache is shared. Confirm delivered changes with `GET /upgrade/index/{hid}` (`data.host` rows oid/subid/qty/option_type). A lost creation response is retained for manual reconciliation, never blindly recreated.
   - This chain is for **upgrades only**. A downgrade never touches it: it reduces the future `recurring_amount` through `DowngradeCalculatorAction` and nothing else (INV-R1 / charter §3.5).
 - **Full Instance Info & Non-Cloud Widgets**: `GET {host}/host/header?host_id={dcimid}&source=API`
   - Returns `data.host_data` (`dedicatedip, assignedips[], username, password, port, os, domainstatus, nextduedate, suspendreason, cancel_control, allow_upgrade_config, password_rule`), `module_button` (`{control:[], console:[]}`), `module_client_area`, `module_client_main_area`, `custom_field_data[]`.
@@ -103,5 +104,10 @@
 ## 6. Sync Cadence
 
 - `probeVersions()` is the cheap tier; a `location_version` change triggers `syncProductConfig()` for the affected product only.
+- `syncProductConfig()` returns the approved pure CatalogSnapshotResult (C12); SyncClassicCatalogAction validates the mapping/version and persists stable options/fields, hiding missing upstream rows. SyncCatalogResult remains the Action's actual committed counts.
 - A sync never mutates `instances.driver_type` / `instances.upstream_api_id`. Rebinding is an explicit admin action with binding history (INV-S3).
 - Options and custom fields carry `sync_source = upstream` when they originate from ZJMF. Locally-created rows are never overwritten by a sync.
+
+## 7. Expansion implementation and limits
+
+Approved C12–C14, operator commands, actual local acceptance, recovery stages and outstanding real-supplier checks are in `docs/classic-zjmf-expansion-decisions.md` and `docs/classic-zjmf-integration.md`. No classic supplier mutation was performed in this implementation round. Hot swap binds an existing authenticated target; it does not migrate disks. Target option mappings require review before configuration changes.

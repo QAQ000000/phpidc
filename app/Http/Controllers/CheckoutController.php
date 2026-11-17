@@ -27,11 +27,11 @@ class CheckoutController extends Controller
         $data = $request->validate([
             'billing_cycle' => ['sometimes', Rule::enum(BillingCycle::class)],
             'use_credit' => ['sometimes', 'boolean'], 'gateway' => ['nullable', Rule::in(['epay_wechat', 'epay_alipay'])],
-            'options' => ['sometimes', 'array'],
+            'options' => ['sometimes', 'array'], 'coupon_code' => ['nullable', 'string', 'max:64'],
         ]);
         $invoice = $create->execute($user, Product::findOrFail($input['product_id']),
             BillingCycle::from($data['billing_cycle'] ?? BillingCycle::ONETIME->value), $data['options'] ?? [],
-            $request->boolean('use_credit'), $data['gateway'] ?? null, $request->only(['hostname', 'password']));
+            $request->boolean('use_credit'), $data['gateway'] ?? null, $request->only(['hostname', 'password', 'coupon_code']));
         if ($request->expectsJson()) {
             return response()->json(['invoice_id' => $invoice->id, 'status' => $invoice->status->value,
                 'total_amount' => $invoice->total_amount, 'credit_applied' => $invoice->credit_applied, 'gateway_amount' => $invoice->gateway_amount,

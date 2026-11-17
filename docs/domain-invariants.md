@@ -157,6 +157,8 @@ users → invoices → payment_attempts → instances → redemption_codes → f
 
 **INV-L2 — Single writer for money.** `HandlePaymentCallbackAction`, `CreateComboInvoiceAction`, `ExpireUnpaidInvoicesAction`, `RefundInvoiceAction` and `RetryFulfillmentTaskAction` are the only writers of invoice/wallet state. Drivers never write them.
 
+Human-approved C17 adds `ProcessAffiliateWithdrawalAction` solely for approved affiliate-to-wallet transfers: lock the user, debit affiliate_balance, credit credit, append unique `payout:{withdrawal_id}`, audit the authorized actor/reason, and mark the withdrawal approved in one transaction. It cannot adjust arbitrary wallets or write invoice state.
+
 **INV-L3 — No I/O under lock.** Never hold a DB transaction open across an upstream HTTP call. Pattern: lock → validate → commit a `pending` task → perform I/O in the job → lock again → commit the result.
 
 **INV-L4 — Driver purity.** A driver returns `ProvisionResult`; it does not mutate models. Every `instances` mutation happens in an Action, after the driver returns.
@@ -166,7 +168,7 @@ users → invoices → payment_attempts → instances → redemption_codes → f
 ## 6. Idempotency keys
 
 **INV-K1 — Renewal / upgrade invoices.** `invoices.billing_period_key` is a nullable `unique` string, form `{instance_id}:{type}:{period_key}`:
-- renew: `12:renew:2026-12` (period_key = the period start being billed, `Y-m`)
+- renew: `12:renew:2026-12-01T00:00:00Z` (period_key = the authenticated, locked due boundary before renewal, in UTC; human-approved C14). This supports several hourly/daily periods in one calendar month. Retries reuse the boundary, never the current request time. An expired/cancelled invoice is not reopened or silently replaced under a new key.
 - upgrade/downgrade: `12:upgrade:2026-11-17T10:00:00Z` (the requested change instant)
 
 A duplicate scheduler tick hits the unique constraint and is swallowed as a no-op. Silent duplicate invoicing is a P0 defect.
@@ -175,7 +177,7 @@ A duplicate scheduler tick hits the unique constraint and is swallowed as a no-o
 
 **INV-K3 — Schedulers.** Every scheduled command uses `->withoutOverlapping()` and `->onOneServer()`. A cron without both is a defect.
 
-**INV-K4 — Coupons.** Coupon application happens inside the invoice-creation transaction: `SELECT ... FOR UPDATE` the `coupons` row, re-check `used_count < total_quota`, `per_user_limit` against `coupon_claims`, `valid_from/until`, `claim_conditions`, then increment. `coupon_usages` is `unique(invoice_id)` — one coupon per invoice, double-counting impossible.
+**INV-K4 — Coupons (human-approved C16).** Coupon application happens inside the invoice-creation transaction after locking the user: `SELECT ... FOR UPDATE` the `coupons` row, verify entitlement in `coupon_claims`, re-check `used_count < total_quota` (null quota is unlimited), `per_user_limit` against this user's `coupon_usages`, `valid_from/until`, and `claim_conditions`, then increment and insert usage. `coupon_usages` is `unique(invoice_id)` — one coupon per invoice, double-counting impossible. A claim is unique per user/coupon and does not reserve usage quota. Cancellation, expiry and refunds do not restore consumed quota automatically. See approved C16–C18 in `operations-expansion-decisions.md` for settlement scope.
 
 ---
 

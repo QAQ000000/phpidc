@@ -8,6 +8,7 @@ use App\Enums\FulfillmentTaskStatus;
 use App\Enums\InstanceStatus;
 use App\Models\FulfillmentTask;
 use App\Models\Instance;
+use App\Services\NotificationManager;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
@@ -32,7 +33,7 @@ class ExecuteFulfillmentTaskAction
 
                 return false;
             }
-            if ($task->attempts >= $task->max_attempts || $task->action !== 'provision') {
+            if ($task->attempts >= $task->max_attempts || ! in_array($task->action, ['provision', 'renew', 'upgrade', 'suspend', 'unsuspend', 'terminate', 'register_callback'], true)) {
                 $task->update(['status' => FulfillmentTaskStatus::FAILED, 'error_message' => 'Attempts exhausted or unsupported task action.']);
                 Log::error('Fulfillment task requires attention.', ['task_id' => $task->id]);
 
@@ -45,7 +46,9 @@ class ExecuteFulfillmentTaskAction
         if (! $claimed) {
             return;
         }
-        $result = app(ProvisionInstanceAction::class)->execute($candidate->instance()->firstOrFail(), $candidate->payload ?? [], $taskId, $worker);
+        $result = $candidate->action === 'provision'
+            ? app(ProvisionInstanceAction::class)->execute($candidate->instance()->firstOrFail(), $candidate->payload ?? [], $taskId, $worker)
+            : app(ExecuteServiceTaskAction::class)->execute($taskId, $worker);
         DB::transaction(function () use ($candidate, $worker, $result): void {
             $instance = Instance::whereKey($candidate->instance_id)->lockForUpdate()->firstOrFail();
             $task = FulfillmentTask::whereKey($candidate->id)->lockForUpdate()->firstOrFail();
@@ -54,7 +57,10 @@ class ExecuteFulfillmentTaskAction
             }
             $changes = ['locked_by' => null, 'locked_at' => null, 'lease_expires_at' => null];
             if ($result->success) {
-                $changes += ['status' => FulfillmentTaskStatus::SUCCESS, 'executed_at' => now(), 'summary' => 'Resource provisioned.'];
+                if ($task->action === 'provision') {
+                    app(NotificationManager::class)->queue($instance->user_id, 'instance.delivered', ['instance_id' => $instance->id, 'status' => $instance->status->value]);
+                }
+                $changes += ['status' => FulfillmentTaskStatus::SUCCESS, 'executed_at' => now(), 'summary' => $task->action.' completed.'];
             } else {
                 $attempts = $task->attempts + 1;
                 $retry = $result->retryable && $attempts < $task->max_attempts;

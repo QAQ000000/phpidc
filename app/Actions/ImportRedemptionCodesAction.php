@@ -7,8 +7,11 @@ namespace App\Actions;
 use App\Enums\DriverType;
 use App\Models\Product;
 use App\Models\RedemptionCode;
+use App\Models\User;
+use App\Support\AdminAuditContext;
 use DomainException;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Str;
 
 class ImportRedemptionCodesAction
@@ -16,8 +19,12 @@ class ImportRedemptionCodesAction
     /** Trusted server-operator command, not a public customer permission.
      * @param  list<string>  $codes
      */
-    public function execute(Product $product, array $codes, string $reason): int
+    public function execute(Product $product, array $codes, string $reason, ?User $actor = null): int
     {
+        if ($actor !== null) {
+            Gate::forUser($actor)->authorize('inventory.import');
+            Gate::forUser($actor)->authorize('inventory.view');
+        }
         if (trim($reason) === '') {
             throw new DomainException('An import reason is required.');
         }
@@ -25,7 +32,7 @@ class ImportRedemptionCodesAction
             throw new DomainException('Select a local card product.');
         }
 
-        return DB::transaction(function () use ($product, $codes, $reason): int {
+        return DB::transaction(function () use ($product, $codes, $reason, $actor): int {
             $count = 0;
             $batch = (string) Str::ulid();
             foreach ($codes as $code) {
@@ -39,7 +46,8 @@ class ImportRedemptionCodesAction
                     $count++;
                 }
             }
-            DB::table('audit_logs')->insert(['actor_type' => 'system', 'action' => 'cards.import', 'subject_type' => Product::class,
+            DB::table('audit_logs')->insert(['actor_type' => $actor === null ? 'system' : 'user', 'actor_id' => $actor?->id, 'action' => 'cards.import', 'subject_type' => Product::class,
+                ...AdminAuditContext::fields($actor !== null),
                 'subject_id' => $product->id, 'reason' => $reason, 'after' => json_encode(['imported' => $count, 'batch' => $batch]), 'created_at' => now(), 'updated_at' => now()]);
 
             return $count;

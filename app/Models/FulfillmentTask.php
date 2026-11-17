@@ -47,6 +47,7 @@ class FulfillmentTask extends Model
         return $this->belongsTo(Instance::class);
     }
 
+    /** @return BelongsTo<Invoice, $this> */
     public function invoice(): BelongsTo
     {
         return $this->belongsTo(Invoice::class);

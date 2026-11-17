@@ -15,6 +15,8 @@ use App\Models\Instance;
 use App\Models\Invoice;
 use App\Models\RedemptionCode;
 use App\Models\User;
+use App\Services\NotificationManager;
+use App\Support\AdminAuditContext;
 use App\Support\Money;
 use DomainException;
 use Illuminate\Support\Facades\DB;
@@ -107,6 +109,7 @@ class RefundInvoiceAction
                         'basis' => 'refunded_invoice_total', 'card_id' => $code->id]]);
             }
             $locked->update(['status' => InvoiceStatus::REFUNDED]);
+            app(NotificationManager::class)->queue($buyer->id, 'invoice.refunded', ['invoice_no' => $locked->invoice_no, 'amount' => $locked->total_amount, 'currency' => $locked->currency]);
             $this->audit($actor, 'invoice.refund', Invoice::class, $locked->id, $before,
                 ['status' => $locked->status->value, 'credit' => $buyer->credit, 'frozen_credit' => $buyer->frozen_credit,
                     'mode' => $mode, 'keep_service' => $keepService, 'transaction_id' => $transaction->id], $reason);
@@ -147,6 +150,7 @@ class RefundInvoiceAction
     private function audit(User $actor, string $action, string $subjectType, int $subjectId, array $before, array $after, string $reason): void
     {
         DB::table('audit_logs')->insert(['actor_id' => $actor->id, 'actor_type' => 'user', 'action' => $action,
+            ...AdminAuditContext::fields(true),
             'subject_type' => $subjectType, 'subject_id' => $subjectId, 'reason' => $reason,
             'before' => json_encode($before, JSON_THROW_ON_ERROR), 'after' => json_encode($after, JSON_THROW_ON_ERROR),
             'created_at' => now(), 'updated_at' => now()]);

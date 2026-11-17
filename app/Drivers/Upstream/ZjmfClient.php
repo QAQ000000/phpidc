@@ -63,14 +63,14 @@ class ZjmfClient
             }
             $response = $request->send($method, rtrim($this->account->base_url, '/').$path, [$method === 'GET' ? 'query' : 'form_params' => $params]);
             $httpStatus = $response->status();
-            $body = $httpStatus === 200 ? json_decode(preg_replace('/("(?:total|subtotal|amount|credit|sale_price|sale_setupfee_total|setupfee_total)"\s*:\s*)(\d+(?:\.\d+)?)(?=\s*[,}])/', '$1"$2"', $response->body()), true) : null;
+            $body = $httpStatus === 200 ? json_decode(preg_replace('/("(?:total|subtotal|amount|amount_total|credit|price|sale_price|sale_setupfee_total|setupfee_total|[a-z]*setupfee|ontrialfee|onetime|hour|day|ontrial|monthly|quarterly|semiannually|annually|biennially|triennially|fourly|fively|sixly|sevenly|eightly|ninely|tenly)"\s*:\s*)(-?\d+(?:\.\d+)?(?:[eE][+-]?\d+)?)(?=\s*[,}])/', '$1"$2"', $response->body()), true) : null;
             $result = is_array($body) ? $body : ['status' => 400, 'msg' => 'Invalid upstream HTTP response.', '_transport_failure' => true];
             $secrets[] = is_string($result['jwt'] ?? null) ? $result['jwt'] : null;
         } catch (ConnectionException) {
             $result = ['status' => 400, 'msg' => 'Upstream connection failed.', '_transport_failure' => true];
         }
         $outcome = in_array($result['status'] ?? null, [200, 1001, 'success'], true) ? 'ok' : 'failed';
-        if (in_array($path, ['/cart/settle', '/apply_credit', '/apply_credit_limit'], true) && ! empty($result['_transport_failure'])) {
+        if (in_array($path, ['/cart/settle', '/apply_credit', '/apply_credit_limit', '/host/renew', '/host/cancel', '/upgrade/checkout_config_upgrade', '/provision/default'], true) && ! empty($result['_transport_failure'])) {
             $outcome = 'ambiguous';
         }
         if ($path === '/apply_credit' && ($params['use_credit'] ?? null) === 0 && $outcome === 'ok') {

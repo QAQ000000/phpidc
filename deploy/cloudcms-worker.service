@@ -1,0 +1,22 @@
+[Unit]
+Description=CloudCMS default queue worker
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=www
+Group=www
+WorkingDirectory=/www/wwwroot/Laravel13idc
+# Confirm this PHP binary matches the site's FPM runtime before installing.
+ExecStart=/www/server/php/84/bin/php artisan queue:work redis --queue=default --sleep=3 --tries=3 --timeout=180 --max-time=3600
+Restart=always
+RestartSec=5
+KillSignal=SIGTERM
+TimeoutStopSec=210
+UMask=0027
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target

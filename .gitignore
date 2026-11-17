@@ -23,3 +23,12 @@ yarn-error.log
 
 # Local agent/tool settings
 /.claude/settings.local.json
+
+# Installation state and published vendor assets are deployment-local.
+/storage/installed.lock
+/storage/installation.*
+/storage/key-rotation.*
+/storage/.installation-*
+/public/js/filament/
+/public/css/filament/
+/public/fonts/filament/

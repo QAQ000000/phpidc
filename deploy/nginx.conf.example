@@ -1,0 +1,29 @@
+# Template only: replace hostname, certificate and FPM socket; do not overwrite an existing vhost.
+server {
+    listen 80;
+    server_name cloud.example.com;
+    return 301 https://cloud.example.com$request_uri;
+}
+
+server {
+    listen 443 ssl;
+    server_name cloud.example.com;
+    ssl_certificate /etc/ssl/cloudcms/fullchain.pem;
+    ssl_certificate_key /etc/ssl/cloudcms/privkey.pem;
+    root /www/wwwroot/Laravel13idc/public;
+    index index.php;
+    charset utf-8;
+    client_max_body_size 16m;
+
+    # Match the private-download size policy and PHP post_max_size/upload_max_filesize.
+    location / { try_files $uri $uri/ /index.php?$query_string; }
+    location = /index.php {
+        include fastcgi_params;
+        fastcgi_param SCRIPT_FILENAME $document_root/index.php;
+        fastcgi_param HTTPS on;
+        fastcgi_param HTTP_PROXY "";
+        fastcgi_pass unix:/tmp/php-cgi-84.sock;
+    }
+    location ~ \.php$ { return 404; }
+    location ~ /\. { deny all; }
+}

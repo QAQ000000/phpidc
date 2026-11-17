@@ -1,10 +1,12 @@
 <?php
 
 use App\Http\Middleware\EnsureInstalledMiddleware;
+use App\Http\Middleware\InventoryNoStore;
 use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
 use Illuminate\Foundation\Configuration\Middleware;
 use Illuminate\Http\Request;
+use Illuminate\Session\Middleware\AuthenticateSession;
 
 return Application::configure(basePath: dirname(__DIR__))
     ->withRouting(
@@ -14,12 +16,18 @@ return Application::configure(basePath: dirname(__DIR__))
         health: '/up',
     )
     ->withMiddleware(function (Middleware $middleware): void {
+        $middleware->prepend(InventoryNoStore::class);
+        $middleware->redirectUsersTo('/console');
+        $middleware->trimStrings(except: ['codes', 'admin_password', 'admin_password_confirmation']);
         // Install redirects must not trap /up or /install (charter §3.6).
         $middleware->web(append: [
             EnsureInstalledMiddleware::class,
+            AuthenticateSession::class,
         ]);
     })
     ->withExceptions(function (Exceptions $exceptions): void {
+        $exceptions->dontFlash(['codes', 'api_secret', 'options', 'current_password', 'code', 'state', 'token', 'id_number', 'real_name',
+            'install_token', 'admin_password', 'admin_password_confirmation', 'db_password']);
         $exceptions->shouldRenderJsonWhen(
             fn (Request $request) => $request->is('api/*') || $request->expectsJson(),
         );

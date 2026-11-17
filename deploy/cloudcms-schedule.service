@@ -1,0 +1,15 @@
+[Unit]
+Description=CloudCMS one-minute scheduler
+After=network-online.target
+
+[Service]
+Type=oneshot
+User=www
+Group=www
+WorkingDirectory=/www/wwwroot/Laravel13idc
+ExecStart=/www/server/php/84/bin/php artisan schedule:run --no-interaction
+# Catalog size can make a synchronous read-only sync longer than a worker's job timeout.
+TimeoutStartSec=0
+UMask=0027
+StandardOutput=journal
+StandardError=journal

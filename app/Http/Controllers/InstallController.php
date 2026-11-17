@@ -4,39 +4,39 @@ declare(strict_types=1);
 
 namespace App\Http\Controllers;
 
+use App\Actions\InstallApplicationAction;
+use App\Services\DeploymentRequirements;
+use DomainException;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\View\View;
 
-/**
- * Web installer (charter §3.6). Phase 0 responsibility is narrow: gate access
- * on `installed.lock`, validate the bootstrap form, write the lock file.
- * Schema provisioning and admin creation belong to Phase 1.
- */
 class InstallController extends Controller
 {
-    public function show(): View
+    public function show(DeploymentRequirements $requirements): View
     {
-        return view('install.show');
+        return view('install.show', ['checks' => $requirements->runtime()]);
     }
 
     public function store(Request $request): RedirectResponse
     {
-        $validated = $request->validate([
-            'app_url' => ['required', 'url'],
-            'db_host' => ['required', 'string', 'max:255'],
-            'db_port' => ['required', 'integer', 'between:1,65535'],
-            'db_database' => ['required', 'string', 'max:64'],
-            'db_username' => ['required', 'string', 'max:64'],
-            'db_password' => ['nullable', 'string', 'max:255'],
-        ]);
+        abort_if(app()->environment('production') && ! $request->isSecure(), 403, 'HTTPS required for installation.');
+        try {
+            app(InstallApplicationAction::class)->execute($request->only([
+                'install_token', 'admin_name', 'admin_email', 'admin_password', 'admin_password_confirmation', 'reason',
+            ]), web: true);
+        } catch (DomainException $exception) {
+            return back()->withErrors(['install' => $exception->getMessage()]);
+        } catch (\PDOException|\RedisException $exception) {
+            // Do not log exception SQL/bindings: a migration or account insert may contain private values.
+            logger()->error('Installation infrastructure failure', ['exception_type' => $exception::class]);
 
-        // Persisting the bootstrap env and running migrations is Phase 1 work.
-        // Until then the installer records intent and refuses to claim success.
-        report(new \RuntimeException('Installer store() reached before Phase 1 implementation.'));
+            return back()->withErrors(['install' => '连接或迁移失败。请核对服务器配置与数据库迁移状态后重试；安装尚未完成。']);
+        }
 
-        return back()->withErrors([
-            'install' => '安装流程尚未实现（Phase 1）。',
-        ]);
+        $request->session()->invalidate();
+        $request->session()->regenerateToken();
+
+        return redirect('/admin/login');
     }
 }
