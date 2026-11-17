@@ -106,7 +106,7 @@ adjust:{uuid}                                     refund:{invoice_id}
 | `credit_settle` | no | frozen consumed by a successful payment |
 | `credit_unfreeze` | no | frozen → available |
 | `payment` | no | gateway settlement, informational |
-| `refund_wallet` | yes | refund into wallet |
+| `refund_wallet` | yes | reserved legacy type; new wallet refunds use `credit_in` with `refund:{invoice_id}` (C10) |
 | `expense` | no | money out: external refund record, external affiliate payout |
 | `affiliate_commission` | no | commission credited to `affiliate_balance` |
 | `affiliate_clawback` | no | commission reversed |
@@ -191,7 +191,9 @@ A refund that leaves a running VM behind is a net loss and a P0 defect.
 
 **INV-R3 — Redemption codes are never reclaimed.** Once a card key has been delivered to a customer it is compromised; the code stays `sold`, the instance becomes `Cancelled`, and the loss is recorded as `expense`. Reclaiming a delivered plaintext key is not a recovery.
 
-**INV-R4 — Commission clawback.** Refund transitions the commission to `clawed_back` and reverses `affiliate_balance`. If the balance was already withdrawn, the reversal makes `affiliate_balance` negative — which `UNSIGNED` forbids, so the amount must instead be recorded as a receivable (`affiliate_commissions.status = clawed_back` + a `financial_transactions` `affiliate_clawback` row) and the negative-effect rule must be resolved explicitly, never by clamping to zero.
+**INV-R4 — Commission clawback (human-approved C11, 2026-11-17).** Refund transitions the commission to `clawed_back` and records `clawed_back_at`. A `pending` commission has not entered `affiliate_balance`: cancel it without deducting that balance or creating a receivable. For an `available` commission, recover `min(affiliate_balance, commission.amount)` from the affiliate balance and record the remainder as a receivable; never write a negative balance or discard the difference. Do not debit the referrer's ordinary wallet.
+
+Every first clawback appends one `affiliate_clawback` ledger row with unique key `clawback:{commission_id}` and the original commission amount. Its `meta` stores `commission_id`, `previous_status`, `affiliate_balance_before`, `affiliate_balance_after`, `recovered_amount` and `receivable_amount`. For pending cancellation both recovered and receivable amounts are `0.00`. An already clawed-back commission is not reversed again. Future maturation, payout and receivable settlement workflows must account for these receivables; recording one does not settle it or authorize automatic wallet collection. Receivables require an operator alert.
 
 ---
 

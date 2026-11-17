@@ -6,9 +6,11 @@ namespace App\Actions;
 
 use App\Enums\FulfillmentTaskStatus;
 use App\Enums\InstanceStatus;
+use App\Enums\InvoiceStatus;
 use App\Jobs\ExecuteFulfillmentTaskJob;
 use App\Models\FulfillmentTask;
 use App\Models\Instance;
+use App\Models\Invoice;
 use DomainException;
 use Illuminate\Support\Facades\DB;
 
@@ -20,10 +22,17 @@ class RetryFulfillmentTaskAction
         if (trim($reason) === '') {
             throw new DomainException('An operator reason is required.');
         }
-        DB::transaction(function () use ($task, $reason): void {
-            $instance = Instance::whereKey($task->instance_id)->lockForUpdate()->firstOrFail();
-            $locked = FulfillmentTask::whereKey($task->id)->lockForUpdate()->firstOrFail();
+        $candidate = FulfillmentTask::findOrFail($task->id);
+        DB::transaction(function () use ($candidate, $reason): void {
+            // Serialize with refund before locking the instance (INV-L1); retained services may still be active.
+            $invoice = $candidate->invoice_id === null ? null : Invoice::whereKey($candidate->invoice_id)->lockForUpdate()->firstOrFail();
+            if ($invoice?->status === InvoiceStatus::REFUNDED) {
+                throw new DomainException('A refunded invoice cannot restart fulfillment.');
+            }
+            $instance = Instance::whereKey($candidate->instance_id)->lockForUpdate()->firstOrFail();
+            $locked = FulfillmentTask::whereKey($candidate->id)->lockForUpdate()->firstOrFail();
             if ($locked->status !== FulfillmentTaskStatus::FAILED || $instance->status->isTerminal()
+                || $locked->invoice_id !== $candidate->invoice_id || $locked->instance_id !== $candidate->instance_id
                 || $instance->driver_type !== $locked->driver_type || $instance->upstream_api_id !== $locked->upstream_api_id) {
                 throw new DomainException('Only a failed task on the current live binding can be retried.');
             }
@@ -35,7 +44,7 @@ class RetryFulfillmentTaskAction
                 'locked_by' => null, 'locked_at' => null, 'lease_expires_at' => null, 'error_message' => null]);
             DB::table('audit_logs')->insert(['actor_type' => 'system', 'action' => 'fulfillment.retry', 'subject_type' => Instance::class,
                 'subject_id' => $instance->id, 'reason' => $reason, 'before' => json_encode(['status' => $before]),
-                'after' => json_encode(['status' => $instance->status->value, 'task_id' => $task->id]), 'created_at' => now(), 'updated_at' => now()]);
+                'after' => json_encode(['status' => $instance->status->value, 'task_id' => $locked->id]), 'created_at' => now(), 'updated_at' => now()]);
             DB::afterCommit(fn () => ExecuteFulfillmentTaskJob::dispatch($locked->id));
         });
     }
