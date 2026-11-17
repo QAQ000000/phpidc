@@ -1,6 +1,6 @@
 # 退款闭环裁决与实施记录
 
-状态：**C10/C11 已由人工批准，定向规范修订已生效；实施中**。日期：2026-11-17。
+状态：**C10/C11 已由人工批准并实施，两个退款规格均已迁移**。日期：2026-11-17。
 
 本文件记录 `docs/contract-clarifications.md` §4 第 1、2 项的裁决；用户已明确选择“批准 C10/C11，按草案实施”。对应 INV-W5/INV-R4 已同步，未授权修改其他业务不变量或规格断言。
 
@@ -56,3 +56,15 @@ Action 返回本次退款的 FinancialTransaction；重试同模式返回同一�
 新增测试覆盖钱包/外部退款、幂等与模式冲突、权限/原因、pending/available 佣金追回、应收告警、事务故障全回滚、售卡后退款、回调/旧任务不得再次交付、本人及非本人账单访问。纯钱包与组合付款均经过真实 checkout/发卡 Action 后退款。全部使用隔离 SQLite；未执行真实网关退款或上游资源终止，未实测 MySQL 多进程竞争。应收告警当前写应用日志，尚无清偿/抵扣或通知渠道。
 
 第一步 Gate：Pest 163 passed / 1226 assertions，PHPStan 0 errors，Pint clean。剩余 1 个规格已因服务/授权前置校验通过，将在下一提交单独迁移并补充授权操作员下的服务状态测试。
+
+## 服务保护规格与最终验收
+
+第二个规格 `refuses to refund while the instance is still running` 原样迁到 `tests/Feature/RefundServiceGuardTest.php`，计数从 1 减到 0。两个原始用例均与本轮起点逐字核对，未改断言或业务预期，分别提交。Specs 文件保留原说明与测试配置，未删除文件或取消完整性检查。
+
+补测授权操作员在 Active、Suspended、Pending、ProvisionFailed、Fraud 或无关联实例时，未显式 keepService 一律拒退；确认 Cancelled/Deleted 后可不传豁免退款。校验实例归属与授权账单范围，不能凭某张账单的权限退款另一张账单。
+
+模拟 worker 已预留卡密、尚未提交交付时发生退款：退款使租约失效，旧结果丢弃、凭据不入库，未交付预留到期后可以回收。这是确定执行顺序的竞态测试，不是 MySQL 多进程压测。已售卡密始终不可回收。人工重试现在先锁账单再锁实例/任务，已退款账单的旧失败任务也不能重新执行。
+
+最终三道 Gate：Pest **175 passed / 1312 assertions**；PHPStan **0 errors**；Pint **clean**。`pest --group=spec` 显示 **No tests found** 并返回 1，因为 Specs 剩余 0 个用例；未屏蔽或改写这个退出码。PHP 语法与 `git diff --check` 通过。
+
+未新增迁移字段、枚举 case、DTO 字段、契约方法或业务数据库数据。规范只应用已批准的 INV-W5/INV-R4 定向修订。退款业务 Action 和售卡退款链路已验证，管理面板/实际 Gate 权限配置、真实网关退款、自动上游终止、应收清偿、MySQL 并发和生产部署尚未交付或验收。Specs 清空不代表章程所有 Phase 功能完成。

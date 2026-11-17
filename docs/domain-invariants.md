@@ -101,7 +101,7 @@ adjust:{uuid}                                     refund:{invoice_id}
 
 | `TransactionType` | `is_credit` | Meaning |
 |---|---|---|
-| `credit_in` | yes | deposit (gateway late payment, admin top-up, overpayment excess) |
+| `credit_in` | yes | deposit (gateway late payment, admin top-up, overpayment excess) or wallet refund (C10) |
 | `credit_freeze` | no | available → frozen |
 | `credit_settle` | no | frozen consumed by a successful payment |
 | `credit_unfreeze` | no | frozen → available |
