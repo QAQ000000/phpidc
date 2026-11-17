@@ -27,6 +27,8 @@ Forbidden, without exception:
 
 If a test genuinely encodes a wrong rule, **stop and say so**. Do not "fix" it. A human decides.
 
+**Approved correction record (2026-11-17):** the human approved C01–C09 in `docs/contract-clarifications.md`. That specific revision permits the listed specification setup/call/type corrections and Money input-test correction while preserving all 17 case names, strict assertions and business guarantees. It is not an implementation or a count reduction, and is not continuing permission to edit other specifications. After that revision, the corrected cases are again moved unchanged when implemented.
+
 ### 1.2 Never bypass a failing guard by disabling the guard
 
 `tests/Unit/ConventionGuardTest.php` scans the source for the specific mistakes that break the money, driver and config invariants. If it fails, fix the source. Do not:

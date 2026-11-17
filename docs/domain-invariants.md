@@ -12,6 +12,8 @@
 
 **M1 — Representation.** Money is a fixed-point decimal string with exactly two fractional digits (`"10.00"`). Never `float`, never `int` cents, never `number_format()`. All arithmetic goes through `App\Support\Money` (`bcadd`/`bcsub`/`bcmul`/`bccomp`). MySQL columns are `DECIMAL(n,2) UNSIGNED`.
 
+`Money::of()` accepts decimal strings or whole integer units and rejects floating-point input. Monetary model attributes use `decimal:2` to preserve the two-place string representation after database reloads, including SQLite. This database representation cast is not a price-production step; it must not replace the single rounding point in M3 or business arithmetic in Money.
+
 **M2 — Non-negativity.** Every monetary column is `UNSIGNED`. A negative value is a bug, never a valid state. Direction is expressed by `financial_transactions.type`, not by the sign of `amount`.
 
 **M3 — Rounding.** Rounding is half-up on a non-negative value, applied exactly once, at the point a price is produced (catalog sync, quote computation, coupon discount). Never round an already-rounded intermediate. `Money::round($v)` = `bcadd($v, '0.005', 2)`; it truncates, which is half-up for non-negative inputs.
@@ -23,6 +25,8 @@
 ## 2. Invoice amount identity (blocking)
 
 **INV-I1 — Canonical computation order.** Computed once, inside `CreateComboInvoiceAction`, and stored; never recomputed at payment time:
+
+The purchase Action receives the product, billing cycle and selected options, obtains a trusted server-side quote and checks its currency. A submitted `totalAmount` alone cannot establish a purchase price.
 
 ```
 1. gross          = Σ(line.unit_price × line.qty)                 // per line, 2dp, M3
@@ -42,9 +46,9 @@ bcadd(subtotal, '0.00')               === bcadd(total_amount, discount)    // di
 
 `discount_amount` is the coupon discount only. It is **already reflected** in `total_amount`; it is never subtracted a second time from `total_amount` or `gateway_amount`.
 
-**INV-I3 — Zero-amount short circuit.** If `gateway_amount == "0.00"`, no gateway is contacted. `invoices.status = Paid`, `credit_settled` is recorded, and the `fulfillment_tasks` row is created **in the same `DB::transaction()`**.
+**INV-I3 — Zero-amount short circuit.** If `gateway_amount == "0.00"`, no gateway is contacted. `CreateComboInvoiceAction` sets `invoices.status = Paid`, records `credit_settle`, and creates the instance and `fulfillment_tasks` row **in the same `DB::transaction()`**, then dispatches strictly after commit.
 
-**INV-I4 — One product per invoice.** An invoice bills exactly one `products` row (`invoices.product_id`, `invoices.instance_id` may be null for the first purchase). Multi-line invoices exist only as *lines of the same product* (options, setup fee, discount). This keeps `credit_applied` a single-instance freeze. Multi-product carts are out of scope; if ever required, add `invoice_items` and revisit this invariant first.
+**INV-I4 — One product per invoice.** An invoice bills exactly one `products` row. A new-purchase invoice must store `invoices.product_id`; only `invoices.instance_id` may be null before its first settlement. Multi-line invoices exist only as *lines of the same product* (options, setup fee, discount). This keeps `credit_applied` a single-instance freeze. Multi-product carts are out of scope; if ever required, add `invoice_items` and revisit this invariant first.
 
 **INV-I5 — `line_items` schema.**
 
@@ -119,8 +123,8 @@ Input: `VerifiedPaymentResult {gateway, gatewayTradeNo, outTradeNo, paidAmount}`
 
 **Resolution order**
 
-1. `payment_callbacks` insert `(gateway, gateway_trade_no)` — `unique`. If the insert violates the constraint → `ignored_duplicate`, return `ackBody` immediately, zero side effects. (`payment_callbacks` is the dedupe authority; `invoices` holds no trade number.)
-2. Resolve the invoice via `payment_attempts (gateway, out_trade_no) -> invoice_id`. If absent, fall back to `invoices (invoice_no)`; if still absent, resolve the callback to `unknown_invoice`: persist the callback row with `invoice_id = NULL` + `invoice_no` populated, alert, and still ack `success` (never make the gateway retry an invoice we cannot resolve).
+1. `payment_callbacks` insert `(gateway, gateway_trade_no)` — `unique`. If the insert violates the constraint → `ignored_duplicate`, stop further processing with zero side effects and select `ackBody`; emit it only after transaction completion (INV-P3). `payment_callbacks` is the dedupe authority; `invoices.gateway_trade_no` is only a support mirror.
+2. Resolve the invoice via the exact `payment_attempts (gateway, out_trade_no) -> invoice_id`. If absent, fall back to an exact match of the complete `outTradeNo` against `invoices.invoice_no`; never strip or guess suffixes. If still absent, resolve the callback to `unknown_invoice`: persist the callback row with `invoice_id = NULL` + `invoice_no` populated, alert, and still ack `success` (never make the gateway retry an invoice we cannot resolve).
 
 Then lock `invoices` (`lockForUpdate()`) and branch:
 
@@ -129,17 +133,17 @@ Then lock `invoices` (`lockForUpdate()`) and branch:
 | P1 | `gateway != invoice.gateway` | `rejected_gateway_mismatch` | no state change, alert |
 | P2 | `invoice.status` ∈ {`Expired`,`Cancelled`} | `processed_late_credit` | credit `paidAmount` to wallet (`credit_in`), **never provision**, alert. Frozen amount was already released at expiry — do not unfreeze twice |
 | P3 | `invoice.status == Paid` and a second distinct trade arrives | `processed_overpayment` | credit `paidAmount` to wallet, alert (double payment) |
+| P7 | `invoice.status ∉ {Unpaid}` and not covered above | `rejected_invalid_state` | no change, alert; this guard runs **before** any amount branch, including for `Refunded` |
 | P4 | `paidAmount == gateway_amount` | `processed_paid` | → P8 |
 | P5 | `paidAmount > gateway_amount` | `processed_overpayment` | → P8, then credit the difference (`credit_in`, key `overpaid:{callback_id}`), alert |
 | P6 | `paidAmount < gateway_amount` | `rejected_short_amount` | **do not** set `Paid`, keep `Unpaid`, alert. Partial payments are never auto-reconciled |
-| P7 | `invoice.status ∉ {Unpaid}` and not covered above | `rejected_invalid_state` | no change, alert |
-| P8 (Paid path) | in **one** transaction | `processed_paid` | `status=Paid`, `paid_at`, `credit_settle` for `credit_applied`, create every `instances` row (`status=Pending`), create `fulfillment_tasks` (`status=pending`, unique `idempotency_key`), then `DB::afterCommit(fn () => ExecuteFulfillmentTaskJob::dispatch($id))` |
+| P8 (Paid path) | in **one** transaction; entered only from P4 or P5 | preserve `processed_paid` from P4 or `processed_overpayment` from P5 | `status=Paid`, `paid_at`, `credit_settle` for `credit_applied`, create the product's `instances` row (`status=Pending`), create `fulfillment_tasks` (`status=pending`, unique `idempotency_key`), then `DB::afterCommit(fn () => ExecuteFulfillmentTaskJob::dispatch($id))` |
 
 **INV-P1 — Comparison basis.** Amounts are compared against `gateway_amount`, never `total_amount`, because `credit_applied` was already settled from the wallet. Comparing against `total_amount` double-charges the wallet portion.
 
-**INV-P2 — Instance creation point.** `instances` rows are created in the P8 transaction, together with `Paid` and the task. `fulfillment_tasks.instance_id` is therefore always non-null for `action=provision`. No other code path creates an instance for a paid order.
+**INV-P2 — Instance creation point.** A new-purchase instance is created together with `Paid` and its task in exactly one of two legitimate settlement entry points: `CreateComboInvoiceAction` when `gateway_amount == "0.00"` (INV-I3), or `HandlePaymentCallbackAction` on the P8 path. `fulfillment_tasks.instance_id` is therefore always non-null for `action=provision`. Neither entry point may create an instance before, or in a transaction separate from, the Paid transition. No other purchase path creates an instance for a paid order.
 
-**INV-P3 — Ack discipline.** The gateway-facing response is decided **after** commit for success and **before** commit for rejection, but the `payment_callbacks` row is committed in the same transaction as the effect, so a crash mid-way leaves either no row (gateway retries safely) or a row plus effect (retry dedupes).
+**INV-P3 — Ack discipline.** Decide the callback outcome inside the transaction, including rejection and unknown-invoice outcomes, and emit the gateway-facing response **only after commit**. The `payment_callbacks` row is committed in the same transaction as any effect, so a crash mid-way leaves either no row (gateway retries safely) or a row plus effect (retry dedupes). P8 must not overwrite an overpayment outcome chosen by P5.
 
 ---
 
@@ -179,7 +183,7 @@ A duplicate scheduler tick hits the unique constraint and is swallowed as a no-o
 
 **INV-R1 — Service precedes money or is explicitly waived.** `RefundInvoiceAction` refuses to run unless one of:
 - the linked instance is `Cancelled`/`Deleted` (upstream termination confirmed), **or**
-- an admin passes `keepService = true` with a non-empty reason, recorded in `audit_logs`.
+- an admin passes `keepService = true` with an explicit `actor` authorized by `Gate::forUser($actor)` for the invoice-scoped `refund-invoice` ability, and a non-empty `reason`. Persist `actor_id`, `action=invoice.refund`, `subject_type=Invoice::class`, `subject_id` and that supplied reason in `audit_logs`. Missing authority or reason is rejected, even when the invoice has no instance association; a generated reason is not consent.
 
 A refund that leaves a running VM behind is a net loss and a P0 defect.
 
@@ -234,9 +238,9 @@ A refund that leaves a running VM behind is a net loss and a P0 defect.
 
 **INV-C1 — Deduplicable at import.** `redemption_codes.code_hash = hash_hmac('sha256', plaintext, APP_KEY)` with `unique(product_id, code_hash)`. The plaintext is stored with the `encrypted` cast, which is randomized and therefore **not** deduplicable — the hash is the unique key.
 
-**INV-C2 — Atomic claim.** Inside `DB::transaction()`: lock the `instances` row first, look up `redemption_codes` by `instance_id` (unique) and return it if present; otherwise `SELECT ... FOR UPDATE` one row with `status=available AND (reserved_until IS NULL OR reserved_until < now())` ordered by `id`, set `status=reserved, reserved_until=now()+15m`, commit, then mark `sold` with `instance_id`.
+**INV-C2 — Atomic claim.** `ProvisionInstanceAction` owns inventory writes, never the driver. Inside `DB::transaction()`: lock the `instances` row first, look up its bound `redemption_codes` by unique `instance_id`, and reuse that reservation or sold code. Only if none exists, lock one available code ordered by `id` with no active lease, and set `instance_id`, `status=reserved` and `reserved_until=now()+15m` together before commit. The pure `RedemptionCodeDriver` reads the bound code and returns credentials in its DTO. Before making credentials visible, the Action locks instance then code, revalidates the binding and reservation lease, and atomically persists `status=sold` with `instances.encrypted_credentials`. A retry must reuse the existing binding; it must not claim a second code for the same instance.
 
-**INV-C3 — Reap reservations.** A sweeper returns `reserved` rows whose `reserved_until` has passed to `available`. Without it, a crashed provision permanently burns stock.
+**INV-C3 — Reap reservations.** An Action-backed sweeper locks instance then code, and returns expired `reserved` rows to `available` only if delivery has not completed, clearing their `instance_id` and lease together. A sold or delivered code is never released (INV-R3). Without reservation reaping, a crashed provision permanently burns stock.
 
 ---
 

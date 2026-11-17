@@ -8,7 +8,11 @@ it('normalizes input to a 2dp non-negative string', function (): void {
     expect(Money::zero())->toBe('0.00')
         ->and(Money::of(10))->toBe('10.00')
         ->and(Money::of('10.5'))->toBe('10.50')
-        ->and(Money::of(10.555))->toBe('10.56');
+        ->and(Money::of('10.555'))->toBe('10.56');
+})->group('phase0');
+
+it('rejects floating-point input at the money boundary', function (): void {
+    expect(fn () => Money::of(10.555))->toThrow(TypeError::class);
 })->group('phase0');
 
 it('rounds half-up exactly once', function (): void {

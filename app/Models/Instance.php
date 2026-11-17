@@ -34,7 +34,7 @@ class Instance extends Model
             'custom_field_values' => 'array',
             // Card keys and panel credentials must never sit in plaintext.
             'encrypted_credentials' => 'encrypted:array',
-            'recurring_amount' => 'string',
+            'recurring_amount' => 'decimal:2',
             'is_price_locked' => 'boolean',
             'next_due_at' => 'datetime',
             'suspended_at' => 'datetime',

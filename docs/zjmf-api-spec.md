@@ -81,7 +81,7 @@
 - **Full Instance Info & Non-Cloud Widgets**: `GET {host}/host/header?host_id={dcimid}&source=API`
   - Returns `data.host_data` (`dedicatedip, assignedips[], username, password, port, os, domainstatus, nextduedate, suspendreason, cancel_control, allow_upgrade_config, password_rule`), `module_button` (`{control:[], console:[]}`), `module_client_area`, `module_client_main_area`, `custom_field_data[]`.
   - Mapped into `App\Data\InstanceInfoResult`; `panelWidgets` carries the `module_*` blocks for `HasCustomPanelWidgets`.
-- **Pre-Sync Rule**: always call `/host/header` before `suspend` or `unsuspend`. If upstream already reports the target state (or `Deleted`), reconcile locally and return `ProvisionResult::reconciled()` without calling `/provision/default` (INV-S5).
+- **Pre-Sync Rule**: always call `/host/header` before `suspend` or `unsuspend`. If upstream already reports the target state (or `Deleted`), return `ProvisionResult::reconciled()` with the observed snapshot in `rawResponse` without calling `/provision/default`. `SuspendInstanceAction` (or the corresponding lifecycle Action) reconciles local state and writes its audit record after the driver returns; the driver never mutates the instance. HTTP runs outside the Action's database transactions (INV-S5, INV-L3, INV-L4).
 
 ## 5. Downstream Callback Registration & `/api/host/sync`
 

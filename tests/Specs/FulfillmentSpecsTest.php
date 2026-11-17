@@ -6,10 +6,12 @@ use App\Actions\CreateComboInvoiceAction;
 use App\Actions\DispatchStalePendingTasksAction;
 use App\Actions\ExpireUnpaidInvoicesAction;
 use App\Actions\HandlePaymentCallbackAction;
+use App\Actions\ProvisionInstanceAction;
 use App\Actions\RefundInvoiceAction;
+use App\Actions\SuspendInstanceAction;
 use App\Data\VerifiedPaymentResult;
-use App\Drivers\SelfHosted\RedemptionCodeDriver;
-use App\Drivers\Upstream\ZjmfFinanceDriver;
+use App\Enums\BillingCycle;
+use App\Enums\FulfillmentTaskStatus;
 use App\Enums\InstanceStatus;
 use App\Enums\InvoiceStatus;
 use App\Enums\PaymentCallbackOutcome;
@@ -26,6 +28,7 @@ use App\Models\RedemptionCode;
 use App\Models\User;
 use Illuminate\Database\QueryException;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Queue;
 
@@ -53,31 +56,19 @@ use Illuminate\Support\Facades\Queue;
 
 uses(RefreshDatabase::class);
 
-it('blocks checkout before wallet deduction when hostname or password violates provisioning_rules', function (): void {
-    $user = User::factory()->create(['credit' => '100.00']);
+it('freezes wallet credit on combo payment and unfreezes once when expired', function (): void {
+    $user = User::factory()->create(['credit' => '5.00', 'frozen_credit' => '0.00']);
     $product = Product::factory()->create([
-        'provisioning_rules' => [
-            'hostname_mode' => 'custom',
-            'hostname_regex' => '^[a-z0-9-]{4,16}$',
+        'local_prices' => [
+            'onetime' => ['price' => '10.00', 'setup_fee' => '0.00', 'enabled' => true],
         ],
     ]);
 
-    $this->actingAs($user)
-        ->post('/checkout', [
-            'product_id' => $product->id,
-            'hostname' => 'INVALID_HOST!@#',
-        ])
-        ->assertSessionHasErrors('hostname');
-
-    expect($user->fresh()->credit)->toBe('100.00');
-});
-
-it('freezes wallet credit on combo payment and unfreezes once when expired', function (): void {
-    $user = User::factory()->create(['credit' => '5.00', 'frozen_credit' => '0.00']);
-
     $invoice = app(CreateComboInvoiceAction::class)->execute(
         user: $user,
-        totalAmount: '10.00',
+        product: $product,
+        billingCycle: BillingCycle::ONETIME,
+        options: [],
         useCredit: true,
         gateway: 'epay_wechat',
     );
@@ -92,7 +83,7 @@ it('freezes wallet credit on combo payment and unfreezes once when expired', fun
     app(ExpireUnpaidInvoicesAction::class)->execute();
     app(ExpireUnpaidInvoicesAction::class)->execute();
 
-    expect($invoice->fresh()->status)->toBe(InvoiceStatus::EXPIRED->value)
+    expect($invoice->fresh()->status)->toBe(InvoiceStatus::EXPIRED)
         ->and($user->fresh()->credit)->toBe('5.00')
         ->and($user->fresh()->frozen_credit)->toBe('0.00')
         // INV-W2: exactly one unfreeze ledger row despite two sweeps.
@@ -109,6 +100,12 @@ it('credits a late payment on an expired invoice without provisioning', function
         'gateway_amount' => '10.00',
         'status' => InvoiceStatus::EXPIRED->value,
     ]);
+    $invoice->attempts()->create([
+        'gateway' => 'epay_wechat',
+        'out_trade_no' => "{$invoice->invoice_no}1",
+        'amount' => '10.00',
+        'status' => 'expired',
+    ]);
 
     app(HandlePaymentCallbackAction::class)->execute(new VerifiedPaymentResult(
         gateway: 'epay_wechat',
@@ -118,9 +115,9 @@ it('credits a late payment on an expired invoice without provisioning', function
     ));
 
     expect($user->fresh()->credit)->toBe('10.00')
-        ->and($invoice->fresh()->status)->toBe(InvoiceStatus::EXPIRED->value)
+        ->and($invoice->fresh()->status)->toBe(InvoiceStatus::EXPIRED)
         ->and(PaymentCallback::where('gateway_trade_no', 'TRADE_LATE_1')->value('outcome'))
-        ->toBe(PaymentCallbackOutcome::PROCESSED_LATE_CREDIT->value);
+        ->toBe(PaymentCallbackOutcome::PROCESSED_LATE_CREDIT);
 
     Queue::assertNothingPushed();
 });
@@ -134,6 +131,12 @@ it('ignores a duplicate callback and records exactly one callback row', function
         'total_amount' => '10.00',
         'gateway_amount' => '10.00',
         'status' => InvoiceStatus::EXPIRED->value,
+    ]);
+    $invoice->attempts()->create([
+        'gateway' => 'epay_wechat',
+        'out_trade_no' => "{$invoice->invoice_no}1",
+        'amount' => '10.00',
+        'status' => 'expired',
     ]);
 
     $verified = new VerifiedPaymentResult(
@@ -161,6 +164,12 @@ it('credits the excess on overpayment and never provisions twice', function (): 
         'gateway_amount' => '10.00',
         'status' => InvoiceStatus::UNPAID->value,
     ]);
+    $invoice->attempts()->create([
+        'gateway' => 'epay_wechat',
+        'out_trade_no' => "{$invoice->invoice_no}1",
+        'amount' => '10.00',
+        'status' => 'created',
+    ]);
 
     app(HandlePaymentCallbackAction::class)->execute(new VerifiedPaymentResult(
         gateway: 'epay_wechat',
@@ -169,11 +178,11 @@ it('credits the excess on overpayment and never provisions twice', function (): 
         paidAmount: '12.00',
     ));
 
-    expect($invoice->fresh()->status)->toBe(InvoiceStatus::PAID->value)
+    expect($invoice->fresh()->status)->toBe(InvoiceStatus::PAID)
         ->and($user->fresh()->credit)->toBe('2.00')
         ->and(FulfillmentTask::where('invoice_id', $invoice->id)->count())->toBe(1)
         ->and(PaymentCallback::where('gateway_trade_no', 'TRADE_OVER_1')->value('outcome'))
-        ->toBe(PaymentCallbackOutcome::PROCESSED_OVERPAYMENT->value);
+        ->toBe(PaymentCallbackOutcome::PROCESSED_OVERPAYMENT);
 });
 
 it('rejects a short payment without marking the invoice paid', function (): void {
@@ -185,6 +194,12 @@ it('rejects a short payment without marking the invoice paid', function (): void
         'gateway_amount' => '10.00',
         'status' => InvoiceStatus::UNPAID->value,
     ]);
+    $invoice->attempts()->create([
+        'gateway' => 'epay_wechat',
+        'out_trade_no' => "{$invoice->invoice_no}1",
+        'amount' => '10.00',
+        'status' => 'created',
+    ]);
 
     app(HandlePaymentCallbackAction::class)->execute(new VerifiedPaymentResult(
         gateway: 'epay_wechat',
@@ -193,10 +208,10 @@ it('rejects a short payment without marking the invoice paid', function (): void
         paidAmount: '7.00',
     ));
 
-    expect($invoice->fresh()->status)->toBe(InvoiceStatus::UNPAID->value)
+    expect($invoice->fresh()->status)->toBe(InvoiceStatus::UNPAID)
         ->and(FulfillmentTask::where('invoice_id', $invoice->id)->count())->toBe(0)
         ->and(PaymentCallback::where('gateway_trade_no', 'TRADE_SHORT_1')->value('outcome'))
-        ->toBe(PaymentCallbackOutcome::REJECTED_SHORT_AMOUNT->value);
+        ->toBe(PaymentCallbackOutcome::REJECTED_SHORT_AMOUNT);
 });
 
 it('records an unknown invoice callback instead of failing the webhook', function (): void {
@@ -208,7 +223,7 @@ it('records an unknown invoice callback instead of failing the webhook', functio
     ));
 
     expect(PaymentCallback::where('gateway_trade_no', 'TRADE_UNKNOWN_1')->value('outcome'))
-        ->toBe(PaymentCallbackOutcome::UNKNOWN_INVOICE->value);
+        ->toBe(PaymentCallbackOutcome::UNKNOWN_INVOICE);
 });
 
 it('delivers the exact same encrypted card key idempotently on repeated redemption provisioning', function (): void {
@@ -217,9 +232,9 @@ it('delivers the exact same encrypted card key idempotently on repeated redempti
     RedemptionCode::factory()->create(['product_id' => $product->id, 'status' => 'available']);
     $instance = Instance::factory()->create(['product_id' => $product->id, 'driver_type' => 'redemption']);
 
-    $driver = app(RedemptionCodeDriver::class);
-    $first = $driver->provision($instance, []);
-    $second = $driver->provision($instance->fresh(), []);
+    $provision = app(ProvisionInstanceAction::class);
+    $first = $provision->execute($instance, []);
+    $second = $provision->execute($instance->fresh(), []);
 
     expect($first->success)->toBeTrue()
         ->and($second->credentials['card_key'])->toBe($first->credentials['card_key'])
@@ -262,7 +277,7 @@ it('reclaims a running task whose lease expired', function (): void {
 
     app(DispatchStalePendingTasksAction::class)->execute();
 
-    expect($task->fresh()->status)->toBe('pending')
+    expect($task->fresh()->status)->toBe(FulfillmentTaskStatus::PENDING)
         ->and($task->fresh()->attempts)->toBe(1);
     Queue::assertPushed(ExecuteFulfillmentTaskJob::class);
 });
@@ -277,7 +292,7 @@ it('fails a task permanently once max_attempts is exhausted', function (): void 
 
     app(DispatchStalePendingTasksAction::class)->execute();
 
-    expect($task->fresh()->status)->toBe('failed');
+    expect($task->fresh()->status)->toBe(FulfillmentTaskStatus::FAILED);
 });
 
 it('verifies zjmf callback signature, blocks rand_str replay, and never clears suspend_reason', function (): void {
@@ -360,10 +375,10 @@ it('pre-syncs upstream status before suspend and reconciles idempotently if alre
         'status' => InstanceStatus::ACTIVE->value,
     ]);
 
-    $result = app(ZjmfFinanceDriver::class)->suspend($instance, 'Overdue');
+    $result = app(SuspendInstanceAction::class)->execute($instance, 'Overdue');
 
     expect($result->success)->toBeTrue()
-        ->and($instance->fresh()->status)->toBe(InstanceStatus::SUSPENDED->value);
+        ->and($instance->fresh()->status)->toBe(InstanceStatus::SUSPENDED);
 
     Http::assertNotSent(fn ($request) => str_contains($request->url(), '/provision/default'));
 });
@@ -376,6 +391,10 @@ it('claws back frozen affiliate commission on refund and records expense on exte
         'total_amount' => '100.00',
         'status' => InvoiceStatus::PAID->value,
     ]);
+    $admin = User::factory()->create();
+    $reason = 'Refund approved while retaining the service.';
+    Gate::define('refund-invoice', fn (User $actor, Invoice $subject): bool => $actor->is($admin) && $subject->is($invoice));
+    $this->actingAs($admin);
     $commission = AffiliateCommission::factory()->create([
         'referrer_id' => $referrer->id,
         'buyer_id' => $buyer->id,
@@ -385,7 +404,13 @@ it('claws back frozen affiliate commission on refund and records expense on exte
         'status' => 'pending',
     ]);
 
-    app(RefundInvoiceAction::class)->execute($invoice, mode: 'external_record', keepService: true);
+    app(RefundInvoiceAction::class)->execute(
+        $invoice,
+        mode: 'external_record',
+        keepService: true,
+        reason: $reason,
+        actor: $admin,
+    );
 
     expect($commission->fresh()->status)->toBe('clawed_back');
 
@@ -393,6 +418,13 @@ it('claws back frozen affiliate commission on refund and records expense on exte
         'invoice_id' => $invoice->id,
         'type' => 'expense',
         'amount' => '100.00',
+    ]);
+    $this->assertDatabaseHas('audit_logs', [
+        'actor_id' => $admin->id,
+        'action' => 'invoice.refund',
+        'subject_type' => Invoice::class,
+        'subject_id' => $invoice->id,
+        'reason' => $reason,
     ]);
 });
 

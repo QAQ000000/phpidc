@@ -20,8 +20,13 @@ interface PaymentGatewayInterface
 
     public function isEnabled(): bool;
 
-    /** @param string $amount Fixed-point decimal string, e.g. "10.00" */
-    public function charge(Invoice $invoice, string $amount): GatewayChargeResult;
+    /**
+     * The Action commits the payment attempt before calling the gateway.
+     * The adapter uses that exact order number and never mutates models (F10).
+     *
+     * @param  string  $amount  Fixed-point decimal string, e.g. "10.00"
+     */
+    public function charge(Invoice $invoice, string $amount, string $outTradeNo): GatewayChargeResult;
 
     /**
      * Protocol verification ONLY. Must not read or write invoices, users,

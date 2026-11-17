@@ -24,16 +24,9 @@ final class Money
         return '0.00';
     }
 
-    /** Normalize arbitrary numeric input to a 2dp non-negative string; throws on invalid. */
-    public static function of(int|string|float $value): string
+    /** Normalize decimal strings or whole units; float inputs are forbidden (INV-M1). */
+    public static function of(int|string $value): string
     {
-        if (is_float($value)) {
-            if (! is_finite($value)) {
-                throw new InvalidArgumentException('Money cannot be NaN or infinite.');
-            }
-            $value = sprintf('%.6F', $value);
-        }
-
         $value = trim((string) $value);
         if ($value === '' || ! preg_match('/^\+?\d+(\.\d+)?$/', $value)) {
             throw new InvalidArgumentException("Invalid money value: {$value}");

@@ -29,7 +29,7 @@ class PaymentCallback extends Model
         return [
             'outcome' => PaymentCallbackOutcome::class,
             'raw_payload' => 'array',
-            'amount' => 'string',
+            'amount' => 'decimal:2',
             'processed_at' => 'datetime',
         ];
     }

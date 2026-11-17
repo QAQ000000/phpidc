@@ -22,7 +22,7 @@ class PaymentAttempt extends Model
     {
         return [
             'request_payload' => 'array',
-            'amount' => 'string',
+            'amount' => 'decimal:2',
             'paid_at' => 'datetime',
         ];
     }

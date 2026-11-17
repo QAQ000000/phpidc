@@ -20,8 +20,8 @@ class User extends Authenticatable
     use HasFactory, Notifiable, SoftDeletes;
 
     /**
-     * Money columns are cast to string, never float: a float here would defeat
-     * INV-M1 at the model boundary.
+     * Decimal casts return two-place strings, including after SQLite reloads
+     * (INV-M1). Business arithmetic remains in Money.
      *
      * @return array<string, string>
      */
@@ -32,9 +32,9 @@ class User extends Authenticatable
             'kyc_verified_at' => 'datetime',
             'anonymized_at' => 'datetime',
             'password' => 'hashed',
-            'credit' => 'string',
-            'frozen_credit' => 'string',
-            'affiliate_balance' => 'string',
+            'credit' => 'decimal:2',
+            'frozen_credit' => 'decimal:2',
+            'affiliate_balance' => 'decimal:2',
         ];
     }
 }

@@ -44,17 +44,17 @@ new EpayGateway(
    $sign = md5($queryString . $merchantKey);
    ```
 
-### 1.4 Initiate Payment (`charge(Invoice $invoice, string $amount)`)
+### 1.4 Initiate Payment (`charge(Invoice $invoice, string $amount, string $outTradeNo)`)
 
 - **Strict type rule**: `$amount` is a validated fixed-point decimal string (`/^\d+\.\d{2}$/`). Pass it directly as `money` — NEVER call `number_format()` under `strict_types=1`.
-- **Order number**: `charge()` does **not** reuse `invoice_no`. It mints a fresh `out_trade_no` (e.g. `{invoice_no}{attempt_seq}`), inserts a `payment_attempts` row (`gateway`, `out_trade_no`, `amount`, `status=created`), and returns it on `GatewayChargeResult::outTradeNo`. Without this, a customer retrying a timed-out payment is rejected by epay as a duplicate order number.
+- **Order number and ownership**: `InitiatePaymentAction` mints a fresh `out_trade_no` (e.g. `{invoice_no}{attempt_seq}`), inserts a `payment_attempts` row (`gateway`, `out_trade_no`, `amount`, `status=created`) and commits before calling the adapter. `charge()` sends the exact injected `$outTradeNo` and echoes it on `GatewayChargeResult::outTradeNo`; it never inserts or updates models. HTTP runs outside database locks (F10, INV-L3). A failed or ambiguous call leaves its attempt intact; a customer retry creates a new attempt rather than reusing a gateway order number. Callback resolution uses the exact attempt mapping, with complete invoice_no as its only fallback.
 - **Redirect / API mode**: `POST` (`application/x-www-form-urlencoded`) to `{epay_api_url}/submit.php` or `{epay_api_url}/mapi.php`.
 - **Request fields**: `pid`, `type` (`alipay`|`wxpay`), `out_trade_no`, `notify_url`, `return_url`, `name`, `money` (`$amount`), `clientip`, `sign`, `sign_type` (`MD5`).
 - **Response (`mapi.php`)**: `code === 1` indicates success; read `payurl` or `qrcode` into `GatewayChargeResult`.
 
 ### 1.5 Adapter Boundary (`verifyCallback(Request $request): VerifiedPaymentResult`)
 
-`EpayGateway` **ONLY** handles protocol verification — it MUST NOT touch `invoices`, `users`, `payment_callbacks`, `payment_attempts` or `fulfillment_tasks` (INV-L2):
+`EpayGateway::verifyCallback()` **ONLY** handles protocol verification — it MUST NOT read or write `invoices`, `users`, `payment_callbacks`, `payment_attempts` or `fulfillment_tasks` (INV-L2):
 
 1. Recompute the MD5 signature over incoming params (excluding `sign` and `sign_type`).
 2. Compare with `hash_equals()` **after normalizing case**: `strtolower((string) $request->input('sign'))` against the computed lowercase digest. Some epay gateways return an uppercase digest; a case-sensitive `hash_equals()` would reject every valid callback from them.
@@ -83,9 +83,9 @@ new EpayGateway(
 > **Verification Note**: exact remote admin API paths must be verified against the deployed Sub2API instance before implementing `remote_api` mode. `local_pool` mode works immediately via `RedemptionCodeDriver`.
 
 - **Billing Cycle**: `onetime` (implements `FulfillmentDriver` only, NOT `RenewableResource`).
-- **`local_pool` Mode**: an admin pre-imports keys into `redemption_codes`; `Sub2ApiDriver` delegates to `RedemptionCodeDriver`. Because `code` is encrypted with a randomized IV, imports are deduplicated on `code_hash` (`unique(product_id, code_hash)`) — importing the same batch twice is a no-op, not a duplicate (INV-C1).
+- **`local_pool` Mode**: an admin pre-imports keys into `redemption_codes` through an Action. `ProvisionInstanceAction` reserves and binds the code before `Sub2ApiDriver` delegates to the pure `RedemptionCodeDriver`; drivers return credentials without mutating inventory or instances. The Action atomically commits sold state and encrypted credentials before delivery. Because `code` is encrypted with a randomized IV, imports are deduplicated on `code_hash` (`unique(product_id, code_hash)`) — importing the same batch twice is a no-op, not a duplicate (INV-C1, INV-C2, F10).
 - **`remote_api` Mode**: reads account credentials from `upstream_apis` (`base_url`, `encrypted_secret`, `config` JSON). Every call is logged to `upstream_operations`.
-- **Reservations**: a claimed code carries a `reserved_until` lease; a sweeper returns expired reservations to `available` so a crashed provisioning does not burn stock (INV-C2, INV-C3).
+- **Reservations**: a reserved code is already bound by `instance_id` and carries a `reserved_until` lease. An Action-backed sweeper releases only expired, undelivered reservations and clears the binding and lease under locks. Sold/delivered codes are never reclaimed (INV-C2, INV-C3, INV-R3).
 - **No renewal**: because it is not a `RenewableResource`, the overdue scheduler skips it entirely (INV-S2).
 
 ---

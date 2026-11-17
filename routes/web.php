@@ -2,6 +2,7 @@
 
 declare(strict_types=1);
 
+use App\Http\Controllers\CheckoutController;
 use App\Http\Controllers\InstallController;
 use Illuminate\Support\Facades\Route;
 
@@ -13,6 +14,8 @@ Route::get('/', function () {
 // once installed.lock exists.
 Route::get('/install', [InstallController::class, 'show'])->name('install.show');
 Route::post('/install', [InstallController::class, 'store'])->name('install.store');
+
+Route::post('/checkout', [CheckoutController::class, 'store'])->name('checkout.store');
 
 /*
  * Fallback: group middleware never runs when no route matches, so an

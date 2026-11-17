@@ -29,11 +29,11 @@ class Invoice extends Model
             'status' => InvoiceStatus::class,
             'line_items' => 'array',
             // INV-M1: money stays a string end to end.
-            'total_amount' => 'string',
-            'credit_applied' => 'string',
-            'gateway_amount' => 'string',
-            'discount_amount' => 'string',
-            'upstream_expected_cost' => 'string',
+            'total_amount' => 'decimal:2',
+            'credit_applied' => 'decimal:2',
+            'gateway_amount' => 'decimal:2',
+            'discount_amount' => 'decimal:2',
+            'upstream_expected_cost' => 'decimal:2',
             'paid_at' => 'datetime',
             'expires_at' => 'datetime',
         ];
