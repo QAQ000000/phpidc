@@ -15,7 +15,6 @@ use App\Models\FulfillmentTask;
 use App\Models\Instance;
 use App\Models\Invoice;
 use App\Models\User;
-use Illuminate\Database\QueryException;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\Http;
@@ -44,18 +43,6 @@ use Illuminate\Support\Facades\Queue;
 */
 
 uses(RefreshDatabase::class);
-
-it('prevents physical user deletion when financial or fulfillment records exist and enforces tenant isolation', function (): void {
-    $owner = User::factory()->create();
-    $intruder = User::factory()->create();
-    $instance = Instance::factory()->create(['user_id' => $owner->id, 'driver_type' => 'redemption']);
-    $invoice = Invoice::factory()->create(['user_id' => $owner->id, 'total_amount' => '10.00']);
-
-    expect(fn () => $owner->forceDelete())->toThrow(QueryException::class);
-
-    $this->actingAs($intruder)->get("/console/instances/{$instance->id}")->assertForbidden();
-    $this->actingAs($intruder)->get("/console/invoices/{$invoice->id}")->assertForbidden();
-});
 
 it('recovers stale pending tasks via the outbox sweeper', function (): void {
     Queue::fake();

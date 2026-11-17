@@ -2,6 +2,7 @@
 
 declare(strict_types=1);
 
+use App\Http\Controllers\PaymentCallbackController;
 use App\Http\Controllers\UpstreamSyncController;
 use Illuminate\Support\Facades\Route;
 
@@ -10,3 +11,6 @@ use Illuminate\Support\Facades\Route;
 // signature and a scoped replay key (zjmf-api-spec §5, INV-Q4).
 Route::post('/host/sync', [UpstreamSyncController::class, 'sync'])
     ->name('api.host.sync');
+
+Route::match(['get', 'post'], '/payments/{gateway}/notify', PaymentCallbackController::class)
+    ->where('gateway', 'epay_wechat|epay_alipay')->name('payments.notify');
