@@ -31,7 +31,7 @@ class ProvisionInstanceAction
                     ->whereNull('instance_id')->where(fn ($q) => $q->whereNull('reserved_until')->orWhere('reserved_until', '<', now()))
                     ->orderBy('id')->lockForUpdate()->first();
             }
-            if ($code === null) {
+            if ($code === null || $code->product_id !== $locked->product_id) {
                 return false;
             }
             if (! $this->ownsTask($locked, $taskId, $worker)) {

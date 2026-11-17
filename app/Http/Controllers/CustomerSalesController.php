@@ -12,6 +12,7 @@ use App\Models\User;
 use Illuminate\Contracts\View\View;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Http\Response;
 
 class CustomerSalesController extends Controller
 {
@@ -40,11 +41,11 @@ class CustomerSalesController extends Controller
         return view('sales.invoice', ['invoice' => $invoice]);
     }
 
-    public function instance(Request $request, Instance $instance): View
+    public function instance(Request $request, Instance $instance): Response
     {
         abort_unless($instance->user_id === $this->user($request)->id, 403);
 
-        return view('sales.instance', ['instance' => $instance]);
+        return response()->view('sales.instance', ['instance' => $instance])->header('Cache-Control', 'private, no-store');
     }
 
     public function pay(Request $request, Invoice $invoice, InitiatePaymentAction $pay): JsonResponse|View

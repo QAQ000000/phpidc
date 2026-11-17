@@ -26,10 +26,10 @@ class InitiatePaymentAction
         if (! $gateway->isEnabled()) {
             throw ValidationException::withMessages(['gateway' => 'Payment gateway is not configured.']);
         }
-        $attempt = DB::transaction(function () use ($invoice, $actor): PaymentAttempt {
+        $attempt = DB::transaction(function () use ($invoice, $actor, $gateway): PaymentAttempt {
             User::whereKey($actor->id)->lockForUpdate()->firstOrFail();
             $locked = Invoice::whereKey($invoice->id)->lockForUpdate()->firstOrFail();
-            if ($locked->user_id !== $actor->id || $locked->status !== InvoiceStatus::UNPAID
+            if ($locked->user_id !== $actor->id || $locked->gateway !== $gateway->getIdentifier() || $locked->status !== InvoiceStatus::UNPAID
                 || ($locked->expires_at !== null && $locked->expires_at->isPast()) || Money::isZero($locked->gateway_amount)) {
                 throw ValidationException::withMessages(['invoice' => 'Invoice cannot be paid.']);
             }

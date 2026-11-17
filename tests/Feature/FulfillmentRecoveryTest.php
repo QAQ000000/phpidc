@@ -6,11 +6,15 @@ use App\Actions\DispatchStalePendingTasksAction;
 use App\Actions\ExecuteFulfillmentTaskAction;
 use App\Actions\ReapRedemptionReservationsAction;
 use App\Actions\RetryFulfillmentTaskAction;
+use App\Contracts\FulfillmentDriver;
+use App\Drivers\SelfHosted\RedemptionCodeDriver;
 use App\Enums\FulfillmentTaskStatus;
 use App\Enums\InstanceStatus;
 use App\Jobs\ExecuteFulfillmentTaskJob;
 use App\Models\FulfillmentTask;
 use App\Models\RedemptionCode;
+use App\Services\DriverManager;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Queue;
 
 it('recovers stale pending tasks via the outbox sweeper', function (): void {
@@ -86,4 +90,24 @@ it('fails a task permanently once max_attempts is exhausted', function (): void 
     app(DispatchStalePendingTasksAction::class)->execute();
 
     expect($task->fresh()->status)->toBe(FulfillmentTaskStatus::FAILED);
+});
+
+it('discards credentials returned by a worker after it loses the task lease', function (): void {
+    $task = FulfillmentTask::factory()->create();
+    $code = RedemptionCode::factory()->create(['product_id' => $task->instance->product_id]);
+    $real = new RedemptionCodeDriver;
+    $driver = Mockery::mock(FulfillmentDriver::class);
+    $driver->shouldReceive('provision')->once()->andReturnUsing(function ($instance, $params) use ($real, $task) {
+        $result = $real->provision($instance, $params);
+        DB::table('fulfillment_tasks')->where('id', $task->id)->update(['locked_by' => 'replacement-worker']);
+
+        return $result;
+    });
+    $manager = Mockery::mock(DriverManager::class);
+    $manager->shouldReceive('fulfillment')->andReturn($driver);
+    $this->app->instance(DriverManager::class, $manager);
+    app(ExecuteFulfillmentTaskAction::class)->execute($task->id);
+    expect($code->fresh()->status)->toBe('reserved')
+        ->and($task->instance->fresh()->encrypted_credentials)->toBeNull()
+        ->and($task->fresh()->locked_by)->toBe('replacement-worker');
 });

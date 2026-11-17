@@ -17,7 +17,7 @@ class RedemptionCodeFactory extends Factory
 
         return [
             'product_id' => Product::factory(), 'code' => $code,
-            'code_hash' => hash_hmac('sha256', $code, config('app.key')),
+            'code_hash' => fn (array $attributes) => hash_hmac('sha256', $attributes['code'], config('app.key')),
             'status' => 'available',
         ];
     }
