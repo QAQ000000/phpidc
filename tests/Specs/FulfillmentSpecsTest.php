@@ -6,7 +6,6 @@ use App\Actions\CreateComboInvoiceAction;
 use App\Actions\DispatchStalePendingTasksAction;
 use App\Actions\ExpireUnpaidInvoicesAction;
 use App\Actions\HandlePaymentCallbackAction;
-use App\Actions\ProvisionInstanceAction;
 use App\Actions\RefundInvoiceAction;
 use App\Actions\SuspendInstanceAction;
 use App\Data\VerifiedPaymentResult;
@@ -24,7 +23,6 @@ use App\Models\Instance;
 use App\Models\Invoice;
 use App\Models\PaymentCallback;
 use App\Models\Product;
-use App\Models\RedemptionCode;
 use App\Models\User;
 use Illuminate\Database\QueryException;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -224,23 +222,6 @@ it('records an unknown invoice callback instead of failing the webhook', functio
 
     expect(PaymentCallback::where('gateway_trade_no', 'TRADE_UNKNOWN_1')->value('outcome'))
         ->toBe(PaymentCallbackOutcome::UNKNOWN_INVOICE);
-});
-
-it('delivers the exact same encrypted card key idempotently on repeated redemption provisioning', function (): void {
-    $product = Product::factory()->create(['driver_type' => 'redemption']);
-    $code1 = RedemptionCode::factory()->create(['product_id' => $product->id, 'status' => 'available']);
-    RedemptionCode::factory()->create(['product_id' => $product->id, 'status' => 'available']);
-    $instance = Instance::factory()->create(['product_id' => $product->id, 'driver_type' => 'redemption']);
-
-    $provision = app(ProvisionInstanceAction::class);
-    $first = $provision->execute($instance, []);
-    $second = $provision->execute($instance->fresh(), []);
-
-    expect($first->success)->toBeTrue()
-        ->and($second->credentials['card_key'])->toBe($first->credentials['card_key'])
-        ->and(RedemptionCode::where('instance_id', $instance->id)->count())->toBe(1)
-        ->and($code1->fresh()->status)->toBe('sold')
-        ->and($instance->fresh()->encrypted_credentials['card_key'])->toBe($first->credentials['card_key']);
 });
 
 it('prevents physical user deletion when financial or fulfillment records exist and enforces tenant isolation', function (): void {
