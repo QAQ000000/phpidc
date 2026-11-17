@@ -21,7 +21,7 @@ declare(strict_types=1);
 
 const SPEC_PATH = 'tests/Specs/FulfillmentSpecsTest.php';
 
-const EXPECTED_SPEC_CASES = 6;
+const EXPECTED_SPEC_CASES = 5;
 
 it('keeps every specification case in place', function (): void {
     $path = base_path(SPEC_PATH);

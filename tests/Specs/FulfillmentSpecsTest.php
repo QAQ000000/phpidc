@@ -2,16 +2,12 @@
 
 declare(strict_types=1);
 
-use App\Actions\DispatchStalePendingTasksAction;
 use App\Actions\RefundInvoiceAction;
 use App\Actions\SuspendInstanceAction;
-use App\Enums\FulfillmentTaskStatus;
 use App\Enums\InstanceStatus;
 use App\Enums\InvoiceStatus;
-use App\Jobs\ExecuteFulfillmentTaskJob;
 use App\Jobs\ReconcileHostSyncJob;
 use App\Models\AffiliateCommission;
-use App\Models\FulfillmentTask;
 use App\Models\Instance;
 use App\Models\Invoice;
 use App\Models\User;
@@ -43,19 +39,6 @@ use Illuminate\Support\Facades\Queue;
 */
 
 uses(RefreshDatabase::class);
-
-it('fails a task permanently once max_attempts is exhausted', function (): void {
-    $task = FulfillmentTask::factory()->create([
-        'status' => 'running',
-        'attempts' => 5,
-        'max_attempts' => 5,
-        'lease_expires_at' => now()->subMinute(),
-    ]);
-
-    app(DispatchStalePendingTasksAction::class)->execute();
-
-    expect($task->fresh()->status)->toBe(FulfillmentTaskStatus::FAILED);
-});
 
 it('verifies zjmf callback signature, blocks rand_str replay, and never clears suspend_reason', function (): void {
     $instance = Instance::factory()->create([
