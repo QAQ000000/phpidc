@@ -23,7 +23,7 @@ class ReconcileHostSyncAction
 
             return;
         }
-        $snapshot = app(DriverManager::class)->fulfillment($instance->driver_type, $apiId)->syncInfo($instance);
+        $snapshot = app(CallUpstreamAction::class)->execute(fn () => app(DriverManager::class)->fulfillment($instance->driver_type, $apiId)->syncInfo($instance));
         app(ApplyInstanceSnapshotAction::class)->execute($instance, $snapshot);
     }
 }
