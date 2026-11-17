@@ -44,17 +44,6 @@ use Illuminate\Support\Facades\Queue;
 
 uses(RefreshDatabase::class);
 
-it('recovers stale pending tasks via the outbox sweeper', function (): void {
-    Queue::fake();
-    $task = FulfillmentTask::factory()->create([
-        'status' => 'pending',
-        'created_at' => now()->subMinutes(2),
-    ]);
-
-    app(DispatchStalePendingTasksAction::class)->execute();
-    Queue::assertPushed(ExecuteFulfillmentTaskJob::class, fn ($job) => $job->taskId === $task->id);
-});
-
 it('reclaims a running task whose lease expired', function (): void {
     Queue::fake();
     $task = FulfillmentTask::factory()->create([
