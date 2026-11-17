@@ -5,11 +5,18 @@ declare(strict_types=1);
 namespace App\Models;
 
 use App\Enums\DriverType;
+use Database\Factories\UpstreamApiFactory;
+use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class UpstreamApi extends Model
 {
+    /** @use HasFactory<UpstreamApiFactory> */
+    use HasFactory;
+
+    protected $hidden = ['encrypted_secret'];
+
     protected $guarded = ['id'];
 
     /**

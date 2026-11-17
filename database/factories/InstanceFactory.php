@@ -9,6 +9,7 @@ use App\Enums\DriverType;
 use App\Enums\InstanceStatus;
 use App\Models\Instance;
 use App\Models\Product;
+use App\Models\UpstreamApi;
 use App\Models\User;
 use Illuminate\Database\Eloquent\Factories\Factory;
 use Illuminate\Support\Str;
@@ -27,7 +28,7 @@ class InstanceFactory extends Factory
             'user_id' => User::factory(),
             'product_id' => Product::factory(),
             'driver_type' => DriverType::REDEMPTION,
-            'upstream_api_id' => null,
+            'upstream_api_id' => fn (array $attributes) => ($attributes['driver_type'] instanceof DriverType ? $attributes['driver_type'] : DriverType::from($attributes['driver_type'])) === DriverType::ZJMF_API ? UpstreamApi::factory() : null,
             'upstream_instance_id' => null,
             'downstream_token' => hash('md5', Str::uuid()->toString()),
             'display_name' => fake()->words(2, true),
