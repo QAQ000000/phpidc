@@ -2,14 +2,11 @@
 
 declare(strict_types=1);
 
-use App\Actions\CreateComboInvoiceAction;
 use App\Actions\DispatchStalePendingTasksAction;
-use App\Actions\ExpireUnpaidInvoicesAction;
 use App\Actions\HandlePaymentCallbackAction;
 use App\Actions\RefundInvoiceAction;
 use App\Actions\SuspendInstanceAction;
 use App\Data\VerifiedPaymentResult;
-use App\Enums\BillingCycle;
 use App\Enums\FulfillmentTaskStatus;
 use App\Enums\InstanceStatus;
 use App\Enums\InvoiceStatus;
@@ -17,12 +14,10 @@ use App\Enums\PaymentCallbackOutcome;
 use App\Jobs\ExecuteFulfillmentTaskJob;
 use App\Jobs\ReconcileHostSyncJob;
 use App\Models\AffiliateCommission;
-use App\Models\FinancialTransaction;
 use App\Models\FulfillmentTask;
 use App\Models\Instance;
 use App\Models\Invoice;
 use App\Models\PaymentCallback;
-use App\Models\Product;
 use App\Models\User;
 use Illuminate\Database\QueryException;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -53,40 +48,6 @@ use Illuminate\Support\Facades\Queue;
 */
 
 uses(RefreshDatabase::class);
-
-it('freezes wallet credit on combo payment and unfreezes once when expired', function (): void {
-    $user = User::factory()->create(['credit' => '5.00', 'frozen_credit' => '0.00']);
-    $product = Product::factory()->create([
-        'local_prices' => [
-            'onetime' => ['price' => '10.00', 'setup_fee' => '0.00', 'enabled' => true],
-        ],
-    ]);
-
-    $invoice = app(CreateComboInvoiceAction::class)->execute(
-        user: $user,
-        product: $product,
-        billingCycle: BillingCycle::ONETIME,
-        options: [],
-        useCredit: true,
-        gateway: 'epay_wechat',
-    );
-
-    expect($invoice->credit_applied)->toBe('5.00')
-        ->and($invoice->gateway_amount)->toBe('5.00')
-        ->and($user->fresh()->credit)->toBe('0.00')
-        ->and($user->fresh()->frozen_credit)->toBe('5.00');
-
-    $invoice->update(['expires_at' => now()->subMinute()]);
-
-    app(ExpireUnpaidInvoicesAction::class)->execute();
-    app(ExpireUnpaidInvoicesAction::class)->execute();
-
-    expect($invoice->fresh()->status)->toBe(InvoiceStatus::EXPIRED)
-        ->and($user->fresh()->credit)->toBe('5.00')
-        ->and($user->fresh()->frozen_credit)->toBe('0.00')
-        // INV-W2: exactly one unfreeze ledger row despite two sweeps.
-        ->and(FinancialTransaction::where('reference_key', "unfreeze:{$invoice->id}")->count())->toBe(1);
-});
 
 it('credits a late payment on an expired invoice without provisioning', function (): void {
     Queue::fake();

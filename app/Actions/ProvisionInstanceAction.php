@@ -5,7 +5,9 @@ declare(strict_types=1);
 namespace App\Actions;
 
 use App\Data\ProvisionResult;
+use App\Enums\FulfillmentTaskStatus;
 use App\Enums\InstanceStatus;
+use App\Models\FulfillmentTask;
 use App\Models\Instance;
 use App\Models\RedemptionCode;
 use App\Services\DriverManager;
@@ -15,9 +17,10 @@ class ProvisionInstanceAction
 {
     public function __construct(private readonly DriverManager $drivers) {}
 
-    public function execute(Instance $instance, array $params): ProvisionResult
+    public function execute(Instance $instance, array $params, ?int $taskId = null, ?string $worker = null): ProvisionResult
     {
-        $reserved = DB::transaction(function () use ($instance): bool {
+        $driver = $this->drivers->fulfillment($instance->driver_type, $instance->upstream_api_id);
+        $reserved = DB::transaction(function () use ($instance, $taskId, $worker): bool {
             $locked = Instance::whereKey($instance->id)->lockForUpdate()->firstOrFail();
             if (! in_array($locked->status, [InstanceStatus::PENDING, InstanceStatus::ACTIVE], true)) {
                 return false;
@@ -31,6 +34,9 @@ class ProvisionInstanceAction
             if ($code === null) {
                 return false;
             }
+            if (! $this->ownsTask($locked, $taskId, $worker)) {
+                return false;
+            }
             if ($code->status !== 'sold') {
                 $code->update(['instance_id' => $locked->id, 'status' => 'reserved', 'reserved_until' => now()->addMinutes(15)]);
             }
@@ -41,15 +47,17 @@ class ProvisionInstanceAction
             return ProvisionResult::fail('No available card or instance is not provisionable.', retryable: true);
         }
         $instance = $instance->fresh();
-        $driver = $this->drivers->fulfillment($instance->driver_type, $instance->upstream_api_id);
         $result = $driver->provision($instance, $params);
         if (! $result->success) {
             return $result;
         }
 
-        return DB::transaction(function () use ($instance, $result): ProvisionResult {
+        return DB::transaction(function () use ($instance, $result, $taskId, $worker): ProvisionResult {
             $locked = Instance::whereKey($instance->id)->lockForUpdate()->firstOrFail();
             $code = RedemptionCode::where('instance_id', $locked->id)->lockForUpdate()->first();
+            if (! $this->ownsTask($locked, $taskId, $worker)) {
+                return ProvisionResult::fail('Task lease changed before delivery.', retryable: true);
+            }
             if ($code === null || $code->product_id !== $locked->product_id
                 || ! in_array($locked->status, [InstanceStatus::PENDING, InstanceStatus::ACTIVE], true)
                 || $locked->driver_type !== $instance->driver_type || $locked->upstream_api_id !== $instance->upstream_api_id
@@ -71,5 +79,17 @@ class ProvisionInstanceAction
 
             return $result;
         });
+    }
+
+    private function ownsTask(Instance $instance, ?int $taskId, ?string $worker): bool
+    {
+        if ($taskId === null) {
+            return true;
+        }
+        $task = FulfillmentTask::whereKey($taskId)->lockForUpdate()->firstOrFail();
+
+        return $task->instance_id === $instance->id && $task->status === FulfillmentTaskStatus::RUNNING
+            && $task->locked_by === $worker && $task->lease_expires_at !== null && $task->lease_expires_at->isFuture()
+            && $task->driver_type === $instance->driver_type && $task->upstream_api_id === $instance->upstream_api_id;
     }
 }
