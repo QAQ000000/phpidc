@@ -3,21 +3,17 @@
 declare(strict_types=1);
 
 use App\Actions\DispatchStalePendingTasksAction;
-use App\Actions\HandlePaymentCallbackAction;
 use App\Actions\RefundInvoiceAction;
 use App\Actions\SuspendInstanceAction;
-use App\Data\VerifiedPaymentResult;
 use App\Enums\FulfillmentTaskStatus;
 use App\Enums\InstanceStatus;
 use App\Enums\InvoiceStatus;
-use App\Enums\PaymentCallbackOutcome;
 use App\Jobs\ExecuteFulfillmentTaskJob;
 use App\Jobs\ReconcileHostSyncJob;
 use App\Models\AffiliateCommission;
 use App\Models\FulfillmentTask;
 use App\Models\Instance;
 use App\Models\Invoice;
-use App\Models\PaymentCallback;
 use App\Models\User;
 use Illuminate\Database\QueryException;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -48,18 +44,6 @@ use Illuminate\Support\Facades\Queue;
 */
 
 uses(RefreshDatabase::class);
-
-it('records an unknown invoice callback instead of failing the webhook', function (): void {
-    app(HandlePaymentCallbackAction::class)->execute(new VerifiedPaymentResult(
-        gateway: 'epay_wechat',
-        gatewayTradeNo: 'TRADE_UNKNOWN_1',
-        outTradeNo: 'NO-SUCH-ORDER',
-        paidAmount: '10.00',
-    ));
-
-    expect(PaymentCallback::where('gateway_trade_no', 'TRADE_UNKNOWN_1')->value('outcome'))
-        ->toBe(PaymentCallbackOutcome::UNKNOWN_INVOICE);
-});
 
 it('prevents physical user deletion when financial or fulfillment records exist and enforces tenant isolation', function (): void {
     $owner = User::factory()->create();

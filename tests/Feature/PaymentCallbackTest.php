@@ -135,3 +135,15 @@ it('rejects a short payment without marking the invoice paid', function (): void
         ->and(PaymentCallback::where('gateway_trade_no', 'TRADE_SHORT_1')->value('outcome'))
         ->toBe(PaymentCallbackOutcome::REJECTED_SHORT_AMOUNT);
 });
+
+it('records an unknown invoice callback instead of failing the webhook', function (): void {
+    app(HandlePaymentCallbackAction::class)->execute(new VerifiedPaymentResult(
+        gateway: 'epay_wechat',
+        gatewayTradeNo: 'TRADE_UNKNOWN_1',
+        outTradeNo: 'NO-SUCH-ORDER',
+        paidAmount: '10.00',
+    ));
+
+    expect(PaymentCallback::where('gateway_trade_no', 'TRADE_UNKNOWN_1')->value('outcome'))
+        ->toBe(PaymentCallbackOutcome::UNKNOWN_INVOICE);
+});
