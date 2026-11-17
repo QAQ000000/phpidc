@@ -6,6 +6,7 @@ namespace App\Models;
 
 use App\Enums\DriverType;
 use Database\Factories\ProductFactory;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -39,6 +40,7 @@ class Product extends Model
         ];
     }
 
+    /** @return BelongsTo<Category, $this> */
     public function category(): BelongsTo
     {
         return $this->belongsTo(Category::class);
@@ -62,5 +64,20 @@ class Product extends Model
     public function instances(): HasMany
     {
         return $this->hasMany(Instance::class);
+    }
+
+    /** @param Builder<self> $query */
+    public function scopePublicCatalog(Builder $query): void
+    {
+        $query->where('is_hidden', false)->whereHas('category', fn (Builder $category) => $category->where('is_hidden', false))
+            ->where(fn (Builder $driver) => $driver
+                ->where(fn (Builder $local) => $local->whereIn('driver_type', [DriverType::REDEMPTION, DriverType::SUB2API])->whereNull('upstream_api_id'))
+                ->orWhere(fn (Builder $upstream) => $upstream->where('driver_type', DriverType::ZJMF_API)
+                    ->whereHas('upstreamApi', fn (Builder $account) => $account->where('is_active', true)->where('driver', DriverType::ZJMF_API))));
+    }
+
+    public function publicPath(): string
+    {
+        return '/store/'.rawurlencode($this->category->slug).'/'.rawurlencode($this->slug);
     }
 }

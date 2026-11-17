@@ -1,0 +1,49 @@
+<?php
+
+declare(strict_types=1);
+
+namespace App\Actions;
+
+use App\Enums\CmsContentFormat;
+use App\Models\CmsArticle;
+use App\Models\CmsCategory;
+use App\Support\CmsRenderer;
+use Illuminate\Support\Carbon;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Validation\Rule;
+
+class SaveCmsArticleAction
+{
+    public function execute(CmsCategory $category, array $input, string $reason): CmsArticle
+    {
+        $data = validator([...$input, 'reason' => trim($reason)], [
+            'slug' => ['required', 'max:100', 'regex:/^[a-z0-9]+(?:-[a-z0-9]+)*$/D'], 'title' => ['required', 'string', 'max:255'],
+            'body' => ['required', 'string', 'max:1000000'], 'content_format' => ['required', Rule::enum(CmsContentFormat::class)],
+            'is_published' => ['required', 'boolean'], 'published_at' => ['nullable', 'date'],
+            'seo_title' => ['nullable', 'string', 'max:255'], 'seo_keywords' => ['nullable', 'string', 'max:255'],
+            'seo_description' => ['nullable', 'string', 'max:1000'], 'sort_order' => ['sometimes', 'integer', 'min:0'],
+            'reason' => ['required', 'string', 'max:1000'],
+        ])->validate();
+        unset($data['reason']);
+        $data['published_at'] = $data['is_published']
+            ? Carbon::parse($data['published_at'] ?? now())->setTimezone(config('app.timezone')) : null;
+        if ($data['content_format'] === CmsContentFormat::HTML->value) {
+            $data['body'] = app(CmsRenderer::class)->sanitize($data['body']);
+        }
+
+        return DB::transaction(function () use ($category, $data, $reason): CmsArticle {
+            CmsCategory::whereKey($category->id)->lockForUpdate()->firstOrFail();
+            $article = CmsArticle::updateOrCreate(['cms_category_id' => $category->id, 'slug' => $data['slug']], [
+                'title' => $data['title'], 'body' => $data['body'], 'content_format' => $data['content_format'],
+                'is_published' => $data['is_published'], 'published_at' => $data['published_at'],
+                'seo_title' => $data['seo_title'] ?? null, 'seo_description' => $data['seo_description'] ?? null,
+                'seo_keywords' => $data['seo_keywords'] ?? null, 'sort_order' => $data['sort_order'] ?? 0,
+            ]);
+            DB::table('audit_logs')->insert(['actor_type' => 'system', 'action' => 'cms.article_save', 'subject_type' => CmsArticle::class,
+                'subject_id' => $article->id, 'reason' => $reason, 'after' => json_encode(['slug' => $article->slug, 'is_published' => $article->is_published,
+                    'published_at' => $article->published_at?->toIso8601String()], JSON_THROW_ON_ERROR), 'created_at' => now(), 'updated_at' => now()]);
+
+            return $article;
+        });
+    }
+}

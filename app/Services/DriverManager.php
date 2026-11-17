@@ -8,6 +8,7 @@ use App\Contracts\FulfillmentDriver;
 use App\Contracts\PaymentGatewayInterface;
 use App\Drivers\Payment\EpayGateway;
 use App\Drivers\SelfHosted\RedemptionCodeDriver;
+use App\Drivers\SelfHosted\Sub2ApiDriver;
 use App\Drivers\Upstream\ZjmfClient;
 use App\Drivers\Upstream\ZjmfFinanceDriver;
 use App\Enums\DriverType;
@@ -21,6 +22,7 @@ class DriverManager
         return match ($type) {
             DriverType::ZJMF_API => $this->classicAccount($upstreamApiId),
             DriverType::REDEMPTION => app(RedemptionCodeDriver::class),
+            DriverType::SUB2API => $upstreamApiId === null ? app(Sub2ApiDriver::class) : throw new DomainException('Sub2API remote mode requires a verified upstream protocol.'),
             default => throw new DomainException('This fulfillment driver is not available yet.'),
         };
     }

@@ -51,7 +51,7 @@ class CreateComboInvoiceAction
                 throw ValidationException::withMessages(['product_id' => 'Product changed during quotation; request a new quote.']);
             }
             $params = $validated ?? $params;
-            if ($product->is_hidden || ($product->require_kyc && $user->kyc_verified_at === null)
+            if ($product->is_hidden || ! $product->category()->where('is_hidden', false)->exists() || ($product->require_kyc && $user->kyc_verified_at === null)
                 || ($product->require_phone && $user->phone === null)) {
                 throw ValidationException::withMessages(['product_id' => 'This product is not available for this account.']);
             }

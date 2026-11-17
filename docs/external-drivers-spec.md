@@ -82,11 +82,13 @@ new EpayGateway(
 
 > **Verification Note**: exact remote admin API paths must be verified against the deployed Sub2API instance before implementing `remote_api` mode. `local_pool` mode works immediately via `RedemptionCodeDriver`.
 
-- **Billing Cycle**: `onetime` (implements `FulfillmentDriver` only, NOT `RenewableResource`).
+- **Billing Cycle**: `onetime` (`FulfillmentDriver` with `LocalPriced` for the local price authority; NOT `RenewableResource`).
 - **`local_pool` Mode**: an admin pre-imports keys into `redemption_codes` through an Action. `ProvisionInstanceAction` reserves and binds the code before `Sub2ApiDriver` delegates to the pure `RedemptionCodeDriver`; drivers return credentials without mutating inventory or instances. The Action atomically commits sold state and encrypted credentials before delivery. Because `code` is encrypted with a randomized IV, imports are deduplicated on `code_hash` (`unique(product_id, code_hash)`) — importing the same batch twice is a no-op, not a duplicate (INV-C1, INV-C2, F10).
 - **`remote_api` Mode**: reads account credentials from `upstream_apis` (`base_url`, `encrypted_secret`, `config` JSON). Every call is logged to `upstream_operations`.
 - **Reservations**: a reserved code is already bound by `instance_id` and carries a `reserved_until` lease. An Action-backed sweeper releases only expired, undelivered reservations and clears the binding and lease under locks. Sold/delivered codes are never reclaimed (INV-C2, INV-C3, INV-R3).
 - **No renewal**: because it is not a `RenewableResource`, the overdue scheduler skips it entirely (INV-S2).
+
+Current local-pool implementation and operator commands are documented in `docs/cms-storefront.md`. An unbound SUB2API product uses the local pool; supplying an upstream account is rejected until the remote protocol is verified. No remote redemption or account credit API is called when a local card is sold.
 
 ---
 

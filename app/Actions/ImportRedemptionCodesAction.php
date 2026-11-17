@@ -21,7 +21,7 @@ class ImportRedemptionCodesAction
         if (trim($reason) === '') {
             throw new DomainException('An import reason is required.');
         }
-        if ($product->driver_type !== DriverType::REDEMPTION) {
+        if (! in_array($product->driver_type, [DriverType::REDEMPTION, DriverType::SUB2API], true) || $product->upstream_api_id !== null) {
             throw new DomainException('Select a local card product.');
         }
 

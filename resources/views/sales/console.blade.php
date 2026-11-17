@@ -3,7 +3,7 @@
 <h1>{{ $user->name }}，欢迎回来</h1><p>可用余额 {{ $user->credit }}；冻结余额 {{ $user->frozen_credit }}</p>
 <h2>商品</h2>
 @foreach($products as $product)
-@if($product->driver_type === \App\Enums\DriverType::REDEMPTION && ($product->local_prices['onetime']['enabled'] ?? false))
+@if(in_array($product->driver_type, [\App\Enums\DriverType::REDEMPTION, \App\Enums\DriverType::SUB2API], true) && ($product->local_prices['onetime']['enabled'] ?? false))
 <section><h3>{{ $product->name }}</h3><p>{{ $product->local_prices['onetime']['price'] }} {{ $product->currency }} / 次，开通费 {{ $product->local_prices['onetime']['setup_fee'] ?? '0.00' }}</p>
 <form method="post" action="/checkout">@csrf<input type="hidden" name="product_id" value="{{ $product->id }}"><input type="hidden" name="billing_cycle" value="onetime">
 @if(($product->provisioning_rules['hostname_mode'] ?? '') === 'custom')<label>主机名 <input name="hostname" required></label>@endif

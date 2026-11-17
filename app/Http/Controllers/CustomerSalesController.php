@@ -29,7 +29,7 @@ class CustomerSalesController extends Controller
         $user = $this->user($request);
 
         return view('sales.console', ['user' => $user,
-            'products' => Product::where('is_hidden', false)->orderBy('id')->get(),
+            'products' => Product::publicCatalog()->with('category')->orderBy('id')->get(),
             'invoices' => Invoice::where('user_id', $user->id)->latest('id')->limit(50)->get(),
             'instances' => Instance::where('user_id', $user->id)->latest('id')->limit(50)->get()]);
     }
