@@ -54,7 +54,7 @@ class ExecuteFulfillmentTaskAction
             }
             $changes = ['locked_by' => null, 'locked_at' => null, 'lease_expires_at' => null];
             if ($result->success) {
-                $changes += ['status' => FulfillmentTaskStatus::SUCCESS, 'executed_at' => now(), 'summary' => 'Card delivered.'];
+                $changes += ['status' => FulfillmentTaskStatus::SUCCESS, 'executed_at' => now(), 'summary' => 'Resource provisioned.'];
             } else {
                 $attempts = $task->attempts + 1;
                 $retry = $result->retryable && $attempts < $task->max_attempts;

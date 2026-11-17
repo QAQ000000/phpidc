@@ -19,20 +19,20 @@ class DriverManager
     public function fulfillment(DriverType $type, ?int $upstreamApiId = null): FulfillmentDriver
     {
         return match ($type) {
-            DriverType::ZJMF_API => $this->classic($upstreamApiId),
+            DriverType::ZJMF_API => $this->classicAccount($upstreamApiId),
             DriverType::REDEMPTION => app(RedemptionCodeDriver::class),
             default => throw new DomainException('This fulfillment driver is not available yet.'),
         };
     }
 
-    private function classic(?int $id): ZjmfFinanceDriver
+    public function classicAccount(?int $id): ZjmfFinanceDriver
     {
         $account = UpstreamApi::find($id);
         if ($account === null || ! $account->is_active || $account->driver !== DriverType::ZJMF_API) {
             throw new DomainException('An active classic ZJMF account is required.');
         }
 
-        return new ZjmfFinanceDriver(new ZjmfClient($account, app(UpstreamOperationBuffer::class)));
+        return new ZjmfFinanceDriver(new ZjmfClient($account, app(UpstreamOperationBuffer::class)), $account);
     }
 
     public function payment(string $identifier): PaymentGatewayInterface

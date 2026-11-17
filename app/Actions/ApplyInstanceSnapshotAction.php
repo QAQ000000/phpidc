@@ -14,9 +14,9 @@ use Illuminate\Support\Facades\DB;
 
 class ApplyInstanceSnapshotAction
 {
-    public function execute(Instance $binding, InstanceInfoResult $snapshot): bool
+    public function execute(Instance $binding, InstanceInfoResult $snapshot, ?string $reason = null, string $action = 'instance.upstream_sync'): bool
     {
-        return DB::transaction(function () use ($binding, $snapshot): bool {
+        return DB::transaction(function () use ($binding, $snapshot, $reason, $action): bool {
             $instance = Instance::whereKey($binding->id)->lockForUpdate()->firstOrFail();
             if ($instance->driver_type !== $binding->driver_type || $instance->upstream_api_id !== $binding->upstream_api_id
                 || $instance->upstream_instance_id !== $binding->upstream_instance_id || $instance->downstream_token !== $binding->downstream_token
@@ -51,14 +51,17 @@ class ApplyInstanceSnapshotAction
                 if ($target === InstanceStatus::SUSPENDED) {
                     $changes['suspended_at'] = now();
                 }
-                DB::table('audit_logs')->insert(['actor_type' => 'system', 'action' => 'instance.upstream_sync',
-                    'subject_type' => Instance::class, 'subject_id' => $instance->id,
-                    'before' => json_encode(['status' => $instance->status->value]), 'after' => json_encode(['status' => $target->value]),
-                    'created_at' => now(), 'updated_at' => now()]);
                 if ($target->isTerminal()) {
                     FulfillmentTask::where('instance_id', $instance->id)->whereIn('status', [FulfillmentTaskStatus::PENDING, FulfillmentTaskStatus::RUNNING])
                         ->update(['status' => FulfillmentTaskStatus::STALE]);
                 }
+            }
+            if (isset($changes['status']) || $reason !== null) {
+                DB::table('audit_logs')->insert(['actor_type' => 'system', 'action' => $action, 'reason' => $reason,
+                    'subject_type' => Instance::class, 'subject_id' => $instance->id,
+                    'before' => json_encode(['status' => $instance->status->value]),
+                    'after' => json_encode(['status' => ($changes['status'] ?? $instance->status)->value]),
+                    'created_at' => now(), 'updated_at' => now()]);
             }
             $instance->update($changes);
 

@@ -30,7 +30,7 @@ class SuspendInstanceAction
         if ($result->success) {
             $host = $result->rawResponse['data']['host_data'] ?? [];
             $applied = app(ApplyInstanceSnapshotAction::class)->execute($instance, new InstanceInfoResult(
-                upstreamStatus: $host['domainstatus'] ?? 'Suspended', suspendReason: $host['suspendreason'] ?? $reason));
+                upstreamStatus: $host['domainstatus'] ?? 'Suspended', suspendReason: $host['suspendreason'] ?? $reason), $reason, 'instance.suspend');
             if (! $applied) {
                 return ProvisionResult::fail('Instance binding or state changed during suspension; reconcile again.', retryable: true);
             }

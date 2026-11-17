@@ -5,28 +5,78 @@ declare(strict_types=1);
 namespace App\Drivers\Upstream;
 
 use App\Contracts\FulfillmentDriver;
+use App\Contracts\LiveQuotable;
 use App\Contracts\RenewableResource;
+use App\Contracts\UpstreamAccount;
 use App\Data\InstanceInfoResult;
 use App\Data\ProvisionResult;
+use App\Data\QuoteResult;
 use App\Enums\ProvisionCommand;
 use App\Models\Instance;
 use App\Models\Product;
+use App\Models\UpstreamApi;
+use App\Support\Money;
 use App\Support\ProvisioningValidator;
 use DomainException;
 use Illuminate\Support\Carbon;
 
-class ZjmfFinanceDriver implements FulfillmentDriver, RenewableResource
+class ZjmfFinanceDriver implements FulfillmentDriver, LiveQuotable, RenewableResource, UpstreamAccount
 {
-    public function __construct(private readonly ZjmfClient $client) {}
+    public function __construct(private readonly ZjmfClient $client, private readonly UpstreamApi $account) {}
 
     public function validateParams(Product $product, array $input): array
     {
-        return app(ProvisioningValidator::class)->validate($product, $input);
+        return (new ZjmfPurchaseProtocol($this->client, $this->account))->validate($product, app(ProvisioningValidator::class)->validate($product, $input));
     }
 
     public function provision(Instance $instance, array $params): ProvisionResult
     {
-        return ProvisionResult::fail('Classic purchase provisioning is not enabled yet.');
+        return (new ZjmfPurchaseProtocol($this->client, $this->account))->provision($instance, $params);
+    }
+
+    public function productConfiguration(Product $product): array
+    {
+        return (new ZjmfPurchaseProtocol($this->client, $this->account))->configuration($product);
+    }
+
+    public function catalog(): array
+    {
+        $body = $this->client->request('GET', '/cart/all');
+        if (($body['status'] ?? null) !== 200 || ! is_array($body['data']['products'] ?? null)) {
+            throw new DomainException('Classic catalog is unavailable.');
+        }
+
+        return $body['data'];
+    }
+
+    public function quotePurchase(Product $product, string $cycle, array $options, int $qty = 1): QuoteResult
+    {
+        return (new ZjmfPurchaseProtocol($this->client, $this->account))->quote($product, $cycle, $options, $qty);
+    }
+
+    public function quoteUpgrade(Instance $instance, array $targetOptions): QuoteResult
+    {
+        throw new DomainException('Upgrade settlement requires a separate approved workflow.');
+    }
+
+    public function checkBalance(): array
+    {
+        $body = $this->client->request('GET', '/cart/credit');
+        if (($body['status'] ?? null) !== 200 || ! isset($body['data']['credit'], $body['data']['currency'])) {
+            throw new DomainException('Upstream balance is unavailable.');
+        }
+
+        return ['credit' => Money::of($body['data']['credit']), 'currency' => $body['data']['currency']];
+    }
+
+    public function registerDownstreamCallback(Instance $instance): bool
+    {
+        $body = $this->client->request('POST', '/host/setdownstream', ['id' => $instance->upstream_instance_id,
+            'pid' => $instance->active_config['upstream_pid'] ?? $instance->product()->firstOrFail()->upstream_pid,
+            'downstream_url' => rtrim(config('app.url'), '/'), 'downstream_token' => $instance->downstream_token,
+            'downstream_id' => $instance->id], ['instance_id' => $instance->id]);
+
+        return ($body['status'] ?? null) === 200;
     }
 
     public function syncInfo(Instance $instance): InstanceInfoResult

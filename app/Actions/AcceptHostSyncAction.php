@@ -7,6 +7,8 @@ namespace App\Actions;
 use App\Enums\DriverType;
 use App\Jobs\ReconcileHostSyncJob;
 use App\Models\Instance;
+use Illuminate\Cache\RedisStore;
+use Illuminate\Redis\Connections\PhpRedisConnection;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
@@ -33,8 +35,17 @@ class AcceptHostSyncAction
             throw ValidationException::withMessages(['signature' => 'Invalid host sync signature.']);
         }
         $key = "host_sync:{$instance->id}:{$data['rand_str']}";
-        // Cache::add is atomic, including Redis's exists+setex Lua implementation.
-        abort_unless(Cache::add($key, true, 600), 400, 'Replayed host sync.');
+        // Production Redis uses one SET NX EX; local stores use their atomic add.
+        $store = Cache::getStore();
+        if ($store instanceof RedisStore) {
+            $connection = $store->connection();
+            $claimed = $connection instanceof PhpRedisConnection
+                ? $connection->set($store->getPrefix().$key, '1', 'EX', 600, 'NX')
+                : $connection->command('set', [$store->getPrefix().$key, '1', 'EX', 600, 'NX']);
+        } else {
+            $claimed = Cache::add($key, true, 600);
+        }
+        abort_unless($claimed, 400, 'Replayed host sync.');
         try {
             // A sync queue would do HTTP inline. Use the durable database queue in that configuration.
             $connection = config('queue.default') === 'sync' ? 'database' : config('queue.default');

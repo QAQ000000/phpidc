@@ -3,7 +3,7 @@
 > Scope: Classic ZJMF Finance (`zjmf_finance_api.type = zjmf_api`, `is_resource = 0`). **V10 (`console/v1/*`) is excluded.**
 >
 > **This file describes the wire protocol only.** Rules about money, state and concurrency live in `docs/domain-invariants.md`. Where the two disagree, the invariant wins and this file is corrected.
-> Every requirement below is implemented by `App\Drivers\Upstream\ZjmfFinanceDriver`; command names come from `App\Enums\ProvisionCommand`.
+> This is the target protocol, not a declaration that every workflow is implemented. Current delivery scope and verification limits are in `docs/classic-zjmf-integration.md`; command names come from `App\Enums\ProvisionCommand`.
 
 ## 1. Transport & Auth
 
@@ -13,7 +13,7 @@
   - Body: `username` (email if it contains `@`, else phone; 4–20 chars), `password` (Client Center `api_password`, NOT the login password).
   - Success: `{"status":200,"jwt":"...","msg":"鉴权成功"}` (upstream TTL `7200s`). Cache locally for `6900s` (soft expiry).
   - Header: `Authorization: Bearer {jwt}` (configurable `raw_jwt` fallback if the upstream has the 3.7.6 `Check.php:106` `list()=explode` bug).
-  - Re-auth trigger: business `status === 405` -> force-refresh the JWT once and replay once. A second `405` is a permanent failure for this attempt.
+  - Re-auth trigger: business `status === 405` -> force-refresh the JWT once and replay once. A second `405` ends this attempt; later task retries follow INV-T4.
 - **Health & Balance**: `GET {host}/cart/credit` -> returns `data.credit` (string) & `data.currency{id,code,prefix,suffix}`. (Avoid `/cart/summary` — it leaks a plaintext key and has a `bcdiv` div-by-zero bug.)
 - **Logging**: every request/response pair is written to `upstream_operations` with credentials, passwords and JWTs redacted (INV-U1). The JWT itself is never logged.
 
@@ -22,14 +22,15 @@
 - **Catalog**: `GET {host}/cart/all` -> `data.products[]` (groups -> products with `id, type, name, description`), `count`, `currency` (real-time, no TTL cache).
 - **Lightweight Stock & Version Probe**: `GET {host}/api/product/proinfo?pids[]=...` -> `data.info[]{id, name, location_version, stock_control, qty}`, `data.currency`. Compare `location_version` to decide whether a full sync is needed.
 - **Full Product Config**: `GET {host}/cart/get_product_config?pid={id}`
-  - Returns `flag`, `products`, `customfields[]`, `product_pricings[]`, `config_groups[].options[].sub[].pricings[]`, `advanced[]`, `config_links[]`.
+  - Returns `data` containing `flag`, `products`, `customfields[]`, `product_pricings[]`, `config_groups[].options[].sub[].pricings[]`, `advanced[]`, `config_links[]`.
+  - Before a host exists, read `data.products.password` (JSON with `show` and `rule.upper/lower/num/special`) and `data.products.host` (JSON with `show` and `rule.len_num`). When password entry is enabled, enforce 6–20 bytes plus the declared character rules alongside local provisioning rules. Missing/unreadable password rules reject checkout before any wallet mutation. Re-check upstream rules before P3.
   - **`billing_cycle` (18 keys)**: `free, onetime, hour, day, ontrial, monthly, quarterly, semiannually, annually, biennially, triennially, fourly, fively, sixly, sevenly, eightly, ninely, tenly`. Mirrored by `App\Enums\BillingCycle`.
   - **`price_type` (17 pairs)**: `onetime/osetupfee`, `hour/hsetupfee`, `day/dsetupfee`, `ontrial/ontrialfee`, `monthly/msetupfee`, `quarterly/qsetupfee`, `semiannually/ssetupfee`, `annually/asetupfee`, `biennially/bsetupfee`, `triennially/tsetupfee`, `fourly/foursetupfee`, `fively/fivesetupfee`, `sixly/sixsetupfee`, `sevenly/sevensetupfee`, `eightly/eightsetupfee`, `ninely/ninesetupfee`, `tenly/tensetupfee`. (`-1` = disabled.)
   - **Semantics (important)**: the `*setupfee` column named by a cycle is that cycle's **period price**, not a one-off setup fee. Read it via `BillingCycle::priceKey()`. An actual one-off setup fee does not exist upstream and is always `"0.00"` in `QuoteResult`.
   - Upstream `day` / `hour` `pay_type` maps to `recurring` on sync.
-- **Currency**: the quote's currency comes from `data.currency.code`. A quote whose currency differs from `invoices.currency` is rejected, never converted (INV-M4).
-- **Pre-Checkout Stock Check**: `GET {host}/cart/stock_control?pid={id}` -> verify `hidden == 0` and (`stock_control == 0 || qty > 0`).
-- **Live Price Quote**: `POST {host}/cart/get_total` with `pid, billingcycle, configoption{}, customfield{}, currencyid, qty` -> `data.products{total, setupfee_total, sale_total, bates, ...}`.
+- **Currency**: the quote's currency comes from `currency.code` in `/cart/get_total` (some integrations wrap it in `data`). A quote whose currency differs from `invoices.currency` is rejected, never converted (INV-M4).
+- **Pre-Checkout Stock Check**: `GET {host}/cart/stock_control?pid={id}` -> `data.product`; verify `hidden == 0` and (`stock_control == 0 || qty > 0`).
+- **Live Price Quote**: `POST {host}/cart/get_total` with `pid, billingcycle, configoption{}, customfield{}, currencyid, qty` -> top-level `products{total, setupfee_total, sale_price, sale_setupfee_total, type, ...}` and `currency`. Use `total` without a discount; when `type` is nonempty, use `sale_price + sale_setupfee_total`. The client also accepts a `data` wrapper. Decode monetary JSON numbers as decimal strings before PHP can convert them to floating point.
 
 ## 3. P1 -> P6 Order & Payment Chain
 
@@ -39,19 +40,20 @@
    - `status === 200` and `invoiceid` present -> skip P3/P4 and jump to P5 to pay the existing invoice.
    - This probe is the only sanctioned recovery path after an ambiguous P4/P5 (INV-U2).
 3. **P3 (`POST /cart/add_to_shop`)**: Send `pid` (`upstream_pid`), `billingcycle`, `host`, `password`, `currencyid`, `currecncyid` (send BOTH keys to satisfy the upstream `CartController.php:2667` typo), `qty=1`, `configoption{}`, `customfield{}`.
-   - `host` and `password` are validated against the **intersection** of `products.provisioning_rules` and upstream `password_rule` before this call, never after.
+   - `host` and `password` are validated against both `products.provisioning_rules` and the product configuration rules above before this call, never after. `/host/header` is only available after a host exists.
 4. **P4 (`POST /cart/settle`)**: Send `downstream_url/token/id` + `cart_data`.
-   - `status === 1001` -> zero-amount / already paid & provisioned (`data.hostid[0]`).
+   - `status === 1001` -> zero-amount / paid (`data.hostid[0]`); confirm host `Active` before delivery.
    - `status === 200` -> returns `data.invoiceid` (proceed to P5).
    - Any other outcome, or a lost response, is `ambiguous`: record it in `upstream_operations` and reconcile via P2.
-5. **P5 (`POST /apply_credit`)**: Send `{invoiceid, use_credit: 1, enough: 1, downstream_url, downstream_token, downstream_id}`.
-   - `status === 1001` -> paid & provisioned (`data.hostid[0]`).
-6. **P6 Fallback (`POST /apply_credit_limit`)**: Optional credit-limit pay (`use_credit_limit=1`, `enough=0`). On failure, roll back via `POST /apply_credit` with `{invoiceid, use_credit: 0}`.
+5. **Before P5**: `GET /use_credit_page?invoiceid={id}` -> `data.total` (the upstream invoice's `subtotal`) and `data.currency.code`. Require exact equality with the saved `invoices.upstream_expected_cost` and invoice currency; otherwise stop and request operator review.
+   **P5 (`POST /apply_credit`)**: Send `{invoiceid, use_credit: 1, enough: 1, downstream_url, downstream_token, downstream_id}`.
+   - `status === 1001` -> paid (`data.hostid[0]`); confirm host `Active` before delivery. Pending creation retries through P2.
+6. **P6 Fallback (`POST /apply_credit_limit`)**: Disabled by default; an operator must explicitly enable it per upstream account. After an explicit P5 failure, optional credit-limit pay (`use_credit_limit=1`, `enough=0`). On explicit failure, roll back via `POST /apply_credit` with `{invoiceid, use_credit: 0}`. A transport-ambiguous payment is reconciled through P2 instead of switching payment methods.
    - A rollback that itself fails leaves "upstream paid, local unpaid". That is an alert plus an `upstream_operations` row; it is never retried silently (INV-U3).
 
-> **Note on `status === 1001`**: in `cart/settle`, `/apply_credit` and `/apply_credit_limit`, `1001` means **paid & complete**. In `OrderController::checkOrder()`, `1001` means **payment failed** (`1000` = success). Never conflate them.
+> **Note on `status === 1001`**: in `cart/settle`, `/apply_credit` and `/apply_credit_limit`, `1001` means **payment complete**. Host creation can still be asynchronous; confirm `Active` using authenticated `/host/header` or a later P2 probe. In `OrderController::checkOrder()`, `1001` means **payment failed** (`1000` = success). Never conflate them.
 
-> **Amounts**: the upstream charge is the `gateway_amount` we computed in INV-I1. The upstream cost we expect to pay is stored on `invoices.upstream_expected_cost` for margin reconciliation.
+> **Amounts (human approved 2026-11-17)**: the upstream invoice is reconciled against `invoices.upstream_expected_cost`. Customer `gateway_amount` is only the external portion of the downstream price. Paying entirely from the customer wallet does not make the upstream cost zero; no FX conversion is performed.
 
 ## 4. Instance Operations (`/provision/default` & Lifecycle)
 

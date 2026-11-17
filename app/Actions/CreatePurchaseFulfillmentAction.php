@@ -12,6 +12,7 @@ use App\Jobs\ExecuteFulfillmentTaskJob;
 use App\Models\FulfillmentTask;
 use App\Models\Instance;
 use App\Models\Invoice;
+use Illuminate\Support\Facades\Crypt;
 use Illuminate\Support\Facades\DB;
 use LogicException;
 
@@ -32,14 +33,15 @@ class CreatePurchaseFulfillmentAction
             'display_name' => $purchase['name'] ?? $product->name, 'hostname' => $purchase['hostname'] ?? null,
             'status' => InstanceStatus::PENDING, 'billing_cycle' => $purchase['billing_cycle'] ?? BillingCycle::ONETIME,
             'currency' => $invoice->currency, 'recurring_amount' => $invoice->total_amount,
-            'active_config' => ['billing_cycle' => $purchase['billing_cycle'] ?? BillingCycle::ONETIME->value, 'currency' => $invoice->currency, 'options' => []],
+            'active_config' => ['billing_cycle' => $purchase['billing_cycle'] ?? BillingCycle::ONETIME->value, 'currency' => $invoice->currency,
+                'options' => [], 'upstream_configoption' => $purchase['options']['configoption'] ?? [], 'upstream_pid' => $purchase['upstream_pid'] ?? null],
         ]);
         $invoice->update(['instance_id' => $instance->id]);
         $task = FulfillmentTask::create([
             'user_id' => $invoice->user_id, 'invoice_id' => $invoice->id, 'instance_id' => $instance->id,
             'driver_type' => $instance->driver_type, 'upstream_api_id' => $instance->upstream_api_id,
             'action' => 'provision', 'trigger_source' => 'order_paid', 'status' => FulfillmentTaskStatus::PENDING,
-            'idempotency_key' => "{$invoice->id}:provision:{$instance->id}", 'payload' => [], 'available_at' => now(),
+            'idempotency_key' => "{$invoice->id}:provision:{$instance->id}", 'payload' => isset($purchase['encrypted_params']) ? ['encrypted_purchase' => Crypt::encryptString(json_encode(json_decode(Crypt::decryptString($purchase['encrypted_params']), true, flags: JSON_THROW_ON_ERROR) + ['invoice_id' => $invoice->id], JSON_THROW_ON_ERROR))] : [], 'available_at' => now(),
         ]);
         DB::afterCommit(fn () => ExecuteFulfillmentTaskJob::dispatch($task->id));
     }
