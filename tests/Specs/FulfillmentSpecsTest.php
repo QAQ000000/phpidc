@@ -44,22 +44,6 @@ use Illuminate\Support\Facades\Queue;
 
 uses(RefreshDatabase::class);
 
-it('reclaims a running task whose lease expired', function (): void {
-    Queue::fake();
-    $task = FulfillmentTask::factory()->create([
-        'status' => 'running',
-        'locked_by' => 'worker-1',
-        'locked_at' => now()->subMinutes(10),
-        'lease_expires_at' => now()->subMinutes(5),
-    ]);
-
-    app(DispatchStalePendingTasksAction::class)->execute();
-
-    expect($task->fresh()->status)->toBe(FulfillmentTaskStatus::PENDING)
-        ->and($task->fresh()->attempts)->toBe(1);
-    Queue::assertPushed(ExecuteFulfillmentTaskJob::class);
-});
-
 it('fails a task permanently once max_attempts is exhausted', function (): void {
     $task = FulfillmentTask::factory()->create([
         'status' => 'running',

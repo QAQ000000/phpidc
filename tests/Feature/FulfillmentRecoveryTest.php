@@ -58,3 +58,19 @@ it('records a failed empty-stock task and permits an audited operator retry afte
     expect($task->fresh()->status)->toBe(FulfillmentTaskStatus::SUCCESS)
         ->and($task->instance->fresh()->status)->toBe(InstanceStatus::ACTIVE);
 });
+
+it('reclaims a running task whose lease expired', function (): void {
+    Queue::fake();
+    $task = FulfillmentTask::factory()->create([
+        'status' => 'running',
+        'locked_by' => 'worker-1',
+        'locked_at' => now()->subMinutes(10),
+        'lease_expires_at' => now()->subMinutes(5),
+    ]);
+
+    app(DispatchStalePendingTasksAction::class)->execute();
+
+    expect($task->fresh()->status)->toBe(FulfillmentTaskStatus::PENDING)
+        ->and($task->fresh()->attempts)->toBe(1);
+    Queue::assertPushed(ExecuteFulfillmentTaskJob::class);
+});
