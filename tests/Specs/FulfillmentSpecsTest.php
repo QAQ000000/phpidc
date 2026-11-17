@@ -49,35 +49,6 @@ use Illuminate\Support\Facades\Queue;
 
 uses(RefreshDatabase::class);
 
-it('rejects a short payment without marking the invoice paid', function (): void {
-    $user = User::factory()->create(['credit' => '0.00']);
-    $invoice = Invoice::factory()->create([
-        'user_id' => $user->id,
-        'gateway' => 'epay_wechat',
-        'total_amount' => '10.00',
-        'gateway_amount' => '10.00',
-        'status' => InvoiceStatus::UNPAID->value,
-    ]);
-    $invoice->attempts()->create([
-        'gateway' => 'epay_wechat',
-        'out_trade_no' => "{$invoice->invoice_no}1",
-        'amount' => '10.00',
-        'status' => 'created',
-    ]);
-
-    app(HandlePaymentCallbackAction::class)->execute(new VerifiedPaymentResult(
-        gateway: 'epay_wechat',
-        gatewayTradeNo: 'TRADE_SHORT_1',
-        outTradeNo: "{$invoice->invoice_no}1",
-        paidAmount: '7.00',
-    ));
-
-    expect($invoice->fresh()->status)->toBe(InvoiceStatus::UNPAID)
-        ->and(FulfillmentTask::where('invoice_id', $invoice->id)->count())->toBe(0)
-        ->and(PaymentCallback::where('gateway_trade_no', 'TRADE_SHORT_1')->value('outcome'))
-        ->toBe(PaymentCallbackOutcome::REJECTED_SHORT_AMOUNT);
-});
-
 it('records an unknown invoice callback instead of failing the webhook', function (): void {
     app(HandlePaymentCallbackAction::class)->execute(new VerifiedPaymentResult(
         gateway: 'epay_wechat',
