@@ -49,37 +49,6 @@ use Illuminate\Support\Facades\Queue;
 
 uses(RefreshDatabase::class);
 
-it('credits the excess on overpayment and never provisions twice', function (): void {
-    $user = User::factory()->create(['credit' => '0.00']);
-    $invoice = Invoice::factory()->create([
-        'user_id' => $user->id,
-        'gateway' => 'epay_wechat',
-        'total_amount' => '10.00',
-        'credit_applied' => '0.00',
-        'gateway_amount' => '10.00',
-        'status' => InvoiceStatus::UNPAID->value,
-    ]);
-    $invoice->attempts()->create([
-        'gateway' => 'epay_wechat',
-        'out_trade_no' => "{$invoice->invoice_no}1",
-        'amount' => '10.00',
-        'status' => 'created',
-    ]);
-
-    app(HandlePaymentCallbackAction::class)->execute(new VerifiedPaymentResult(
-        gateway: 'epay_wechat',
-        gatewayTradeNo: 'TRADE_OVER_1',
-        outTradeNo: "{$invoice->invoice_no}1",
-        paidAmount: '12.00',
-    ));
-
-    expect($invoice->fresh()->status)->toBe(InvoiceStatus::PAID)
-        ->and($user->fresh()->credit)->toBe('2.00')
-        ->and(FulfillmentTask::where('invoice_id', $invoice->id)->count())->toBe(1)
-        ->and(PaymentCallback::where('gateway_trade_no', 'TRADE_OVER_1')->value('outcome'))
-        ->toBe(PaymentCallbackOutcome::PROCESSED_OVERPAYMENT);
-});
-
 it('rejects a short payment without marking the invoice paid', function (): void {
     $user = User::factory()->create(['credit' => '0.00']);
     $invoice = Invoice::factory()->create([

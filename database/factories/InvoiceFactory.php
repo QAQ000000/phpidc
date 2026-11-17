@@ -7,6 +7,7 @@ namespace Database\Factories;
 use App\Enums\InvoiceStatus;
 use App\Enums\InvoiceType;
 use App\Models\Invoice;
+use App\Models\Product;
 use App\Models\User;
 use Illuminate\Database\Eloquent\Factories\Factory;
 
@@ -24,7 +25,7 @@ class InvoiceFactory extends Factory
             'invoice_no' => 'INV'.fake()->unique()->numerify('##########'),
             'user_id' => User::factory(),
             'instance_id' => null,
-            'product_id' => null,
+            'product_id' => Product::factory(),
             'type' => InvoiceType::NEW_ORDER,
             'currency' => 'CNY',
             'total_amount' => '10.00',
