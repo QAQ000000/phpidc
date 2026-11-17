@@ -42,3 +42,35 @@ it('credits a late payment on an expired invoice without provisioning', function
 
     Queue::assertNothingPushed();
 });
+
+it('ignores a duplicate callback and records exactly one callback row', function (): void {
+    Queue::fake();
+    $user = User::factory()->create(['credit' => '0.00']);
+    $invoice = Invoice::factory()->create([
+        'user_id' => $user->id,
+        'gateway' => 'epay_wechat',
+        'total_amount' => '10.00',
+        'gateway_amount' => '10.00',
+        'status' => InvoiceStatus::EXPIRED->value,
+    ]);
+    $invoice->attempts()->create([
+        'gateway' => 'epay_wechat',
+        'out_trade_no' => "{$invoice->invoice_no}1",
+        'amount' => '10.00',
+        'status' => 'expired',
+    ]);
+
+    $verified = new VerifiedPaymentResult(
+        gateway: 'epay_wechat',
+        gatewayTradeNo: 'TRADE_DUP_1',
+        outTradeNo: "{$invoice->invoice_no}1",
+        paidAmount: '10.00',
+    );
+
+    $handler = app(HandlePaymentCallbackAction::class);
+    $handler->execute($verified);
+    $handler->execute($verified);
+
+    expect($user->fresh()->credit)->toBe('10.00')
+        ->and(PaymentCallback::where('gateway_trade_no', 'TRADE_DUP_1')->count())->toBe(1);
+});
