@@ -17,7 +17,7 @@
 <form method="post" action="/console/instances/{{ $instance->id }}/panel-login" target="_blank" rel="noopener noreferrer">@csrf<button type="submit">登录面板</button></form>
 @endif
 @if($canOpenPanel && (($instance->active_config['upstream_panel']['machine_status'] ?? false) || !empty($instance->active_config['upstream_panel']['charts'])))
-<form method="post" action="/console/instances/{{ $instance->id }}/telemetry">@csrf<button type="submit">查看机器状态与监控图表</button></form>
+<p><a href="/console/instances/{{ $instance->id }}/telemetry">查看机器状态与监控图表</a></p>
 @endif
 @if($instance->billing_cycle->isRenewable() && $instance->status->isBillable())
 <p>下次到期：{{ $instance->next_due_at }}；续费价格 {{ $instance->recurring_amount }} {{ $instance->currency }}</p>

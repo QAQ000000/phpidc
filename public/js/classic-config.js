@@ -37,21 +37,65 @@
             if (el.tagName === 'SELECT' && el.selectedOptions[0]?.disabled) el.setCustomValidity('当前选项不支持此周期，请重新选择。');
         }
     }
-    let timer, revision = 0;
+    const label = document.getElementById('classic-price');
+    let timer = null, revision = 0, inFlight = null, queued = null;
+    const isQuoteField = name => name === 'billing_cycle' || name.startsWith('options[');
     async function quote() {
-        const current = ++revision;
-        const label = document.getElementById('classic-price');
-        label.textContent = '正在获取实时价格…';
+        if (inFlight || !queued) return;
+        const current = queued;
+        queued = null;
+        inFlight = current;
         try {
-            const response = await fetch(form.dataset.quoteUrl, { method: 'POST', headers: { Accept: 'application/json' }, body: new FormData(form) });
+            const response = await fetch(form.dataset.quoteUrl, { method: 'POST', headers: { Accept: 'application/json' }, body: current.body });
             const result = await response.json();
-            if (current !== revision) return;
+            if (current.revision !== revision) return;
             label.textContent = response.ok ? `实时价格：${result.price} ${result.currency}；开通费 ${result.setup_fee}` : Object.values(result.errors || {}).flat().join(' ') || '暂时无法报价，请稍后重试。';
-        } catch (_) { if (current === revision) label.textContent = '报价连接失败，请稍后重试。'; }
+        } catch (_) {
+            if (current.revision === revision) label.textContent = '报价连接失败，请稍后重试。';
+        } finally {
+            inFlight = null;
+            if (queued && timer === null) quote();
+        }
     }
-    form.addEventListener('change', event => {
+    function requestQuote(immediate = false) {
+        clearTimeout(timer);
+        timer = null;
+        revision++;
         updateLinks();
-        if (event.target.name === 'billing_cycle' || event.target.name.startsWith('options[')) { clearTimeout(timer); timer = setTimeout(quote, 500); }
+        const invalid = [...form.elements].find(el => isQuoteField(el.name) && !el.checkValidity());
+        if (invalid) {
+            queued = null;
+            label.textContent = '请先填写有效配置后报价。';
+            if (immediate) invalid.reportValidity();
+            return;
+        }
+        const body = new FormData();
+        for (const [name, value] of new FormData(form)) {
+            if (name === '_token' || isQuoteField(name)) body.append(name, value);
+        }
+        const key = new URLSearchParams(body).toString();
+        label.textContent = '正在获取实时价格…';
+        if (inFlight?.key === key) {
+            inFlight.revision = revision;
+            queued = null;
+            return;
+        }
+        queued = { body, key, revision };
+        if (immediate) quote();
+        else timer = setTimeout(() => { timer = null; quote(); }, 250);
+    }
+    for (const name of ['input', 'change']) form.addEventListener(name, event => {
+        if (isQuoteField(event.target.name)) requestQuote();
+    });
+    form.addEventListener('submit', event => {
+        if (event.submitter?.hasAttribute('data-quote-trigger')) {
+            event.preventDefault();
+            requestQuote(true);
+        } else {
+            clearTimeout(timer);
+            queued = null;
+            revision++;
+        }
     });
     updateLinks();
 })();

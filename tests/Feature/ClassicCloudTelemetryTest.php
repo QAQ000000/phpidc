@@ -11,6 +11,7 @@ use App\Models\Product;
 use App\Models\UpstreamApi;
 use App\Models\User;
 use App\Services\DriverManager;
+use Illuminate\Http\Client\ConnectionException;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
 use Tests\Concerns\InstallsApplication;
@@ -163,4 +164,49 @@ it('reports missing samples as no data while retaining legitimate zero samples',
         'data' => ['chart_type' => 'area', 'unit' => '%', 'label' => ['CPU'], 'list' => [[['time' => '2026-11-18 00:00:00', 'value' => null]]]]]) : null);
     $this->actingAs($instance->user)->post('/console/instances/'.$instance->id.'/telemetry')->assertOk()
         ->assertSee('该时间段暂无采样数据')->assertSee('2 个有效采样点');
+});
+
+it('keeps the other telemetry widgets when one independent read times out', function (string $failedRead, int $expectedCharts): void {
+    $instance = cloudTelemetryInstance();
+    fakeCloudTelemetry(function ($path, $request) use ($failedRead) {
+        if (($failedRead === 'power' && $path === '/provision/default')
+            || ($failedRead === 'cpu' && $path === '/provision/chart/4253' && $request['type'] === 'cpu')) {
+            throw new ConnectionException('Isolated telemetry timeout.');
+        }
+
+        return null;
+    });
+    $response = $this->actingAs($instance->user)->post('/console/instances/'.$instance->id.'/telemetry')->assertOk()
+        ->assertSee('上游暂未返回可用数据')->assertSee('硬盘IO')->assertSee('内存用量')->assertSee('网卡');
+    expect(substr_count($response->getContent(), '<svg '))->toBe($expectedCharts)
+        ->and(DB::table('upstream_operations')->where('outcome', 'failed')->count())->toBe(1)
+        ->and(DB::table('upstream_operations')->where('path', '/provision/chart/4253')->count())->toBe(4);
+    Http::assertNotSent(fn ($request) => parse_url($request->url(), PHP_URL_PATH) === '/provision/default' && $request['func'] !== 'status');
+    $this->assertDatabaseCount('invoices', 0);
+    $this->assertDatabaseCount('financial_transactions', 0);
+    $this->assertDatabaseCount('fulfillment_tasks', 0);
+})->with(['power' => ['power', 4], 'cpu chart' => ['cpu', 3]]);
+
+it('retains the advertised widget order and one common day window for independent reads', function (): void {
+    $instance = cloudTelemetryInstance();
+    fakeCloudTelemetry(fn ($path) => $path === '/host/header' ? Http::response(['status' => 200, 'data' => [
+        'host_data' => ['id' => 4253, 'domainstatus' => 'Active'], 'module_power_status' => true,
+        'module_chart' => [['type' => 'flow', 'title' => '网卡'], ['type' => 'cpu', 'title' => 'CPU使用量'],
+            ['type' => 'disk', 'title' => '硬盘IO'], ['type' => 'memory', 'title' => '内存用量']],
+    ]]) : null);
+    $this->actingAs($instance->user)->post('/console/instances/'.$instance->id.'/telemetry')->assertOk()
+        ->assertSeeInOrder(['data-widget="power"', 'data-widget="flow"', 'data-widget="cpu"', 'data-widget="disk"', 'data-widget="memory"'], false);
+    $windows = Http::recorded(fn ($request) => str_contains($request->url(), '/provision/chart/4253'))
+        ->map(fn ($exchange) => [$exchange[0]['start'], $exchange[0]['end']]);
+    expect($windows)->toHaveCount(4)->and($windows->unique()->count())->toBe(1)
+        ->and($windows->first()[1] - $windows->first()[0])->toBe(86400000);
+});
+
+it('does not start telemetry reads when the authenticated header advertises none', function (): void {
+    $instance = cloudTelemetryInstance();
+    fakeCloudTelemetry(fn ($path) => $path === '/host/header' ? Http::response(['status' => 200, 'data' => [
+        'host_data' => ['id' => 4253, 'domainstatus' => 'Active'], 'module_power_status' => false, 'module_chart' => [],
+    ]]) : null);
+    $this->actingAs($instance->user)->postJson('/console/instances/'.$instance->id.'/telemetry')->assertUnprocessable();
+    Http::assertNotSent(fn ($request) => str_contains($request->url(), '/provision/'));
 });

@@ -65,9 +65,13 @@ class ZjmfPurchaseProtocol
         }
         $options = validator($options, ['configoption' => ['sometimes', 'array'], 'configoption.*' => ['integer', 'min:0'],
             'customfield' => ['sometimes', 'array'], 'customfield.*' => ['string', 'max:4096']])->validate();
-        $user = $this->client->request('GET', '/user_info');
+        $checks = $this->client->readBatch([
+            'user' => ['method' => 'GET', 'path' => '/user_info'],
+            'stock' => ['method' => 'GET', 'path' => '/cart/stock_control', 'params' => ['pid' => $product->upstream_pid]],
+        ]);
+        $user = $checks['user'];
         $currencyId = $user['user']['currency'] ?? $user['data']['user']['currency'] ?? null;
-        $stock = $this->client->request('GET', '/cart/stock_control', ['pid' => $product->upstream_pid]);
+        $stock = $checks['stock'];
         $stock = ($stock['status'] ?? null) === 200 ? ($stock['data']['product'] ?? null) : null;
         if (($user['status'] ?? null) !== 200 || $currencyId === null || ! is_array($stock) || ! array_key_exists('hidden', $stock)
             || ! array_key_exists('stock_control', $stock) || $stock['hidden'] || ($stock['stock_control'] && (int) ($stock['qty'] ?? 0) < 1)) {

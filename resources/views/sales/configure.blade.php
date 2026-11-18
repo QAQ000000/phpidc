@@ -7,7 +7,7 @@
 <label>计费周期<select name="billing_cycle">@foreach($details['cycles'] as $cycle)<option value="{{ $cycle['value'] }}" @selected(($selection['billing_cycle'] ?? '') === $cycle['value'])>{{ $cycle['label'] }}</option>@endforeach</select></label>
 @include('sales.config-options')
 <p id="classic-price" role="status">@if($quote)实时价格：{{ $quote->downstreamPrice }} {{ $quote->currency }}；开通费 {{ $quote->setupFee }}@else选择配置后点击实时报价@endif</p>
-<button type="submit" formaction="/console/products/{{ $product->id }}/quote" formnovalidate>实时报价</button>
+<button type="submit" formaction="/console/products/{{ $product->id }}/quote" data-quote-trigger formnovalidate>实时报价</button>
 <label>主机名<input name="hostname" autocomplete="off"></label>
 <label>开通密码<input name="password" type="password" autocomplete="new-password"></label>
 <p>主机名与密码须同时符合商品规则及上游规则。</p>

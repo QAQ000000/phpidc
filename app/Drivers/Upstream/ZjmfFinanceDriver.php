@@ -31,7 +31,7 @@ use Illuminate\Support\Carbon;
 
 class ZjmfFinanceDriver implements BoundUpstreamEndpoint, ConfigurableResource, ConfigurationInspectable, FulfillmentDriver, HasCustomPanelWidgets, LiveQuotable, PowerControllable, RenewableResource, SyncableCatalog, UpstreamAccount
 {
-    public function __construct(private readonly ZjmfClient $client, private readonly UpstreamApi $account, private readonly array $panelWidgetTypes = []) {}
+    public function __construct(private readonly ZjmfClient $client, private readonly UpstreamApi $account, private readonly array $panelWidgetTypes = [], private readonly array $panelReadOptions = []) {}
 
     public function endpointIdentity(): array
     {
@@ -68,7 +68,7 @@ class ZjmfFinanceDriver implements BoundUpstreamEndpoint, ConfigurableResource, 
             return [];
         }
 
-        return (new ZjmfPanelProtocol($this->client))->widgets($instance, $this->panelWidgetTypes);
+        return (new ZjmfPanelProtocol($this->client))->widgets($instance, $this->panelWidgetTypes, $this->panelReadOptions);
     }
 
     public function catalog(): array

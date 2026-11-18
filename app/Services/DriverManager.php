@@ -86,10 +86,10 @@ class DriverManager
         return new SocialiteDriver($adapter);
     }
 
-    public function fulfillment(DriverType $type, ?int $upstreamApiId = null, array $panelWidgetTypes = []): FulfillmentDriver
+    public function fulfillment(DriverType $type, ?int $upstreamApiId = null, array $panelWidgetTypes = [], array $panelReadOptions = []): FulfillmentDriver
     {
         return match ($type) {
-            DriverType::ZJMF_API => $this->classicAccount($upstreamApiId, $panelWidgetTypes),
+            DriverType::ZJMF_API => $this->classicAccount($upstreamApiId, $panelWidgetTypes, $panelReadOptions),
             DriverType::REDEMPTION => app(RedemptionCodeDriver::class),
             DriverType::SUB2API => $upstreamApiId === null ? app(Sub2ApiDriver::class) : $this->sub2ApiAccount($upstreamApiId),
             default => throw new DomainException('This fulfillment driver is not available yet.'),
@@ -117,14 +117,14 @@ class DriverManager
         return new Sub2ApiRemoteDriver(new Sub2ApiClient($account, app(UpstreamOperationBuffer::class)));
     }
 
-    public function classicAccount(?int $id, array $panelWidgetTypes = []): ZjmfFinanceDriver
+    public function classicAccount(?int $id, array $panelWidgetTypes = [], array $panelReadOptions = []): ZjmfFinanceDriver
     {
         $account = UpstreamApi::find($id);
         if ($account === null || ! $account->is_active || $account->driver !== DriverType::ZJMF_API) {
             throw new DomainException('An active classic ZJMF account is required.');
         }
 
-        return new ZjmfFinanceDriver(new ZjmfClient($account, app(UpstreamOperationBuffer::class)), $account, $panelWidgetTypes);
+        return new ZjmfFinanceDriver(new ZjmfClient($account, app(UpstreamOperationBuffer::class)), $account, $panelWidgetTypes, $panelReadOptions);
     }
 
     public function mail(): MailDriverInterface

@@ -38,12 +38,12 @@ class OpenInstancePanelAction
         throw ValidationException::withMessages(['panel' => '上游尚未提供可用的面板登录入口。']);
     }
 
-    public function fetchWidgets(User $user, Instance $instance, array $types = []): array
+    public function fetchWidgets(User $user, Instance $instance, array $types = [], array $readOptions = []): array
     {
         if (! $this->available($user, $instance)) {
             throw ValidationException::withMessages(['panel' => '该服务暂不可登录控制面板。']);
         }
-        $driver = $this->drivers->fulfillment($instance->driver_type, $instance->upstream_api_id, $types);
+        $driver = $this->drivers->fulfillment($instance->driver_type, $instance->upstream_api_id, $types, $readOptions);
         abort_unless($driver instanceof HasCustomPanelWidgets, 422);
         $binding = app(MachineOperation::class)->binding($instance);
         $accountAuth = app(MachineOperation::class)->accountFingerprint($instance);

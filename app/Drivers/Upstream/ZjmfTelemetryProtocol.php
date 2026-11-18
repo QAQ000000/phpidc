@@ -7,6 +7,7 @@ namespace App\Drivers\Upstream;
 use App\Data\ProvisionResult;
 use App\Enums\ProvisionCommand;
 use App\Models\Instance;
+use Illuminate\Validation\ValidationException;
 
 class ZjmfTelemetryProtocol
 {
@@ -29,17 +30,32 @@ class ZjmfTelemetryProtocol
     public function widgets(Instance $instance, array $header): array
     {
         $context = ['instance_id' => $instance->id];
-        $widgets = [];
-        if (($header['data']['module_power_status'] ?? false) === true) {
-            $widgets[] = $this->powerStatus($instance)->rawResponse['machine_status_widget'];
-        }
         // The upstream default date calculation is inconsistent. Always supply an explicit 24h window in milliseconds.
         $end = now()->getTimestamp() * 1000;
-        foreach ($this->charts($header) as $chart) {
-            $response = $this->client->request('GET', '/provision/chart/'.$instance->upstream_instance_id,
-                ['type' => $chart['type'], 'start' => $end - 86400000, 'end' => $end], $context);
-            $data = $this->chartData($response);
-            $widgets[] = ['key' => $chart['type'], 'title' => $chart['title'], 'type' => 'chart', 'data' => $data];
+        $charts = $this->charts($header);
+        $power = ($header['data']['module_power_status'] ?? false) === true;
+        $requests = [];
+        if ($power) {
+            $requests['power'] = ['method' => 'POST', 'path' => '/provision/default',
+                'params' => ['id' => $instance->upstream_instance_id, 'func' => ProvisionCommand::STATUS->value]];
+        }
+        foreach ($charts as $chart) {
+            $requests['chart:'.$chart['type']] = ['method' => 'GET', 'path' => '/provision/chart/'.$instance->upstream_instance_id,
+                'params' => ['type' => $chart['type'], 'start' => $end - 86400000, 'end' => $end]];
+        }
+        if ($requests === []) {
+            return [];
+        }
+        // Independent reads share authentication and a bounded pool; no chart waits for the preceding chart.
+        $responses = $this->client->readBatch($requests, $context);
+        $widgets = [];
+        if ($power) {
+            $widgets[] = $this->powerStatusResult($responses['power'])->rawResponse['machine_status_widget'];
+        }
+        // Preserve the advertised order even when requests complete in a different order.
+        foreach ($charts as $chart) {
+            $widgets[] = ['key' => $chart['type'], 'title' => $chart['title'], 'type' => 'chart',
+                'data' => $this->chartData($responses['chart:'.$chart['type']])];
         }
 
         return $widgets;
@@ -49,6 +65,30 @@ class ZjmfTelemetryProtocol
     {
         $response = $this->client->request('POST', '/provision/default', ['id' => $instance->upstream_instance_id,
             'func' => ProvisionCommand::STATUS->value], ['instance_id' => $instance->id]);
+
+        return $this->powerStatusResult($response);
+    }
+
+    public function chart(Instance $instance, string $chart, array $readOptions): array
+    {
+        $titles = ['cpu' => 'CPU使用量', 'disk' => '硬盘IO', 'memory' => '内存用量', 'flow' => '网卡'];
+        $advertised = $instance->active_config['upstream_panel']['charts'] ?? [];
+        $start = $readOptions['start'] ?? null;
+        $end = $readOptions['end'] ?? null;
+        $now = now()->getTimestamp() * 1000;
+        if (! isset($titles[$chart]) || ! is_array($advertised) || ! in_array($chart, $advertised, true)
+            || ! is_int($start) || ! is_int($end) || $start < 0 || $end - $start !== 86400000
+            || $end > $now || $end < $now - 300000) {
+            throw ValidationException::withMessages(['chart' => '此监控类型或时间窗口不可用，请刷新页面。']);
+        }
+        $response = $this->client->request('GET', '/provision/chart/'.$instance->upstream_instance_id,
+            ['type' => $chart, 'start' => $start, 'end' => $end], ['instance_id' => $instance->id]);
+
+        return ['key' => $chart, 'title' => $titles[$chart], 'type' => 'chart', 'data' => $this->chartData($response)];
+    }
+
+    private function powerStatusResult(array $response): ProvisionResult
+    {
         $state = $response['data']['status'] ?? null;
         $available = in_array($response['status'] ?? null, [200, 'success'], true) && is_string($state)
             && in_array($state, ['on', 'off', 'unknown'], true);

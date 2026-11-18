@@ -104,6 +104,9 @@ Route::middleware('auth')->group(function (): void {
     Route::post('/console/instances/{instance}/mapping-price/preview', [CustomerInstanceMappingPriceController::class, 'preview'])->middleware('throttle:quote');
     Route::post('/console/instances/{instance}/mapping-price', [CustomerInstanceMappingPriceController::class, 'store'])->middleware('throttle:mapping-price');
     Route::post('/console/instances/{instance}/panel-login', [CustomerInstancePanelController::class, 'open'])->middleware('throttle:panel-login');
+    Route::get('/console/instances/{instance}/telemetry', [CustomerInstancePanelController::class, 'telemetryPage']);
+    Route::post('/console/instances/{instance}/telemetry/chart/{chart}', [CustomerInstancePanelController::class, 'chart'])
+        ->middleware('throttle:telemetry');
     Route::post('/console/instances/{instance}/telemetry', [CustomerInstancePanelController::class, 'telemetry'])->middleware('throttle:telemetry');
     Route::post('/console/instances/{instance}/power-status', [CustomerInstancePanelController::class, 'powerStatus'])->middleware('throttle:power-status');
     Route::post('/console/instances/{instance}/machine', [CustomerMachineController::class, 'show'])->middleware('throttle:machine-read');

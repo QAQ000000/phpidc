@@ -13,8 +13,13 @@ class ZjmfPanelProtocol
 {
     public function __construct(private readonly ZjmfClient $client) {}
 
-    public function widgets(Instance $instance, array $types = []): array
+    public function widgets(Instance $instance, array $types = [], array $readOptions = []): array
     {
+        if (count($types) === 1 && str_starts_with($types[0], 'chart:')) {
+            // As with the standalone STATUS read, use authenticated sync capabilities for read-only data.
+            // The caller Action validates the chart/window and rechecks binding and credentials after HTTP.
+            return [(new ZjmfTelemetryProtocol($this->client))->chart($instance, substr($types[0], 6), $readOptions)];
+        }
         $context = ['instance_id' => $instance->id];
         // Explicit customer reads use the standard HTTP timeout; async host-sync keeps its separate 3s limit.
         $header = $this->client->request('GET', '/host/header', ['host_id' => $instance->upstream_instance_id, 'source' => 'API'], $context);

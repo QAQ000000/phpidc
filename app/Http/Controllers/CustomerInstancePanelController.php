@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Http\Controllers;
 
 use App\Actions\OpenInstancePanelAction;
+use App\Actions\ReadInstanceChartAction;
 use App\Actions\ReadInstancePowerStatusAction;
 use App\Actions\ReadInstanceTelemetryAction;
 use App\Models\Instance;
@@ -15,6 +16,32 @@ use Illuminate\Http\Response;
 
 class CustomerInstancePanelController extends Controller
 {
+    public function telemetryPage(Request $request, Instance $instance, ReadInstanceChartAction $read): Response
+    {
+        $user = $request->user();
+        abort_unless($user instanceof User, 401);
+        $capabilities = $read->describe($user, $instance);
+        $end = now()->getTimestamp() * 1000;
+
+        return response()->view('sales.telemetry-shell', ['instance' => $instance, 'capabilities' => $capabilities,
+            'window' => ['start' => $end - 86400000, 'end' => $end]])
+            ->header('Cache-Control', 'private, no-store')->header('Referrer-Policy', 'no-referrer');
+    }
+
+    public function chart(Request $request, Instance $instance, string $chart, ReadInstanceChartAction $read): Response|JsonResponse
+    {
+        $user = $request->user();
+        abort_unless($user instanceof User, 401);
+        $input = $request->validate(['start' => ['required', 'integer', 'min:0'], 'end' => ['required', 'integer', 'min:0']]);
+        $widget = $read->execute($user, $instance, $chart, (int) $input['start'], (int) $input['end']);
+        $available = $widget['data']['available'];
+        $response = $request->expectsJson()
+            ? response()->json(['available' => $available, 'html' => view('sales.telemetry-widget', ['widget' => $widget])->render()], $available ? 200 : 502)
+            : response()->view('sales.telemetry', ['instance' => $instance, 'widgets' => [$widget]]);
+
+        return $response->header('Cache-Control', 'private, no-store')->header('Referrer-Policy', 'no-referrer');
+    }
+
     public function powerStatus(Request $request, Instance $instance, ReadInstancePowerStatusAction $read): Response|JsonResponse
     {
         $user = $request->user();
