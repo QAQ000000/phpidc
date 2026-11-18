@@ -30,6 +30,8 @@ Human-approved C20 (2026-11-18): the current available/frozen wallet, affiliate 
 
 The purchase Action receives the product, billing cycle and selected options, obtains a trusted server-side quote and checks its currency. A submitted `totalAmount` alone cannot establish a purchase price.
 
+Human-approved local preview decision (2026-11-19, “改成这样”): classic configuration previews use synchronized local product/option prices without upstream I/O and are estimates. Customer HTTP checkout still obtains a fresh upstream price, currency and availability outside locks. An encrypted five-minute quotation token binds the owner, product/upstream mapping, cycle and selected pricing configuration to the displayed period/setup amounts. A missing token or any amount difference returns a new quote for explicit confirmation before invoice/coupon/wallet/task writes; a submitted token with invalid scope or expiry is rejected. Confirming always rechecks upstream, so another change requires another confirmation. Replay of an already committed purchase remains first and returns its original amount even after token expiry; quotation tokens are not part of the durable caller intent and do not change invoice amounts at payment time. Passwords and custom fields are validated at checkout and are excluded from scripted price-preview requests and tokens. The no-JS form fallback may submit additional fields to the local preview endpoint, which discards them without upstream forwarding or retention.
+
 ```
 1. gross          = Σ(line.unit_price × line.qty)                 // per line, 2dp, M3
 2. subtotal       = gross

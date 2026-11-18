@@ -297,10 +297,11 @@ it('gives each purchase form its own key and keeps the failed product key on red
     expect(session()->getOldInput('password'))->toBeNull();
 });
 
-it('keeps the purchase key through HTML and JSON live quotation without creating an invoice', function (): void {
+it('keeps the purchase key through HTML and JSON local quotation without creating an invoice', function (): void {
     [$user, $product, $input] = purchaseFixture();
+    $product->update(['local_prices' => ['onetime' => ['price' => '10.00', 'setup_fee' => '0.00', 'enabled' => true]]]);
     $driver = Mockery::mock(FulfillmentDriver::class.', '.LiveQuotable::class);
-    $driver->shouldReceive('quotePurchase')->twice()->andReturn(new QuoteResult('0.00', '10.00'));
+    $driver->shouldNotReceive('quotePurchase');
     $manager = Mockery::mock(DriverManager::class);
     $manager->shouldReceive('fulfillment')->andReturn($driver);
     app()->instance(DriverManager::class, $manager);

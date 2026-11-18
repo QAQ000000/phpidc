@@ -38,31 +38,61 @@
         }
     }
     const label = document.getElementById('classic-price');
+    const token = form.elements.namedItem('quote_token');
+    const checkoutButton = form.querySelector('[data-checkout-trigger]');
+    let confirmationRequired = form.dataset.confirmationRequired === '1', checkoutBusy = false;
     let timer = null, revision = 0, inFlight = null, queued = null;
     const isQuoteField = name => name === 'billing_cycle' || name.startsWith('options[');
+    const isPriceField = name => name === 'billing_cycle' || name.startsWith('options[configoption][');
+
+    function clearConfirmation() {
+        token.value = '';
+        confirmationRequired = false;
+        form.dataset.confirmationRequired = '0';
+        checkoutButton.textContent = '核价并创建账单';
+    }
+
+    function showQuote(result, requiresConfirmation = false, message = '') {
+        if (typeof result.price !== 'string' || typeof result.setup_fee !== 'string' || typeof result.currency !== 'string'
+            || typeof result.quote_token !== 'string' || result.quote_token === '') {
+            throw new Error('未取得有效价格，请重新预估或提交核验。');
+        }
+        token.value = result.quote_token;
+        confirmationRequired = requiresConfirmation;
+        form.dataset.confirmationRequired = requiresConfirmation ? '1' : '0';
+        const prefix = requiresConfirmation ? '上游核验价格' : '本地预估价格';
+        const hint = requiresConfirmation ? '请确认新价格后创建账单。' : '本地预估，最终以提交核验为准。';
+        label.textContent = `${message ? message + ' ' : ''}${prefix}：${result.price} ${result.currency}（商品周期价）；开通费 ${result.setup_fee}。${hint}优惠券在创建账单时计算。`;
+        checkoutButton.textContent = requiresConfirmation ? '确认新价格并创建账单' : '核价并创建账单';
+    }
+
     async function quote() {
-        if (inFlight || !queued) return;
+        if (checkoutBusy || inFlight || !queued) return;
         const current = queued;
         queued = null;
         inFlight = current;
         try {
-            const response = await fetch(form.dataset.quoteUrl, { method: 'POST', headers: { Accept: 'application/json' }, body: current.body });
+            const response = await fetch(form.dataset.quoteUrl, { method: 'POST', credentials: 'same-origin', cache: 'no-store',
+                headers: { Accept: 'application/json' }, body: current.body });
             const result = await response.json();
             if (current.revision !== revision) return;
-            label.textContent = response.ok ? `实时价格：${result.price} ${result.currency}；开通费 ${result.setup_fee}` : Object.values(result.errors || {}).flat().join(' ') || '暂时无法报价，请稍后重试。';
+            if (!response.ok) throw new Error(Object.values(result.errors || {}).flat().join(' ') || '暂时无法预估价格，请稍后重试。');
+            showQuote(result);
         } catch (_) {
-            if (current.revision === revision) label.textContent = '报价连接失败，请稍后重试。';
+            if (current.revision === revision) label.textContent = _ instanceof Error ? _.message : '预估连接失败，请稍后重试。';
         } finally {
             inFlight = null;
             if (queued && timer === null) quote();
         }
     }
     function requestQuote(immediate = false) {
+        if (checkoutBusy) return;
         clearTimeout(timer);
         timer = null;
         revision++;
+        clearConfirmation();
         updateLinks();
-        const invalid = [...form.elements].find(el => isQuoteField(el.name) && !el.checkValidity());
+        const invalid = [...form.elements].find(el => isPriceField(el.name) && !el.checkValidity());
         if (invalid) {
             queued = null;
             label.textContent = '请先填写有效配置后报价。';
@@ -71,10 +101,10 @@
         }
         const body = new FormData();
         for (const [name, value] of new FormData(form)) {
-            if (name === '_token' || isQuoteField(name)) body.append(name, value);
+            if (name === '_token' || isPriceField(name)) body.append(name, value);
         }
         const key = new URLSearchParams(body).toString();
-        label.textContent = '正在获取实时价格…';
+        label.textContent = '正在计算本地预估价格…';
         if (inFlight?.key === key) {
             inFlight.revision = revision;
             queued = null;
@@ -84,6 +114,46 @@
         if (immediate) quote();
         else timer = setTimeout(() => { timer = null; quote(); }, 250);
     }
+
+    async function checkout() {
+        if (checkoutBusy) return;
+        checkoutBusy = true;
+        clearTimeout(timer);
+        timer = null;
+        queued = null;
+        revision++;
+        const body = new FormData(form);
+        const controls = [...form.elements].map(element => [element, element.disabled]);
+        controls.forEach(([element]) => { element.disabled = true; });
+        form.setAttribute('aria-busy', 'true');
+        checkoutButton.textContent = '正在核验…';
+        label.textContent = '正在实时核验上游价格与库存，请稍候…';
+        try {
+            const response = await fetch(form.action, { method: 'POST', body, credentials: 'same-origin', cache: 'no-store',
+                headers: { Accept: 'application/json' } });
+            if (response.redirected || response.status === 401 || response.status === 419) {
+                throw new Error('登录已失效，请刷新页面后重试。');
+            }
+            const result = await response.json();
+            if (response.status === 409 && result.price_changed === true && result.quote) {
+                showQuote(result.quote, true, result.message || '上游价格已更新。');
+                return;
+            }
+            if (response.status === 201 && typeof result.invoice_url === 'string') {
+                window.location.assign(result.invoice_url);
+                return;
+            }
+            throw new Error(Object.values(result.errors || {}).flat().join(' ') || result.message || '暂时无法创建账单，请稍后使用原请求重试。');
+        } catch (error) {
+            label.textContent = error instanceof Error ? error.message : '下单连接失败，请先核对账单，再使用原请求重试。';
+        } finally {
+            controls.forEach(([element, disabled]) => { element.disabled = disabled; });
+            checkoutBusy = false;
+            form.removeAttribute('aria-busy');
+            checkoutButton.textContent = confirmationRequired ? '确认新价格并创建账单' : '核价并创建账单';
+        }
+    }
+
     for (const name of ['input', 'change']) form.addEventListener(name, event => {
         if (isQuoteField(event.target.name)) requestQuote();
     });
@@ -92,10 +162,10 @@
             event.preventDefault();
             requestQuote(true);
         } else {
-            clearTimeout(timer);
-            queued = null;
-            revision++;
+            event.preventDefault();
+            checkout();
         }
     });
     updateLinks();
+    if (!token.value) requestQuote(true);
 })();

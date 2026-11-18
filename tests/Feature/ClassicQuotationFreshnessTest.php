@@ -6,8 +6,10 @@ use App\Enums\DriverType;
 use App\Models\Product;
 use App\Models\UpstreamApi;
 use App\Models\User;
+use App\Services\DriverManager;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Validation\ValidationException;
 use Tests\Concerns\InstallsApplication;
 
 uses(InstallsApplication::class);
@@ -48,23 +50,35 @@ it('keeps currency price and availability live while quoting without changing cu
             default => throw new RuntimeException('Unexpected quote request: '.$path),
         };
     });
-    $url = '/console/products/'.$product->id.'/quote';
-    $this->actingAs($user)->postJson($url, ['billing_cycle' => 'monthly', 'price' => '0.01'])
-        ->assertOk()->assertJsonPath('price', '9.60')->assertJsonPath('setup_fee', '0.00');
+    // Interactive previews use local estimates. Preserve live freshness at the
+    // driver boundary used again when the customer submits an order.
+    $driver = app(DriverManager::class)->classicAccount($account->id);
+    $first = $driver->quotePurchase($product, 'monthly', []);
+    expect($first->downstreamPrice)->toBe('9.60')->and($first->setupFee)->toBe('0.00');
     $state->currency = 2;
     $state->total = '21.00';
     $state->setup = '1.00';
-    $this->postJson($url, ['billing_cycle' => 'monthly', 'price' => '0.01'])
-        ->assertOk()->assertJsonPath('price', '24.00')->assertJsonPath('setup_fee', '1.20');
+    $second = $driver->quotePurchase($product, 'monthly', []);
+    expect($second->downstreamPrice)->toBe('24.00')->and($second->setupFee)->toBe('1.20');
     expect($state->quotedCurrencies)->toBe([1, 2]);
 
     $state->hidden = 1;
-    $this->postJson($url, ['billing_cycle' => 'monthly'])->assertUnprocessable()->assertJsonValidationErrors('product_id');
+    try {
+        $driver->quotePurchase($product, 'monthly', []);
+        $this->fail('An unavailable upstream product must reject a live quote.');
+    } catch (ValidationException $exception) {
+        expect($exception->errors())->toHaveKey('product_id');
+    }
     expect($state->quotedCurrencies)->toBe([1, 2]);
 
     $state->hidden = 0;
     $state->code = 'USD';
-    $this->postJson($url, ['billing_cycle' => 'monthly'])->assertUnprocessable()->assertJsonValidationErrors('currency');
+    try {
+        $driver->quotePurchase($product, 'monthly', []);
+        $this->fail('A changed upstream currency must reject a live quote.');
+    } catch (ValidationException $exception) {
+        expect($exception->errors())->toHaveKey('currency');
+    }
     expect($state->users)->toBe(4)->and($state->stocks)->toBe(4)
         ->and($state->quotedCurrencies)->toBe([1, 2, 2])
         ->and($user->fresh()->credit)->toBe('100.00')->and($user->fresh()->frozen_credit)->toBe('0.00');

@@ -4,10 +4,10 @@ declare(strict_types=1);
 
 namespace App\Http\Controllers;
 
-use App\Actions\CallUpstreamAction;
 use App\Actions\CreateComboInvoiceAction;
 use App\Actions\DescribeStoreProductAction;
 use App\Actions\DowngradeCalculatorAction;
+use App\Actions\QuoteLocalProductAction;
 use App\Actions\RequestInstanceOperationAction;
 use App\Actions\ResolveProductOptionsAction;
 use App\Contracts\LiveQuotable;
@@ -16,6 +16,7 @@ use App\Models\Instance;
 use App\Models\Product;
 use App\Models\User;
 use App\Services\DriverManager;
+use App\Support\PurchaseQuoteConfirmation;
 use DomainException;
 use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
@@ -50,25 +51,30 @@ class ServiceBillingController extends Controller
 
     public function quote(Request $request, Product $product)
     {
-        $this->user($request);
+        $user = $this->user($request);
         abort_unless(Product::publicCatalog()->whereKey($product->id)->exists(), 404);
         $data = $request->validate(['billing_cycle' => ['required', Rule::enum(BillingCycle::class)], 'options' => ['sometimes', 'array'],
+            'options.configoption' => ['sometimes', 'array'], 'options.configoption.*' => ['integer', 'min:0'],
             'request_id' => ['sometimes', 'ulid']]);
+        // The no-JS form fallback can include other checkout fields; never retain them in a preview.
+        $data['options'] = ['configoption' => $data['options']['configoption'] ?? []];
         $quote = $this->run(function () use ($product, $data) {
-            $options = app(ResolveProductOptionsAction::class)->execute($product, $data['billing_cycle'], $data['options'] ?? []);
+            $options = app(ResolveProductOptionsAction::class)->execute($product, $data['billing_cycle'], $data['options'] ?? [], validateCustomFields: false);
             $driver = app(DriverManager::class)->fulfillment($product->driver_type, $product->upstream_api_id);
             if (! $driver instanceof LiveQuotable) {
-                throw new DomainException('This product has no live quote.');
+                throw new DomainException('This product has no configurable quotation.');
             }
 
-            return app(CallUpstreamAction::class)->execute(fn () => $driver->quotePurchase($product, $data['billing_cycle'], $options));
+            return app(QuoteLocalProductAction::class)->execute($product, $data['billing_cycle'], $options);
         });
+        $quoteToken = app(PurchaseQuoteConfirmation::class)->issue($user, $product, $data['billing_cycle'], $data['options'] ?? [], $quote);
         if ($request->expectsJson()) {
-            return response()->json(['price' => $quote->downstreamPrice, 'setup_fee' => $quote->setupFee, 'currency' => $quote->currency])->header('Cache-Control', 'private, no-store');
+            return response()->json(['price' => $quote->downstreamPrice, 'setup_fee' => $quote->setupFee, 'currency' => $quote->currency,
+                'quote_token' => $quoteToken, 'estimate' => true])->header('Cache-Control', 'private, no-store');
         }
 
         return response()->view('sales.configure', ['product' => $product, 'details' => app(DescribeStoreProductAction::class)->execute($product),
-            'quote' => $quote, 'selection' => $data, 'purchaseRequestId' => $data['request_id'] ?? null])->header('Cache-Control', 'private, no-store');
+            'quote' => $quote, 'quoteToken' => $quoteToken, 'selection' => $data, 'purchaseRequestId' => $data['request_id'] ?? null])->header('Cache-Control', 'private, no-store');
     }
 
     public function bill(Request $request, Instance $instance)

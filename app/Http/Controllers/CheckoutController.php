@@ -5,20 +5,23 @@ declare(strict_types=1);
 namespace App\Http\Controllers;
 
 use App\Actions\CreateComboInvoiceAction;
+use App\Actions\DescribeStoreProductAction;
 use App\Actions\FindPurchaseRequestAction;
 use App\Actions\ValidateCheckoutAction;
 use App\Enums\BillingCycle;
+use App\Exceptions\PurchasePriceChanged;
 use App\Models\Product;
 use App\Models\User;
 use App\Support\PurchaseRequest;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Http\Response;
 use Illuminate\Validation\Rule;
 
 class CheckoutController extends Controller
 {
-    public function store(Request $request, ValidateCheckoutAction $validateCheckout, CreateComboInvoiceAction $create): JsonResponse|RedirectResponse
+    public function store(Request $request, ValidateCheckoutAction $validateCheckout, CreateComboInvoiceAction $create): JsonResponse|RedirectResponse|Response
     {
         $user = $request->user();
         abort_unless($user instanceof User, 401);
@@ -29,6 +32,7 @@ class CheckoutController extends Controller
             'billing_cycle' => ['sometimes', Rule::enum(BillingCycle::class)],
             'use_credit' => ['sometimes', 'boolean'], 'gateway' => ['nullable', Rule::in(['epay_wechat', 'epay_alipay'])],
             'options' => ['sometimes', 'array'], 'coupon_code' => ['nullable', 'string', 'max:64'],
+            'quote_token' => ['nullable', 'string', 'max:16384'],
         ]);
         $cycle = BillingCycle::from($data['billing_cycle'] ?? BillingCycle::ONETIME->value);
         $intent = app(PurchaseRequest::class);
@@ -37,8 +41,26 @@ class CheckoutController extends Controller
         $invoice = app(FindPurchaseRequestAction::class)->execute($user->id, $requestId, $snapshot);
         if ($invoice === null) {
             $validateCheckout->execute($user, (int) $data['product_id'], $request->only(['hostname', 'password']));
-            $invoice = $create->execute($user, Product::findOrFail($data['product_id']), $cycle, $data['options'] ?? [],
-                $request->boolean('use_credit'), $data['gateway'] ?? null, $data);
+            $product = Product::findOrFail($data['product_id']);
+            try {
+                $invoice = $create->execute($user, $product, $cycle, $data['options'] ?? [],
+                    $request->boolean('use_credit'), $data['gateway'] ?? null, $data + ['require_price_confirmation' => true]);
+            } catch (PurchasePriceChanged $changed) {
+                if ($request->expectsJson()) {
+                    return response()->json(['price_changed' => true, 'message' => $changed->getMessage(), 'quote' => [
+                        'price' => $changed->quote->downstreamPrice, 'setup_fee' => $changed->quote->setupFee,
+                        'currency' => $changed->quote->currency, 'quote_token' => $changed->quoteToken,
+                    ]], 409)->header('Cache-Control', 'private, no-store');
+                }
+
+                return response()->view('sales.configure', ['product' => $product,
+                    'details' => app(DescribeStoreProductAction::class)->execute($product), 'quote' => $changed->quote,
+                    'quoteToken' => $changed->quoteToken, 'confirmationRequired' => true,
+                    'selection' => ['billing_cycle' => $cycle->value, 'options' => ['configoption' => $data['options']['configoption'] ?? []]],
+                    'checkoutInput' => array_intersect_key($data, array_flip(['hostname', 'coupon_code', 'use_credit', 'gateway'])),
+                    'purchaseRequestId' => $requestId,
+                ], 409)->header('Cache-Control', 'private, no-store');
+            }
         }
         if ($request->expectsJson()) {
             return response()->json(['invoice_id' => $invoice->id, 'status' => $invoice->status->value,

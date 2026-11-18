@@ -45,10 +45,14 @@ class ResolveProductOptionsAction
             if ($item === null || ! ($item->upstream_base_prices[$cycle]['enabled'] ?? false)) {
                 $this->invalid('Selected option is not offered for this billing cycle.');
             }
+            $localPrice = $item->local_prices[$cycle]['price'] ?? null;
+            if (! is_string($localPrice) && ! is_int($localPrice)) {
+                $this->invalid('Selected option has no local price. Synchronize the catalog.');
+            }
             $mapped[$key] = $value;
             $pairs[] = ['local_group_id' => $group->id, 'local_item_id' => $item->id, 'upstream_group_id' => (int) $key,
                 'upstream_sub_id' => (int) $item->upstream_sub_id, 'label' => $group->name, 'value' => $quantity ? $value : $item->id,
-                'qty' => $quantity ? $value : ($group->type === 'toggle' && $value === 0 ? 0 : 1), 'unit_price' => Money::of($item->local_prices[$cycle]['price'])];
+                'qty' => $quantity ? $value : ($group->type === 'toggle' && $value === 0 ? 0 : 1), 'unit_price' => Money::of($localPrice)];
         }
         if (array_diff(array_keys($selected), array_keys($mapped)) !== []) {
             $this->invalid('Unknown or hidden configuration option.');

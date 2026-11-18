@@ -387,12 +387,16 @@ it('denies upstream administration to inventory operators and does not expose ac
     $this->get('/admin/upstream-instances')->assertOk()->assertDontSee('PRIVATE-HOST-SECRET');
 });
 
-it('renders full purchase options and provides server-authoritative live quotations without accepting a client amount', function (): void {
+it('renders full purchase options and separates local estimates from authoritative live quotations without accepting a client amount', function (): void {
     [$user,$product] = expandedClassic();
     app(SyncClassicCatalogAction::class)->execute($product, 'Expose full options');
     $this->actingAs($user)->get('/console/products/'.$product->id.'/configure')->assertOk()->assertSee('CPU')->assertSee('License')->assertSee('options[configoption][50]', false);
+    $before = DB::table('upstream_operations')->count();
     $this->postJson('/console/products/'.$product->id.'/quote', ['billing_cycle' => 'monthly', 'options' => expandedOptions(), 'price' => '0.01'])
-        ->assertOk()->assertJsonPath('price', '9.60')->assertJsonMissingPath('upstreamBaseCost');
+        ->assertOk()->assertJsonPath('price', '10.80')->assertJsonPath('estimate', true)->assertJsonMissingPath('upstreamBaseCost');
+    expect(DB::table('upstream_operations')->count())->toBe($before);
+    $live = app(DriverManager::class)->classicAccount($product->upstream_api_id)->quotePurchase($product->fresh(), 'monthly', expandedOptions());
+    expect($live->downstreamPrice)->toBe('9.60');
     $this->assertDatabaseCount('invoices', 0);
 });
 

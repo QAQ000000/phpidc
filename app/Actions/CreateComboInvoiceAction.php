@@ -26,6 +26,7 @@ use App\Services\SettingService;
 use App\Support\MachineOperation;
 use App\Support\Money;
 use App\Support\ProvisioningValidator;
+use App\Support\PurchaseQuoteConfirmation;
 use App\Support\PurchaseRequest;
 use App\Support\RenewalRecovery;
 use App\Support\SettlementCurrency;
@@ -57,9 +58,15 @@ class CreateComboInvoiceAction
         $validated = null;
         $fingerprint = $product->getRawOriginal();
         if ($driver instanceof LiveQuotable) {
+            $confirmation = app(PurchaseQuoteConfirmation::class);
+            $confirmed = ($input['require_price_confirmation'] ?? false)
+                ? $confirmation->read($input['quote_token'] ?? null, $user, $product, $billingCycle->value, $options) : null;
             [$validated, $liveQuote] = app(CallUpstreamAction::class)->execute(fn () => [
                 $driver->validateParams($product, $input), $driver->quotePurchase($product, $billingCycle->value, $options),
             ]);
+            if ($input['require_price_confirmation'] ?? false) {
+                $confirmation->assertMatches($confirmed, $user, $product, $billingCycle->value, $options, $liveQuote);
+            }
         }
 
         return DB::transaction(function () use ($user, $product, $billingCycle, $options, $useCredit, $gateway, $input, $liveQuote, $validated, $fingerprint, $requestId, $snapshot): Invoice {

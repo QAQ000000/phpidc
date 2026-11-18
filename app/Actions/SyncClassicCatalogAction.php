@@ -72,7 +72,7 @@ class SyncClassicCatalogAction
                             'step' => max(1, (int) ($option['qty_step'] ?? 1)), 'unit' => $option['unit'] ?? null,
                             'is_upgradeable' => (bool) ($option['upgrade'] ?? false), 'sync_source' => 'upstream',
                             'is_hidden' => false, 'sort_order' => (int) ($option['order'] ?? 0),
-                            'upstream_meta' => ['option_type' => $type, 'container_id' => $container['id'] ?? null,
+                            'upstream_meta' => ['option_type' => $type, 'container_id' => $container['id'] ?? null, 'qty_stage' => $option['qty_stage'] ?? null,
                                 'subs' => array_map(fn (array $sub) => array_intersect_key($sub, array_flip(['id', 'qty_minimum', 'qty_maximum', 'qty', 'sort_order'])), $option['sub'] ?? [])]]);
                     $ids[] = $group->id;
                     $subs = [];
