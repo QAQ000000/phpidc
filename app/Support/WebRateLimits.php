@@ -19,6 +19,7 @@ final class WebRateLimits
             'panel-login' => 10, 'telemetry' => 10, 'power-status' => 10, 'machine-read' => 10, 'machine-command' => 10,
             'machine-review' => 30, 'machine-reconcile' => 30, 'download' => 60, 'coupon-claim' => 10,
             'withdrawal' => 10, 'wallet-topup' => 10, 'account-close' => 5, 'external-payout' => 10,
+            'wallet-clearance' => 5, 'entitlement-archive' => 5,
             'ticket-create' => 10, 'ticket-update' => 20] as $business => $perMinute) {
             RateLimiter::for($business, fn (Request $request) => Limit::perMinute($perMinute)->by($business.':'.($request->user() === null
                 ? 'ip:'.$request->ip() : 'user:'.$request->user()->getAuthIdentifier())));

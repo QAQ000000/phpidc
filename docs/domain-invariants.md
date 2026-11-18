@@ -76,7 +76,7 @@ bcadd(subtotal, '0.00')               === bcadd(total_amount, discount)    // di
 
 ## 3. Wallet and frozen credit state machine
 
-Two columns, one pool. **`credit` = available balance; `frozen_credit` = reserved, unavailable balance.** Total wallet value = `credit + frozen_credit`.
+Three columns, one pool (approved N01/N05). **`credit` = available balance; `frozen_credit` = invoice reservations; `wallet_clearance_frozen` = manual wallet clearance reservations.** Total wallet value includes all three. Invoice operations keep their original two-column meaning and never consume the independent clearance reservation.
 
 | Operation | Transition | Guard |
 |---|---|---|
@@ -117,6 +117,9 @@ All current wallet and affiliate balance transitions below are denominated in CN
 | `affiliate_commission` | no | commission credited to `affiliate_balance` |
 | `affiliate_clawback` | no | commission reversed |
 | `affiliate_payout` | no | `affiliate_balance` → wallet or external |
+| `wallet_clearance_hold` | no | available wallet → independent clearance reservation |
+| `wallet_clearance_paid` | no | clearance reservation consumed by confirmed external payment |
+| `wallet_clearance_release` | no | clearance reservation → available wallet after cancellation before execution or verified nonpayment |
 | `adjustment` | per sign of context | admin manual adjustment, requires `audit_logs` row |
 
 There is no "frozen_credit deduction" type. Payment of the credit portion is `credit_settle`.
@@ -165,6 +168,16 @@ users → invoices → payment_attempts → instances → redemption_codes → f
 Epay merchant selection additionally takes an application-wide configuration metadata row lock **before** this financial lock sequence. Configuration changes and attempt creation serialize on it; no caller may acquire it after financial row locks. Callback credential resolution releases it before the callback settlement transaction. It does not authorize money writes or HTTP under a transaction.
 
 **INV-L2 — Single writer for money.** `HandlePaymentCallbackAction`, `CreateComboInvoiceAction`, `ExpireUnpaidInvoicesAction`, `RefundInvoiceAction` and `RetryFulfillmentTaskAction` are the only writers of invoice/wallet state. Drivers never write them.
+
+**Human-approved W2 / N01–N02 (2026-11-18):** `ProcessWalletClearanceAction` is additionally a wallet writer for the three explicit clearance transitions only. Amounts are CNY 0.01–10000.00, fees borne by the merchant, with at most one pending/reserved/processing/unknown request per original user. Ordinary requests require the owner's current password and confirmation. A closed user's clearance requires finance reconciliation authority and encrypted evidence of rights to the original user ID and a verified original wallet credit, never a reused contact identifier. No arbitrary credit, invoice reopening or account revival is permitted.
+
+The extended lock order after the existing six layers is financial records (including clearances) → shared external payout receipts → reconciliation cases/entries and entitlement archives → notification events/deliveries. All participating users are locked in ascending ID order before those layers; source invoices precede financial records. The callback dedupe insert retains its original special savepoint boundary. Source totals are checked under the original owner lock without taking earlier locks after a case lock.
+
+Clearance references are `wallet_clearance:{id}:hold`, `:paid`, `:release`. Each ledger row preserves invoice `frozen_after`; its `meta.wallet_clearance_frozen_after` explicitly records the separate reservation. Unknown transfers retain reservation and execution identity and cannot restart or automatically release. Paid confirmation atomically claims a globally unique `(payout_method, external_reference)` in `external_payout_receipts`, shared with affiliate transfers; exactly one real business FK must own it. History backfill registers existing facts without rewriting the ledger; conflicts fail for reconciliation.
+
+`payment_attention` sources are original verified callbacks or narrowly verified `refund:{invoice_id}` CREDIT_IN entries for closed users. Source identity, original amount and fingerprint are checked; no synthetic callback or operator-selected amount can replace the principal. The unique source credit prevents registering the same obligation twice. For anonymous source clearance, original credit L, verified paid P and valid reserved/processing/unknown holds H obey `P+H ≤ L`; approval rechecks amount ≤ min(credit,L−P−H). Pending does not reserve H. A source closes only after evidence-backed `P=L` and `H=0`, with append-only reconciliation entries. Historical attention remains blocking before source backfill; changing a case status alone cannot release it. Open capacity/closed-account source cases do not block legitimate clearance of already available wallet funds. Unposted receipts never become available merely through source registration.
+
+N02 adds `OneTimeDeliverable`, historical capability resolution and `instance_entitlement_archives`. Owner password, confirmation and a stable request key bind a nonsecret delivery snapshot/fingerprint to complete Paid, sold-card and successful provision evidence, with no recurring obligation or unresolved execution. Active instances and sold inventory remain unchanged. Only an archive that still matches complete delivery evidence exempts that instance from the service-termination closure blocker; it does not exempt funds, tasks or other blockers. Historical capability resolution performs no I/O and does not require a still-active supplier credential. Secret rotation must preserve the nonsecret fingerprint while rotating existing delivery secrets and all new financial evidence ciphertext.
 
 **Human-approved N05 (2026-11-18):** wallet capacity is the complete final `credit + frozen_credit + wallet_clearance_frozen` transition, capped at `9999999999.99`. Each persisted column and intermediate ledger snapshot must also fit its column. All writers preflight under the existing owner lock before any partial accounting; callbacks that cannot apply a full receipt retain verified callback/attention evidence and ACK after commit without payment or fulfillment. Historical aggregate excess is never rewritten: legitimate consumption, freezing and releases may keep or reduce the original total, provided each stored column fits. A pure-wallet intermediate hold that cannot fit is rejected for reconciliation, rather than overflowing SQL or silently changing freeze/settle ledger semantics. The independent clearance hold does not change invoice `frozen_credit` semantics; actual clearance execution belongs to the separately staged N01 implementation. See `system-architecture-remediation-plan-2026-11-18.md`.
 

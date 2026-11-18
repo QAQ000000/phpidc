@@ -121,6 +121,9 @@ class RefundInvoiceAction
                         'basis' => 'refunded_invoice_total', 'card_id' => $code->id]]);
             }
             $locked->update(['status' => InvoiceStatus::REFUNDED]);
+            if ($mode === 'refund_wallet') {
+                app(RecordPaymentAttentionCaseAction::class)->refundCredit($buyer, $transaction);
+            }
             app(NotificationManager::class)->queue($buyer->id, 'invoice.refunded', ['invoice_no' => $locked->invoice_no, 'amount' => $locked->total_amount, 'currency' => $locked->currency],
                 eventKey: 'invoice:'.$locked->id.':refunded');
             $this->audit($operator, 'invoice.refund', Invoice::class, $locked->id, $before,

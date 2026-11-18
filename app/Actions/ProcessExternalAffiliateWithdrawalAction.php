@@ -134,6 +134,8 @@ class ProcessExternalAffiliateWithdrawalAction
                 || trim($data['external_reference'] ?? '') === '') {
                 throw ValidationException::withMessages(['external_reference' => '付款金额、CNY币种及外部唯一交易号必须准确。']);
             }
+            app(ClaimExternalPayoutReceiptAction::class)->execute($withdrawal->payout_method, $data['external_reference'],
+                $withdrawal->amount, 'CNY', $actor, affiliateWithdrawalId: $withdrawal->id);
             $owner->forceFill(['affiliate_frozen_balance' => Money::sub($owner->affiliate_frozen_balance, $withdrawal->amount)])->save();
             $withdrawal->fill(['status' => 'paid', 'external_reference' => trim($data['external_reference']), 'confirmed_by' => $actor->id,
                 'completed_at' => now(), 'encrypted_payout_evidence' => ['classification' => 'paid', 'evidence' => $data['evidence']]]);

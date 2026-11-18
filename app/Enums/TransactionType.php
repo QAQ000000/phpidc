@@ -24,6 +24,9 @@ enum TransactionType: string
     case AFFILIATE_UNFREEZE = 'affiliate_unfreeze';
     case AFFILIATE_RECEIVABLE_SETTLE = 'affiliate_receivable_settle';
     case AFFILIATE_RECEIVABLE_REVERSE = 'affiliate_receivable_reverse';
+    case WALLET_CLEARANCE_HOLD = 'wallet_clearance_hold';
+    case WALLET_CLEARANCE_PAID = 'wallet_clearance_paid';
+    case WALLET_CLEARANCE_RELEASE = 'wallet_clearance_release';
     case ADJUSTMENT = 'adjustment';
 
     /** Does this type increase the user's available wallet balance? */

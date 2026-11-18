@@ -8,6 +8,7 @@ use App\Actions\ConfigureEpayAction;
 use App\Contracts\BotDriverInterface;
 use App\Contracts\FulfillmentDriver;
 use App\Contracts\MailDriverInterface;
+use App\Contracts\OneTimeDeliverable;
 use App\Contracts\PaymentGatewayInterface;
 use App\Contracts\SmsDriverInterface;
 use App\Drivers\Identity\SocialiteDriver;
@@ -25,6 +26,7 @@ use App\Drivers\SelfHosted\Sub2ApiRemoteDriver;
 use App\Drivers\Upstream\ZjmfClient;
 use App\Drivers\Upstream\ZjmfFinanceDriver;
 use App\Enums\DriverType;
+use App\Models\Instance;
 use App\Models\PaymentAttempt;
 use App\Models\UpstreamApi;
 use App\Support\EpayProfiles;
@@ -91,6 +93,16 @@ class DriverManager
             DriverType::REDEMPTION => app(RedemptionCodeDriver::class),
             DriverType::SUB2API => $upstreamApiId === null ? app(Sub2ApiDriver::class) : $this->sub2ApiAccount($upstreamApiId),
             default => throw new DomainException('This fulfillment driver is not available yet.'),
+        };
+    }
+
+    /** Historical delivery validation needs no active upstream account or supplier credential. */
+    public function oneTimeDelivery(Instance $instance): ?OneTimeDeliverable
+    {
+        return match ($instance->driver_type) {
+            DriverType::REDEMPTION => app(RedemptionCodeDriver::class),
+            DriverType::SUB2API => app(Sub2ApiDriver::class),
+            default => null,
         };
     }
 

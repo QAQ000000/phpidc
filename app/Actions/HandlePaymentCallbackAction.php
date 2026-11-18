@@ -195,6 +195,9 @@ class HandlePaymentCallbackAction
         if ($outcome->requiresAlert() || $reason !== null) {
             $reason ??= $outcome->value;
             $invoice = $callback->invoice_id === null ? null : Invoice::find($callback->invoice_id);
+            if ($invoice !== null && in_array($reason, ['wallet_capacity', 'closed_account'], true)) {
+                app(RecordPaymentAttentionCaseAction::class)->execute($callback, $reason);
+            }
             // Durable evidence remains queryable even when no operator channel is configured.
             DB::table('audit_logs')->insert(['actor_type' => 'system', 'action' => 'payment.callback.attention',
                 'subject_type' => PaymentCallback::class, 'subject_id' => $callback->id, 'reason' => $reason,

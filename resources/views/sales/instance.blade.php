@@ -3,6 +3,9 @@
 @section('content')
 <p><a href="/console/instances">返回我的服务</a></p><h1>{{ $instance->display_name }}</h1><p>状态：{{ \App\Support\CustomerLabels::INSTANCE_STATUSES[$instance->status->value] }}（{{ $instance->status->value }}）</p>
 <p>商品：{{ $instance->product->name }} · {{ $instance->billing_cycle->label() }}<br>创建：{{ $instance->created_at }}<br>最近同步：{{ $instance->last_synced_at ?? '等待同步' }}</p>
+@if(app(\App\Services\DriverManager::class)->oneTimeDelivery($instance) !== null)
+<p><a href="/console/instances/{{ $instance->id }}/archive">归档一次性交付权益</a></p>
+@endif
 @if($canControlMachine && ($instance->active_config['upstream_panel']['machine_status'] ?? false))
 @include('sales.power-status-form')
 @endif

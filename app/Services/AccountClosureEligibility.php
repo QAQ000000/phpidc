@@ -15,9 +15,9 @@ use App\Models\InstanceUpstreamBinding;
 use App\Models\Invoice;
 use App\Models\KycVerification;
 use App\Models\PaymentAttempt;
-use App\Models\PaymentCallback;
 use App\Models\Ticket;
 use App\Models\User;
+use App\Models\WalletClearance;
 use App\Support\MachineOperation;
 use App\Support\Money;
 use Illuminate\Contracts\Encryption\DecryptException;
@@ -47,14 +47,15 @@ class AccountClosureEligibility
             $reasons['invoices'] = '仍有未结账单，请先完成付款、取消或到期处理。';
         }
         if (PaymentAttempt::whereIn('invoice_id', Invoice::where('user_id', $user->id)->select('id'))->whereIn('status', ['unknown', 'reconciling'])->exists()
-            || DB::table('audit_logs')->where('action', 'payment.callback.attention')->where('subject_type', PaymentCallback::class)
-                ->whereIn('subject_id', DB::table('payment_callbacks')->whereIn('invoice_id', Invoice::where('user_id', $user->id)->select('id'))->select('id'))
-                ->whereIn('after->reason', ['wallet_capacity', 'closed_account'])->exists()) {
+            || app(PaymentAttentionCases::class)->hasUnresolvedForUser($user->id)) {
             $reasons['payments'] = '仍有待核对的收款或支付结果，请先由财务核对原笔。';
         }
         $instances = Instance::where('user_id', $user->id);
-        if ((clone $instances)->whereNotIn('status', [InstanceStatus::CANCELLED, InstanceStatus::DELETED])->exists()) {
-            $reasons['instances'] = '仍有未确认终止的服务，请先完成终止与业务核对。';
+        foreach ((clone $instances)->whereNotIn('status', [InstanceStatus::CANCELLED, InstanceStatus::DELETED])->lazyById(100) as $instance) {
+            if (! app(OneTimeEntitlementEvidence::class)->validArchive($instance)) {
+                $reasons['instances'] = '仍有未确认终止或归档的服务，请先完成终止与业务核对。';
+                break;
+            }
         }
         if (InstanceUpstreamBinding::whereIn('instance_id', (clone $instances)->select('id'))->where('upstream_disposition', 'kept_orphan')->exists()) {
             $reasons['orphans'] = '存在保留的旧上游资源，请先完成旧资源的终止或移交核对。';
@@ -85,6 +86,9 @@ class AccountClosureEligibility
                 ->orWhere(fn ($approved) => $approved->where('destination', 'external')->where('status', 'approved'));
         })->exists()) {
             $reasons['withdrawals'] = '仍有待审核、冻结或待核对的提现，请先处理原申请。';
+        }
+        if (WalletClearance::where('user_id', $user->id)->whereIn('status', ['pending', 'reserved', 'processing', 'unknown'])->exists()) {
+            $reasons['wallet_clearances'] = '仍有未结束的钱包结清申请，请先处理原申请。';
         }
         if (AffiliateCommission::where('referrer_id', $user->id)->where('status', 'pending')->exists()
             || Invoice::where('line_items->affiliate->referrer_id', $user->id)->whereIn('status', [InvoiceStatus::UNPAID, InvoiceStatus::PAID])

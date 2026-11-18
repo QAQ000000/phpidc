@@ -9,7 +9,7 @@ use App\Actions\RecordNotificationEventAction;
 class NotificationManager
 {
     public const EVENTS = ['invoice.paid', 'instance.delivered', 'invoice.refunded', 'affiliate.pending', 'affiliate.available', 'affiliate.withdrawal', 'ticket.reply', 'renewal.invoice', 'instance.overdue',
-        'wallet.topup.credited', 'payment.callback.attention', 'affiliate.receivable.settled', 'affiliate.receivable.reversed', 'affiliate.receivable.attention'];
+        'wallet.topup.credited', 'wallet.clearance', 'payment.callback.attention', 'affiliate.receivable.settled', 'affiliate.receivable.reversed', 'affiliate.receivable.attention'];
 
     public const DEFAULTS = [
         'invoice.paid' => ['付款成功', '账单 {{invoice_no}} 已付款：{{amount}} {{currency}}。'],
@@ -22,6 +22,7 @@ class NotificationManager
         'renewal.invoice' => ['续费提醒', '续费账单 {{invoice_no}}：{{amount}} {{currency}}。'],
         'instance.overdue' => ['服务逾期', '服务 #{{instance_id}} 已逾期，请核查续费账单。'],
         'wallet.topup.credited' => ['钱包充值到账', '充值账单 {{invoice_no}} 已到账：{{amount}} {{currency}}。'],
+        'wallet.clearance' => ['钱包结清状态更新', '钱包结清 {{amount}} CNY，当前状态：{{status}}。'],
         'payment.callback.attention' => ['付款需要核对', '账单 {{invoice_no}} 收款 {{amount}} {{currency}} 需要核对：{{status}}。'],
         'affiliate.receivable.settled' => ['应收清偿已登记', '应收清偿 {{amount}} {{currency}} 已登记，请查看明细。'],
         'affiliate.receivable.reversed' => ['应收清偿已冲正', '应收清偿 {{amount}} {{currency}} 已冲正，请查看明细。'],

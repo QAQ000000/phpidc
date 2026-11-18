@@ -83,6 +83,10 @@ class ReencryptSecretsAction
                     $this->rotateColumn('affiliate_withdrawals', 'encrypted_payout_details', $old, $new);
                     $this->rotateColumn('affiliate_withdrawals', 'encrypted_payout_evidence', $old, $new);
                     $this->rotateColumn('affiliate_withdrawals', 'operation_requests', $old, $new);
+                    $this->rotateColumn('wallet_clearances', 'payout_details', $old, $new);
+                    $this->rotateColumn('wallet_clearances', 'payout_evidence', $old, $new);
+                    $this->rotateColumn('wallet_clearances', 'operation_requests', $old, $new);
+                    $this->rotateColumn('reconciliation_entries', 'evidence', $old, $new);
                     $this->rotateColumn('notification_events', 'encrypted_payload', $old, $new);
                     $this->rotateColumn('notification_deliveries', 'encrypted_payload', $old, $new);
                     $this->rotateColumn('upstream_apis', 'encrypted_secret', $old, $new);

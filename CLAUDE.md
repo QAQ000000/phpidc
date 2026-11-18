@@ -71,6 +71,7 @@ Allowed dependency direction: **`Entry (Controller/Resource) -> Actions -> Contr
 
 - Users with financial, fulfillment, or affiliate records MUST NEVER be physically deleted. All financial/audit foreign keys use `restrictOnDelete()`: `invoices`, `payment_callbacks`, `payment_attempts`, `fulfillment_tasks`, `coupon_usages`, `coupon_claims`, `affiliate_commissions`, `affiliate_withdrawals`, `financial_transactions`, `audit_logs`, `upstream_operations`, `instances`.
 - Account closure uses `SoftDeletes` + PII anonymization (`anonymized_at`), preserving all audit & idempotency trails.
+  Approved N01/N02 additionally allow evidence-backed manual wallet clearance and owner-confirmed one-time entitlement archives. Archives preserve Active/sold delivery facts and only exempt their matching completed one-time service from the termination blocker; all other closure blockers stay enforced. Closed-user clearance uses the original user and verified credit source, encrypted rights evidence and shared unique external payout receipts. See `docs/domain-invariants.md` §5 for amounts, states, ledger references and source limits.
 - `financial_transactions` is append-only and **must** be written for every balance movement, with a unique `reference_key` (INV-W2). It is never updated or deleted.
 - Every admin-initiated financial or lifecycle action writes an `audit_logs` row with a non-empty `reason` (INV-A1, INV-A2).
 

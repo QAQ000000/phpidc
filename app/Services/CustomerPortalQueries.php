@@ -17,7 +17,7 @@ class CustomerPortalQueries
 {
     private const INVOICE_COLUMNS = ['id', 'user_id', 'product_id', 'invoice_no', 'status', 'type', 'total_amount', 'currency', 'expires_at', 'created_at'];
 
-    private const INSTANCE_COLUMNS = ['id', 'user_id', 'product_id', 'display_name', 'status', 'billing_cycle', 'recurring_amount', 'currency', 'next_due_at', 'primary_ip', 'created_at'];
+    private const INSTANCE_COLUMNS = ['id', 'user_id', 'product_id', 'driver_type', 'display_name', 'status', 'billing_cycle', 'recurring_amount', 'currency', 'next_due_at', 'primary_ip', 'created_at'];
 
     public function dashboard(User $user): array
     {
