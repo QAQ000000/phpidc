@@ -1,0 +1,11 @@
+[Unit]
+Description=Run CloudCMS independent operations check every minute
+
+[Timer]
+OnBootSec=10
+OnUnitActiveSec=60
+AccuracySec=1s
+Unit=cloudcms-operations-check.service
+
+[Install]
+WantedBy=timers.target

@@ -28,7 +28,7 @@ class AccountClosureEligibility
     /** A preview is advisory; CloseCustomerAccountAction repeats this under the active user lock.
      * @return array{eligible: bool, reasons: array<string, string>}
      */
-    public function forUser(User $user): array
+    public function forUser(User $user, ?array $permit = null): array
     {
         $reasons = [];
         if ($user->trashed() || $user->anonymized_at !== null) {
@@ -95,7 +95,10 @@ class AccountClosureEligibility
                 ->whereNotIn('id', DB::table('audit_logs')->where('action', AccrueAffiliateCommissionAction::ZERO_ACCRUAL_ACTION)->where('subject_type', Invoice::class)->whereNotNull('subject_id')->select('subject_id'))->exists()) {
             $reasons['commissions'] = '仍有待成熟佣金或尚未结转的推广订单，请先完成结转核对。';
         }
-        if (app(AffiliateReceivableBalance::class)->hasOutstanding($user->id)) {
+        if ($permit !== null) {
+            app(ReceivableAdmission::class)->assertLocked($user, $permit);
+        }
+        if ($permit === null ? app(AffiliateReceivableBalance::class)->hasOutstanding($user->id) : $permit['has_outstanding']) {
             $reasons['receivables'] = '仍有未清偿或证据待核对的退款应收，请先完成清偿。';
         }
         if (KycVerification::where('user_id', $user->id)->where('status', 'pending')->exists()) {
@@ -108,9 +111,9 @@ class AccountClosureEligibility
         return ['eligible' => $reasons === [], 'reasons' => $reasons];
     }
 
-    public function assertMayClose(User $locked): void
+    public function assertMayClose(User $locked, array $permit): void
     {
-        $eligibility = $this->forUser($locked);
+        $eligibility = $this->forUser($locked, $permit);
         if (! $eligibility['eligible']) {
             throw ValidationException::withMessages(['operation' => array_values($eligibility['reasons'])]);
         }

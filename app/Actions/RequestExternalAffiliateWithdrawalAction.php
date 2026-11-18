@@ -8,6 +8,7 @@ use App\Models\AffiliateWithdrawal;
 use App\Models\User;
 use App\Services\AffiliateFunds;
 use App\Services\NotificationManager;
+use App\Services\ReceivableAdmission;
 use App\Support\Money;
 use App\Support\OperationsAudit;
 use Illuminate\Support\Facades\DB;
@@ -29,7 +30,7 @@ class RequestExternalAffiliateWithdrawalAction
             throw ValidationException::withMessages(['payee_account' => '请填写完整收款信息。']);
         }
 
-        return DB::transaction(function () use ($user, $data, $details): AffiliateWithdrawal {
+        $operation = fn (?array $permit) => DB::transaction(function () use ($user, $data, $details, $permit): AffiliateWithdrawal {
             $locked = User::whereKey($user->id)->lockForUpdate()->firstOrFail();
             $key = $locked->id.':'.Str::upper($data['request_id']);
             $existing = AffiliateWithdrawal::where('request_key', $key)->first();
@@ -41,8 +42,9 @@ class RequestExternalAffiliateWithdrawalAction
 
                 return $existing;
             }
+            app(ReceivableAdmission::class)->assertLocked($locked, $permit ?? []);
             $funds = app(AffiliateFunds::class);
-            if (Money::gt('1.00', $data['amount']) || Money::gt($data['amount'], '10000.00') || $funds->hasReceivable($locked->id)
+            if (Money::gt('1.00', $data['amount']) || Money::gt($data['amount'], '10000.00')
                 || Money::gt(Money::add($funds->pending($locked->id), $data['amount']), $locked->affiliate_balance)) {
                 throw ValidationException::withMessages(['amount' => '金额须为1.00–10000.00 CNY，且可申请佣金足够、无未清退款应收。']);
             }
@@ -55,5 +57,7 @@ class RequestExternalAffiliateWithdrawalAction
 
             return $withdrawal;
         });
+
+        return AffiliateWithdrawal::where('request_key', $user->id.':'.Str::upper($data['request_id']))->exists() ? $operation(null) : app(ReceivableAdmission::class)->run($user, 'affiliate-external-request', $data['request_id'], $data, $operation);
     }
 }

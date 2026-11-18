@@ -1,0 +1,11 @@
+[Unit]
+Description=Independently detect stale or failed CloudCMS operations checks
+
+[Timer]
+OnBootSec=30
+OnUnitActiveSec=60
+AccuracySec=1s
+Unit=cloudcms-operations-watchdog.service
+
+[Install]
+WantedBy=timers.target

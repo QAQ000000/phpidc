@@ -8,6 +8,7 @@ use App\Models\ReconciliationCase;
 use App\Models\User;
 use App\Models\WalletClearance;
 use App\Services\NotificationManager;
+use App\Services\ReceivableAdmission;
 use App\Services\WalletClearanceEligibility;
 use App\Support\Money;
 use App\Support\OperationsAudit;
@@ -21,7 +22,7 @@ class RequestClosedAccountWalletClearanceAction
         $guard = app(WalletClearanceEligibility::class);
         $data = $guard->request($input, true);
 
-        return DB::transaction(function () use ($owner, $actor, $data, $guard): WalletClearance {
+        $operation = fn (?array $permit) => DB::transaction(function () use ($owner, $actor, $data, $guard, $permit): WalletClearance {
             $users = User::withTrashed()->whereKey([$owner->id, $actor->id])->orderBy('id')->lockForUpdate()->get()->keyBy('id');
             $operator = $users->get($actor->id);
             $locked = $users->get($owner->id);
@@ -40,8 +41,9 @@ class RequestClosedAccountWalletClearanceAction
             if ($existing !== null) {
                 return $guard->replay($existing, $data, 'closed_account_receipt', $operator->id);
             }
+            app(ReceivableAdmission::class)->assertLocked($locked, $permit ?? []);
             $guard->assertNoOtherRequest($locked);
-            $guard->assertFinanciallyReady($locked);
+            $guard->assertFinanciallyReady($locked, null, $permit ?? []);
             // The original user lock fences source changes. Create the financial row before the final case lock.
             $case = ReconciliationCase::whereKey($hint->id)->firstOrFail();
             if ($case->user_id !== $locked->id || $case->status !== 'awaiting_clearance' || $case->source_credit_transaction_id === null) {
@@ -65,5 +67,7 @@ class RequestClosedAccountWalletClearanceAction
 
             return $clearance;
         });
+
+        return WalletClearance::where('user_id', $owner->id)->where('request_id', $data['request_id'])->exists() ? $operation(null) : app(ReceivableAdmission::class)->run($owner, 'closed-wallet-clearance-request', $data['request_id'], ['actor_id' => $actor->id, ...$data], $operation);
     }
 }

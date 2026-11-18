@@ -3,3 +3,5 @@
 </style>
 @if (session('inventory_status'))<p role="status" class="inventory-alert">{{ session('inventory_status') }}</p>@endif
 @if ($errors->any())<div role="alert" class="inventory-alert">@foreach ($errors->all() as $error)<p>{{ $error }}</p>@endforeach</div>@endif
+
+@if($errors->has('receivable_check_url'))<p><a href="{{ $errors->first('receivable_check_url') }}">查看原请求完整核验进度</a></p>@endif

@@ -4,5 +4,6 @@
 <nav><a href="/store">产品商城</a> · <a href="/help">帮助中心</a> · <a href="/downloads">下载中心</a> · <a href="/console">客户总览</a> @auth · <a href="/console/invoices">我的账单</a> · <a href="/console/wallet">钱包充值</a> · <a href="/console/instances">我的服务</a> · <a href="/console/account">账户安全</a> · <a href="/console/coupons">优惠券</a> · <a href="/console/affiliate">推广佣金</a> · <a href="/console/tickets">工单</a> <form method="post" action="/logout" style="display:inline">@csrf<button>退出</button></form>@else · <a href="/login">登录</a> · <a href="/register">注册</a>@endauth</nav>
 @if(session('status'))<p role="status">{{ session('status') }}</p>@endif
 @if($errors->any())<div class="error" role="alert"><ul>@foreach($errors->all() as $error)<li>{{ $error }}</li>@endforeach</ul></div>@endif
+@if($errors->has('receivable_check_url'))<p><a href="{{ $errors->first('receivable_check_url') }}">查看原请求完整核验进度</a></p>@endif
 @yield('content')
 </body></html>

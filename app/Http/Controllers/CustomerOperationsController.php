@@ -8,17 +8,19 @@ use App\Actions\AcceptDownloadAction;
 use App\Actions\ClaimCouponAction;
 use App\Actions\ManageTicketAction;
 use App\Actions\RequestAffiliateWithdrawalAction;
+use App\Enums\TransactionType;
 use App\Models\AffiliateCommission;
 use App\Models\AffiliateWithdrawal;
 use App\Models\Coupon;
 use App\Models\CouponUsage;
 use App\Models\DownloadResource;
+use App\Models\FinancialTransaction;
 use App\Models\Instance;
 use App\Models\Ticket;
 use App\Models\TicketReply;
 use App\Models\User;
 use App\Services\AffiliateFunds;
-use App\Services\AffiliateReceivableBalance;
+use App\Services\ReceivableAdmission;
 use App\Support\Money;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\Request;
@@ -26,6 +28,7 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\URL;
 use Illuminate\Support\Str;
+use Illuminate\Validation\ValidationException;
 
 class CustomerOperationsController extends Controller
 {
@@ -58,13 +61,23 @@ class CustomerOperationsController extends Controller
     {
         $user = $request->user();
         $pending = $funds->pending($user->id);
+        $roots = FinancialTransaction::where('user_id', $user->id)->where('type', TransactionType::AFFILIATE_CLAWBACK)
+            ->latest('id')->paginate(20, ['*'], 'receivables_page')->withQueryString();
+        $receivableCheck = null;
+        $scan = null;
+        try {
+            $scan = app(ReceivableAdmission::class)->prepare($user, 'receivable-view', 'page-'.hash('sha256', implode(',', $roots->pluck('id')->all())), [], false, true, $roots->pluck('id')->all());
+        } catch (ValidationException $error) {
+            $receivableCheck = $error->errors();
+        }
 
         return $this->page('affiliate', ['balance' => $user->affiliate_balance, 'pending' => $pending, 'available' => Money::subFloorZero($user->affiliate_balance, $pending),
-            'hasReceivable' => $funds->hasReceivable($user->id), 'requestId' => (string) Str::ulid(),
+            'hasReceivable' => $scan === null || $scan['has_outstanding'], 'requestId' => old('request_id', (string) Str::ulid()),
+            'receivableCheck' => $receivableCheck, 'receivableRoots' => $roots, 'receivableTotals' => $scan['totals'] ?? null,
             'referralUrl' => URL::signedRoute('affiliate.referral', ['user' => $user->id], absolute: false),
             'commissions' => AffiliateCommission::where('referrer_id', $user->id)->latest('id')->paginate(20, ['id', 'invoice_id', 'amount', 'rate_snapshot', 'status', 'available_at'], 'commissions_page'),
             'withdrawals' => AffiliateWithdrawal::where('user_id', $user->id)->where('destination', 'wallet')->latest('id')->paginate(20, ['id', 'amount', 'destination', 'status', 'created_at', 'processed_at'], 'withdrawals_page'),
-            'receivables' => app(AffiliateReceivableBalance::class)->forUser($user->id)]);
+            'receivables' => collect($scan['projections'] ?? [])]);
     }
 
     public function withdraw(Request $request, RequestAffiliateWithdrawalAction $action)

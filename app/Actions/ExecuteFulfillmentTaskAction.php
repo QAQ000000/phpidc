@@ -13,6 +13,7 @@ use App\Models\Instance;
 use App\Models\Invoice;
 use App\Models\User;
 use App\Services\NotificationManager;
+use Closure;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
@@ -26,7 +27,7 @@ class ExecuteFulfillmentTaskAction
             return;
         }
         $worker = (string) Str::uuid();
-        $claimed = DB::transaction(function () use ($candidate, $worker): bool {
+        $claimed = app(RecordObservedOperationalEventAction::class)->transaction(function (Closure $observe) use ($candidate, $worker): bool {
             $invoice = $candidate->invoice_id === null ? null : Invoice::whereKey($candidate->invoice_id)->lockForUpdate()->firstOrFail();
             $instance = Instance::whereKey($candidate->instance_id)->lockForUpdate()->firstOrFail();
             $task = FulfillmentTask::whereKey($candidate->id)->lockForUpdate()->firstOrFail();
@@ -42,6 +43,7 @@ class ExecuteFulfillmentTaskAction
             }
             if ($task->attempts >= $task->max_attempts || ! in_array($task->action, ['provision', 'renew', 'upgrade', 'suspend', 'unsuspend', 'terminate', 'register_callback'], true)) {
                 $task->update(['status' => FulfillmentTaskStatus::FAILED, 'error_message' => 'Attempts exhausted or unsupported task action.']);
+                $observe('fulfillment.failed', ['instance_id' => $instance->id, 'task_id' => $task->id, 'status' => 'failed'], 'fulfillment:'.$task->id.':failed');
                 DB::afterCommit(fn () => Log::error('Fulfillment task requires attention.', ['task_id' => $task->id]));
 
                 return false;
@@ -58,7 +60,7 @@ class ExecuteFulfillmentTaskAction
         $result = $candidate->action === 'provision'
             ? app(ProvisionInstanceAction::class)->execute($candidate->instance()->firstOrFail(), $candidate->payload ?? [], $taskId, $worker)
             : app(ExecuteServiceTaskAction::class)->execute($taskId, $worker);
-        DB::transaction(function () use ($candidate, $worker, $result): void {
+        app(RecordObservedOperationalEventAction::class)->transaction(function (Closure $observe) use ($candidate, $worker, $result): void {
             User::whereKey($candidate->user_id)->lockForUpdate()->firstOrFail();
             $instance = Instance::whereKey($candidate->instance_id)->lockForUpdate()->firstOrFail();
             $task = FulfillmentTask::whereKey($candidate->id)->lockForUpdate()->firstOrFail();
@@ -82,6 +84,7 @@ class ExecuteFulfillmentTaskAction
                     DB::afterCommit(fn () => ExecuteFulfillmentTaskJob::dispatch($task->id)->delay($available));
                 }
                 if (! $retry) {
+                    $observe('fulfillment.failed', ['instance_id' => $instance->id, 'task_id' => $task->id, 'status' => 'failed'], 'fulfillment:'.$task->id.':failed');
                     if ($instance->status === InstanceStatus::PENDING) {
                         $instance->update(['status' => InstanceStatus::PROVISION_FAILED]);
                         DB::table('audit_logs')->insert(['actor_type' => 'system', 'action' => 'instance.provision_failed',

@@ -25,6 +25,7 @@ class AdminRoles
             'finance-operator' => ['finance.view', 'finance.refund'],
             'finance-payout' => ['finance.view', 'finance.payout', 'affiliate.view'],
             'finance-receivable' => ['finance.view', 'finance.receivable'],
+            'finance-receivable-reviewer' => ['finance.view', 'finance.receivable-review'],
             'finance-reconciliation' => ['finance.view', 'finance.reconcile'],
             'finance-wallet-settings' => ['finance.view', 'finance.wallet.configure'],
             'external-payout-reviewer' => ['finance.view', 'finance.external-payout.approve'],

@@ -9,10 +9,10 @@
 @php($permission = match($operation) {'approve','reject'=>'approve','start','cancel'=>'execute','paid'=>'confirm',default=>'reconcile'})
 @can('finance.external-payout.'.$permission)
 <form method="post" action="/admin/external-payouts/{{ $record->id }}" class="inventory-form">@csrf
-<input type="hidden" name="request_id" value="{{ (string) \Illuminate\Support\Str::ulid() }}"><input type="hidden" name="operation" value="{{ $operation }}"><input type="hidden" name="intent_key" value="{{ $record->payout_intent_key }}">
+<input type="hidden" name="request_id" value="{{ (int) old('record_id') === $record->id && old('operation') === $operation ? old('request_id') : (string) \Illuminate\Support\Str::ulid() }}"><input type="hidden" name="record_id" value="{{ $record->id }}"><input type="hidden" name="operation" value="{{ $operation }}"><input type="hidden" name="intent_key" value="{{ $record->payout_intent_key }}">
 @if(in_array($operation,['paid','unknown','confirm_not_paid'],true))<label>核对证据<textarea name="evidence" required maxlength="1000"></textarea></label>@endif
 @if($operation==='paid')<label>实际付款金额<input name="confirmed_amount" required value="{{ $record->amount }}"></label><input type="hidden" name="currency" value="CNY"><label>外部唯一交易号<input name="external_reference" required maxlength="128"></label>@endif
-<label>原因<input name="reason" required maxlength="255"></label><label><input type="checkbox" name="confirm" value="1" required> 已核对本次操作、金额及原笔证据</label><button class="inventory-button">{{ $label }}</button></form>
+<label>原因<input name="reason" value="{{ (int) old('record_id') === $record->id && old('operation') === $operation ? old('reason') : '' }}" required maxlength="255"></label><label><input type="checkbox" name="confirm" value="1" required> 已核对本次操作、金额及原笔证据</label><button class="inventory-button">{{ $label }}</button></form>
 @endcan
 @endforeach
 </section>@endforeach{{ $records->links() }}

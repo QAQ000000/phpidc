@@ -13,14 +13,21 @@
 <p><a href="/console/affiliate/external">申请外部提现 / 查看出款进度</a></p>
 <section><h2>转入本站钱包</h2><p>账面余额 {{ $balance }} · 申请占用 {{ $pending }} · 可申请 {{ $available }} CNY</p>
 @if($hasReceivable)<p class="error">存在退款应收，暂停提现；请联系财务核对原流水，不能用新佣金自动抵销。</p>@else
-<form method="post" action="/console/affiliate/withdraw">@csrf<input type="hidden" name="request_id" value="{{ $requestId }}"><label>金额（两位小数，CNY）<input name="amount" inputmode="decimal" pattern="[0-9]+\.[0-9]{2}" required placeholder="10.00"></label><button>申请转钱包</button></form>
+<form method="post" action="/console/affiliate/withdraw">@csrf<input type="hidden" name="request_id" value="{{ $requestId }}"><label>金额（两位小数，CNY）<input name="amount" value="{{ old('amount') }}" inputmode="decimal" pattern="[0-9]+\.[0-9]{2}" required placeholder="10.00"></label><button>申请转钱包</button></form>
 @endif
 </section>
 <h2>佣金记录</h2><div class="table-scroll"><table><thead><tr><th>账单</th><th>金额 / 费率</th><th>状态 / 成熟时间</th></tr></thead><tbody>@forelse($commissions as $commission)<tr><td>#{{ $commission->invoice_id }}</td><td>{{ $commission->amount }} CNY / {{ $commission->rate_snapshot }}%</td><td>{{ $commission->status }} / {{ $commission->available_at }}</td></tr>@empty<tr><td colspan="3">暂无佣金。</td></tr>@endforelse</tbody></table></div>{{ $commissions->links() }}
 <h2>转钱包申请</h2>@foreach($withdrawals as $withdrawal)<section>#{{ $withdrawal->id }} · {{ $withdrawal->amount }} CNY · {{ $withdrawal->destination }} · {{ $withdrawal->status }}<p>申请 {{ $withdrawal->created_at }} / 审核 {{ $withdrawal->processed_at ?? '待审核' }}</p></section>@endforeach{{ $withdrawals->links() }}
-@if($hasReceivable)<h2>退款追回核对</h2>@foreach($receivables as $entry)@if(!$entry['valid'] || \App\Support\Money::gt($entry['remaining'], '0.00'))<p>流水 #{{ $entry['id'] }} / 原账单 #{{ $entry['invoice_id'] }} / 剩余应收 {{ $entry['valid'] ? $entry['remaining'].' CNY' : '证据异常，请联系财务' }}</p>@endif
-@endforeach
+<h2>退款追回核对</h2>
+@if($receivableCheck)<p role="alert">应收历史待完整核对，核验完成前资金操作暂停。</p>
+@if(isset($receivableCheck['receivable_check_url'][0]))<p><a href="{{ $receivableCheck['receivable_check_url'][0] }}">查看完整核验进度</a></p>@endif
 @endif
+@if($receivableTotals)<p>全部应收：本金 {{ $receivableTotals['principal'] }}，已清偿 {{ $receivableTotals['settled'] }}，已冲正 {{ $receivableTotals['reversed'] }}，剩余 {{ $receivableTotals['remaining'] }} CNY。</p>@endif
+@foreach($receivableRoots as $root)
+@php($entry = $receivables->get($root->id))
+<p>流水 #{{ $root->id }} / 原账单 #{{ $root->invoice_id }} / 剩余应收 {{ $entry === null ? '待完整核对' : ($entry['valid'] ? $entry['remaining'].' CNY' : '证据异常，请联系财务') }}</p>
+@endforeach
+{{ $receivableRoots->links() }}
 @elseif($section === 'tickets')
 <section><h2>新建工单</h2>
 <form method="get" action="/console/tickets"><label>查找关联服务（名称、IP 或完整 ID）<input name="service_q" value="{{ $serviceSearch }}" maxlength="100"></label><button>查找服务</button> <a href="/console/tickets">清除搜索</a></form>

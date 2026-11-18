@@ -1,0 +1,13 @@
+[Unit]
+Description=CloudCMS stale or failed operations-check watchdog
+
+[Service]
+Type=oneshot
+User=www
+Group=www
+WorkingDirectory=/www/wwwroot/Laravel13idc
+ExecStart=/usr/bin/python3 /www/wwwroot/Laravel13idc/scripts/operations-watchdog.py watch
+TimeoutStartSec=10
+UMask=0027
+StandardOutput=journal
+StandardError=journal

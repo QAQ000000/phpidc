@@ -10,8 +10,10 @@ use App\Actions\RequestExternalAffiliateWithdrawalAction;
 use App\Models\AffiliateWithdrawal;
 use App\Models\User;
 use App\Services\AffiliateFunds;
+use App\Services\ReceivableAdmission;
 use Illuminate\Http\Request;
 use Illuminate\Support\Str;
+use Illuminate\Validation\ValidationException;
 
 class ExternalAffiliatePayoutController extends Controller
 {
@@ -20,8 +22,16 @@ class ExternalAffiliatePayoutController extends Controller
         $user = $request->user();
         abort_unless($user instanceof User, 401);
 
+        $check = null;
+        try {
+            $scan = app(ReceivableAdmission::class)->prepare($user, 'receivable-external-preview', 'preview', [], false, true);
+        } catch (ValidationException $error) {
+            $scan = null;
+            $check = $error->errors();
+        }
+
         return response()->view('sales.external-payouts', ['user' => $user, 'pending' => $funds->pending($user->id),
-            'hasReceivable' => $funds->hasReceivable($user->id), 'requestId' => (string) Str::ulid(),
+            'hasReceivable' => $scan === null || $scan['has_outstanding'], 'receivableCheck' => $check, 'requestId' => old('request_id', (string) Str::ulid()),
             'withdrawals' => AffiliateWithdrawal::where('user_id', $user->id)->where('destination', 'external')->latest('id')
                 ->paginate(20, ['id', 'amount', 'status', 'payout_method', 'payout_intent_key', 'created_at', 'completed_at'])])->header('Cache-Control', 'private, no-store');
     }

@@ -8,8 +8,8 @@ use App\Enums\TransactionType;
 use App\Models\AffiliateWithdrawal;
 use App\Models\FinancialTransaction;
 use App\Models\User;
-use App\Services\AffiliateFunds;
 use App\Services\NotificationManager;
+use App\Services\ReceivableAdmission;
 use App\Support\Money;
 use App\Support\OperationsAudit;
 use App\Support\WalletCapacity;
@@ -23,7 +23,7 @@ class ProcessAffiliateWithdrawalAction
     {
         validator(['reason' => $reason], ['reason' => ['required', 'string', 'max:255']])->validate();
         $hint = AffiliateWithdrawal::findOrFail($withdrawal->id);
-        DB::transaction(function () use ($hint, $actor, $approve, $reason): void {
+        $operation = fn (?array $permit) => DB::transaction(function () use ($hint, $actor, $approve, $reason, $permit): void {
             $users = User::whereKey([$hint->user_id, $actor->id])->orderBy('id')->lockForUpdate()->get()->keyBy('id');
             $operator = $users->get($actor->id);
             abort_unless($operator !== null, 403);
@@ -47,7 +47,8 @@ class ProcessAffiliateWithdrawalAction
             }
             $before = ['status' => $locked->status, 'credit' => $user->credit, 'affiliate_balance' => $user->affiliate_balance];
             if ($approve) {
-                if (app(AffiliateFunds::class)->hasReceivable($user->id) || Money::gt($locked->amount, $user->affiliate_balance)
+                app(ReceivableAdmission::class)->assertLocked($user, $permit ?? []);
+                if (Money::gt($locked->amount, $user->affiliate_balance)
                     || ! WalletCapacity::canCredit($user, $locked->amount)) {
                     throw ValidationException::withMessages(['operation' => '有未清偿应收、余额不足或钱包超限，请人工核对。']);
                 }
@@ -62,5 +63,11 @@ class ProcessAffiliateWithdrawalAction
                 ['status' => $target, 'credit' => $user->credit, 'affiliate_balance' => $user->affiliate_balance]);
             app(NotificationManager::class)->queue($user->id, 'affiliate.withdrawal', ['status' => $target, 'amount' => $locked->amount], eventKey: 'withdrawal:'.$locked->id.':'.$target);
         });
+        if (! $approve || $hint->status === 'approved') {
+            $operation(null);
+        } else {
+            app(ReceivableAdmission::class)->run(User::findOrFail($hint->user_id), 'affiliate-wallet-approve', (string) $hint->id,
+                ['actor_id' => $actor->id, 'approve' => $approve, 'reason' => $reason], $operation);
+        }
     }
 }

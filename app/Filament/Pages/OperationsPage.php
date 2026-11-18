@@ -16,11 +16,12 @@ use App\Models\Ticket;
 use App\Models\TicketReply;
 use App\Models\User;
 use App\Services\AffiliateFunds;
-use App\Services\AffiliateReceivableBalance;
 use App\Services\NotificationManager;
+use App\Services\ReceivableAdmission;
 use Filament\Pages\Page;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Validation\ValidationException;
 
 abstract class OperationsPage extends Page
 {
@@ -80,11 +81,27 @@ abstract class OperationsPage extends Page
             $funds = app(AffiliateFunds::class);
             $data['payoutUsers'] = User::whereKey($data['records']->pluck('user_id'))->get(['id', 'credit', 'affiliate_balance'])->keyBy('id');
             $data['payoutFunds'] = [];
+            $data['receivables'] = collect();
+            $roots = FinancialTransaction::whereIn('user_id', $data['records']->pluck('user_id'))->where('type', TransactionType::AFFILIATE_CLAWBACK)
+                ->latest('id')->limit(20)->get(['id', 'user_id']);
+            $deadline = hrtime(true) + 2000000000;
             foreach ($data['payoutUsers'] as $user) {
-                $data['payoutFunds'][$user->id] = ['pending' => $funds->pending($user->id), 'receivable' => $funds->hasReceivable($user->id)];
+                $row = ['pending' => $funds->pending($user->id), 'receivable' => true, 'checking' => true,
+                    'check_url' => '/admin/finance/receivables?user_id='.$user->id];
+                $seconds = max(0, intdiv($deadline - hrtime(true), 1000000000));
+                if ($seconds > 0) {
+                    try {
+                        $captures = $roots->where('user_id', $user->id)->take(2)->pluck('id')->all();
+                        $scan = app(ReceivableAdmission::class)->prepare($user, 'receivable-payout-preview', 'preview-'.implode('-', $captures), [], false, true, $captures, $seconds);
+                        $row['receivable'] = $scan['has_outstanding'];
+                        $row['checking'] = false;
+                        $data['receivables'] = $data['receivables']->union($scan['projections']);
+                    } catch (ValidationException $error) {
+                        $row['check_url'] = $error->errors()['receivable_check_url'][0] ?? $row['check_url'];
+                    }
+                }
+                $data['payoutFunds'][$user->id] = $row;
             }
-            $roots = FinancialTransaction::whereIn('user_id', $data['records']->pluck('user_id'))->where('type', TransactionType::AFFILIATE_CLAWBACK)->get();
-            $data['receivables'] = app(AffiliateReceivableBalance::class)->many($roots);
         }
 
         return ['section' => $section, 'events' => NotificationManager::EVENTS, 'variables' => NotificationManager::VARIABLES] + $data;

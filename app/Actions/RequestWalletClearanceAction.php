@@ -7,6 +7,7 @@ namespace App\Actions;
 use App\Models\User;
 use App\Models\WalletClearance;
 use App\Services\NotificationManager;
+use App\Services\ReceivableAdmission;
 use App\Services\WalletClearanceEligibility;
 use App\Support\Money;
 use App\Support\OperationsAudit;
@@ -20,7 +21,7 @@ class RequestWalletClearanceAction
         $guard = app(WalletClearanceEligibility::class);
         $data = $guard->request($input);
 
-        return DB::transaction(function () use ($owner, $data, $guard): WalletClearance {
+        $operation = fn (?array $permit) => DB::transaction(function () use ($owner, $data, $guard, $permit): WalletClearance {
             $locked = User::withTrashed()->whereKey($owner->id)->lockForUpdate()->firstOrFail();
             if ($locked->trashed() || $locked->anonymized_at !== null || ! Hash::check($data['current_password'], $locked->getAuthPassword())) {
                 $guard->reject('账户已停用或当前密码错误。');
@@ -29,8 +30,9 @@ class RequestWalletClearanceAction
             if ($existing !== null) {
                 return $guard->replay($existing, $data, 'closure_balance', $locked->id);
             }
+            app(ReceivableAdmission::class)->assertLocked($locked, $permit ?? []);
             $guard->assertNoOtherRequest($locked);
-            $guard->assertFinanciallyReady($locked);
+            $guard->assertFinanciallyReady($locked, null, $permit ?? []);
             if (Money::gt($data['amount'], $locked->credit)) {
                 $guard->reject('可用钱包余额不足，冻结余额不能申请结清。');
             }
@@ -44,5 +46,7 @@ class RequestWalletClearanceAction
 
             return $clearance;
         });
+
+        return WalletClearance::where('user_id', $owner->id)->where('request_id', $data['request_id'])->exists() ? $operation(null) : app(ReceivableAdmission::class)->run($owner, 'wallet-clearance-request', $data['request_id'], $data, $operation);
     }
 }

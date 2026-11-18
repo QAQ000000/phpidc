@@ -1,0 +1,19 @@
+[Unit]
+Description=CloudCMS single long receivable evidence worker
+After=network-online.target
+
+[Service]
+Type=simple
+User=www
+Group=www
+WorkingDirectory=/www/wwwroot/Laravel13idc
+# Exactly one worker. The dedicated Job has a 90-second soft budget and timeout 120.
+# retry_after=240 must remain greater than the Job timeout; this queue never handles suppliers.
+ExecStart=/www/server/php/84/bin/php artisan queue:work redis --queue=receivable-check --sleep=1 --tries=1 --timeout=120 --max-time=3600
+Restart=always
+RestartSec=5
+TimeoutStopSec=150
+UMask=0027
+
+[Install]
+WantedBy=multi-user.target

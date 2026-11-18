@@ -1,0 +1,19 @@
+[Unit]
+Description=CloudCMS local maintenance worker %i
+After=network-online.target
+
+[Service]
+Type=simple
+User=www
+Group=www
+WorkingDirectory=/www/wwwroot/Laravel13idc
+# Install exactly @1 and @2. Both consume local batches only; supplier queues retain their existing workers.
+# Shared Redis/cache and migrations must be ready before this service is enabled.
+ExecStart=/www/server/php/84/bin/php artisan queue:work redis --queue=maintenance --sleep=1 --tries=1 --timeout=25 --max-time=3600
+Restart=always
+RestartSec=5
+TimeoutStopSec=35
+UMask=0027
+
+[Install]
+WantedBy=multi-user.target

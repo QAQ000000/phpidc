@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace App\Providers;
 
+use App\Actions\RunMaintenanceBatchAction;
+use App\Contracts\MaintenanceBatchWork;
 use App\Models\Invoice;
 use App\Models\User;
 use App\Services\SettingService;
@@ -18,6 +20,7 @@ class AppServiceProvider extends ServiceProvider
 {
     public function register(): void
     {
+        $this->app->bind(MaintenanceBatchWork::class, RunMaintenanceBatchAction::class);
         $this->app->scoped(UpstreamOperationBuffer::class);
         $this->app->singleton(SettingService::class, function (): SettingService {
             return new SettingService(Cache::store());

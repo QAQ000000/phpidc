@@ -19,6 +19,7 @@ use App\Models\User;
 use App\Services\NotificationManager;
 use App\Support\AdminAuditContext;
 use App\Support\Money;
+use App\Support\ReceivableRevision;
 use App\Support\SettlementCurrency;
 use App\Support\WalletCapacity;
 use DomainException;
@@ -156,7 +157,11 @@ class RefundInvoiceAction
             'meta' => ['currency' => $invoice->currency, 'commission_id' => $commission->id, 'previous_status' => $previousStatus,
                 'affiliate_balance_before' => $before, 'affiliate_balance_after' => $after, 'recovered_amount' => $recovered, 'receivable_amount' => $receivable]]);
         $commission->update(['status' => 'clawed_back', 'clawed_back_at' => now()]);
+        app(ReceivableRevision::class)->bump($referrer);
         if (! Money::isZero($receivable)) {
+            app(NotificationManager::class)->queueOperations('affiliate.receivable.created',
+                ['invoice_no' => $invoice->invoice_no, 'amount' => $receivable, 'currency' => $invoice->currency, 'status' => 'outstanding'],
+                'affiliate-commission:'.$commission->id.':receivable-created');
             DB::afterCommit(fn () => Log::warning('Affiliate clawback receivable requires collection.', [
                 'invoice_id' => $invoice->id, 'commission_id' => $commission->id, 'referrer_id' => $referrer->id, 'receivable_amount' => $receivable,
             ]));

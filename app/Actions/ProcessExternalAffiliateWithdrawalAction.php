@@ -8,8 +8,8 @@ use App\Enums\TransactionType;
 use App\Models\AffiliateWithdrawal;
 use App\Models\FinancialTransaction;
 use App\Models\User;
-use App\Services\AffiliateFunds;
 use App\Services\NotificationManager;
+use App\Services\ReceivableAdmission;
 use App\Support\Money;
 use App\Support\OperationsAudit;
 use Illuminate\Database\UniqueConstraintViolationException;
@@ -40,7 +40,7 @@ class ProcessExternalAffiliateWithdrawalAction
         }
         $hint = AffiliateWithdrawal::findOrFail($withdrawal->id);
         try {
-            return DB::transaction(function () use ($hint, $actor, $data): AffiliateWithdrawal {
+            $operation = fn (?array $permit) => DB::transaction(function () use ($hint, $actor, $data, $permit): AffiliateWithdrawal {
                 $users = User::withTrashed()->whereKey([$hint->user_id, $actor->id])->orderBy('id')->lockForUpdate()->get()->keyBy('id');
                 $operator = $users->get($actor->id);
                 $owner = $users->get($hint->user_id);
@@ -63,6 +63,9 @@ class ProcessExternalAffiliateWithdrawalAction
 
                     return $locked;
                 }
+                if (in_array($data['operation'], ['approve', 'start'], true)) {
+                    app(ReceivableAdmission::class)->assertLocked($owner, $permit ?? []);
+                }
                 $before = ['status' => $locked->status, 'affiliate_balance' => $owner->affiliate_balance, 'affiliate_frozen_balance' => $owner->affiliate_frozen_balance];
                 $this->transition($locked, $owner, $operator, $data);
                 $requests[$data['request_id']] = ['intent' => $intent, 'status' => $locked->status];
@@ -75,6 +78,12 @@ class ProcessExternalAffiliateWithdrawalAction
 
                 return $locked;
             });
+            if (! in_array($data['operation'], ['approve', 'start'], true) || isset(($hint->operation_requests ?? [])[$data['request_id']])) {
+                return $operation(null);
+            }
+
+            return app(ReceivableAdmission::class)->run(User::withTrashed()->findOrFail($hint->user_id),
+                'affiliate-external-process', $data['request_id'], ['record_id' => $hint->id, 'actor_id' => $actor->id, ...$data], $operation);
         } catch (UniqueConstraintViolationException) {
             throw ValidationException::withMessages(['external_reference' => '该外部交易凭证已用于另一笔付款，请核对原笔。']);
         }
@@ -89,7 +98,7 @@ class ProcessExternalAffiliateWithdrawalAction
                 throw ValidationException::withMessages(['operation' => '账户已停用，须人工核对。']);
             }
             if ($operation === 'approve') {
-                if (app(AffiliateFunds::class)->hasReceivable($owner->id) || Money::gt($withdrawal->amount, $owner->affiliate_balance)
+                if (Money::gt($withdrawal->amount, $owner->affiliate_balance)
                     || Money::gt(Money::add($owner->affiliate_frozen_balance, $withdrawal->amount), '9999999999.99')) {
                     throw ValidationException::withMessages(['operation' => '佣金不足、存在未清应收或冻结余额超限。']);
                 }
@@ -104,7 +113,7 @@ class ProcessExternalAffiliateWithdrawalAction
         if ($operation === 'start') {
             $this->requireState($withdrawal, ['reserved']);
             $this->verifyHold($withdrawal, $owner);
-            if (app(AffiliateFunds::class)->hasReceivable($owner->id) || $owner->trashed()) {
+            if ($owner->trashed()) {
                 throw ValidationException::withMessages(['operation' => '存在未清应收或账户已停用，不能开始转账。']);
             }
             $withdrawal->fill(['status' => 'processing', 'payout_intent_key' => 'EP'.Str::ulid(), 'started_by' => $actor->id, 'started_at' => now()]);

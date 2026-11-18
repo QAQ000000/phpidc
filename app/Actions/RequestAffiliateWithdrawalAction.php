@@ -7,6 +7,7 @@ namespace App\Actions;
 use App\Models\AffiliateWithdrawal;
 use App\Models\User;
 use App\Services\AffiliateFunds;
+use App\Services\ReceivableAdmission;
 use App\Support\Money;
 use App\Support\OperationsAudit;
 use Illuminate\Support\Facades\DB;
@@ -20,7 +21,7 @@ class RequestAffiliateWithdrawalAction
             'amount' => ['required', 'regex:/^\d{1,10}\.\d{2}$/D'], 'request_id' => ['required', 'ulid'], 'destination' => ['in:wallet'],
         ])->validate();
 
-        return DB::transaction(function () use ($user, $amount, $requestId): AffiliateWithdrawal {
+        $operation = fn (?array $permit) => DB::transaction(function () use ($user, $amount, $requestId, $permit): AffiliateWithdrawal {
             $locked = User::whereKey($user->id)->lockForUpdate()->firstOrFail();
             $key = $locked->id.':'.$requestId;
             $existing = AffiliateWithdrawal::where('request_key', $key)->first();
@@ -31,8 +32,9 @@ class RequestAffiliateWithdrawalAction
 
                 return $existing;
             }
+            app(ReceivableAdmission::class)->assertLocked($locked, $permit ?? []);
             $funds = app(AffiliateFunds::class);
-            if (Money::isZero($amount) || $funds->hasReceivable($locked->id) || Money::gt(Money::add($funds->pending($locked->id), $amount), $locked->affiliate_balance)) {
+            if (Money::isZero($amount) || Money::gt(Money::add($funds->pending($locked->id), $amount), $locked->affiliate_balance)) {
                 throw ValidationException::withMessages(['amount' => '可申请推广余额不足，或存在未清偿退款应收。']);
             }
             $withdrawal = AffiliateWithdrawal::create(['user_id' => $locked->id, 'destination' => 'wallet', 'amount' => $amount,
@@ -41,5 +43,7 @@ class RequestAffiliateWithdrawalAction
 
             return $withdrawal;
         });
+
+        return AffiliateWithdrawal::where('request_key', $user->id.':'.$requestId)->exists() ? $operation(null) : app(ReceivableAdmission::class)->run($user, 'affiliate-wallet-request', $requestId, ['amount' => $amount, 'destination' => $destination], $operation);
     }
 }

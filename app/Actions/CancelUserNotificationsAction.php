@@ -33,6 +33,12 @@ class CancelUserNotificationsAction
                     'locked_by' => null, 'locked_at' => null, 'lease_expires_at' => null, 'finished_at' => now()];
             }
             $delivery->update($changes);
+            if ($delivery->status === 'uncertain') {
+                $source = $events->firstWhere('id', $delivery->notification_event_id);
+                app(RecordOperationalIncidentAction::class)->execute('notification.uncertain',
+                    ['delivery_id' => $delivery->id, 'status' => 'uncertain'], 'notification-delivery:'.$delivery->id.':uncertain',
+                    $source?->event_type === 'notification.uncertain');
+            }
         }
         $logs = DB::table('notification_logs')->where('user_id', $lockedUser->id)->update(['target' => '[anonymized]', 'updated_at' => now()]);
 

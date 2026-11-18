@@ -9,6 +9,7 @@ use App\Models\FinancialTransaction;
 use App\Models\User;
 use App\Models\WalletClearance;
 use App\Services\NotificationManager;
+use App\Services\ReceivableAdmission;
 use App\Services\WalletClearanceEligibility;
 use App\Support\Money;
 use App\Support\OperationsAudit;
@@ -42,7 +43,7 @@ class ProcessWalletClearanceAction
         $hint = WalletClearance::findOrFail($clearance->id);
 
         try {
-            return DB::transaction(function () use ($hint, $actor, $data, $guard): WalletClearance {
+            $operation = fn (?array $permit) => DB::transaction(function () use ($hint, $actor, $data, $guard, $permit): WalletClearance {
                 $users = User::withTrashed()->whereKey([$hint->user_id, $actor->id])->orderBy('id')->lockForUpdate()->get()->keyBy('id');
                 $operator = $users->get($actor->id);
                 $owner = $users->get($hint->user_id);
@@ -72,8 +73,11 @@ class ProcessWalletClearanceAction
 
                     return $locked;
                 }
+                if (in_array($data['operation'], ['approve', 'start'], true)) {
+                    app(ReceivableAdmission::class)->assertLocked($owner, $permit ?? []);
+                }
                 $before = ['status' => $locked->status, ...WalletCapacity::snapshot($owner)];
-                $this->transition($locked, $owner, $operator, $data, $guard);
+                $this->transition($locked, $owner, $operator, $data, $guard, $permit);
                 $requests[$data['request_id']] = ['intent' => $intent, 'status' => $locked->status];
                 $locked->operation_requests = $requests;
                 $locked->save();
@@ -88,12 +92,18 @@ class ProcessWalletClearanceAction
 
                 return $locked;
             });
+            if (! in_array($data['operation'], ['approve', 'start'], true) || isset(($hint->operation_requests ?? [])[$data['request_id']])) {
+                return $operation(null);
+            }
+
+            return app(ReceivableAdmission::class)->run(User::withTrashed()->findOrFail($hint->user_id),
+                'wallet-clearance-process', $data['request_id'], ['record_id' => $hint->id, 'actor_id' => $actor->id, ...$data], $operation);
         } catch (UniqueConstraintViolationException) {
             $guard->reject('出款凭证或唯一资金流水已被使用，请核对原笔。');
         }
     }
 
-    private function transition(WalletClearance $clearance, User $owner, User $actor, array $data, WalletClearanceEligibility $guard): void
+    private function transition(WalletClearance $clearance, User $owner, User $actor, array $data, WalletClearanceEligibility $guard, ?array $permit): void
     {
         $operation = $data['operation'];
         if (in_array($operation, ['approve', 'reject'], true)) {
@@ -104,7 +114,7 @@ class ProcessWalletClearanceAction
                 return;
             }
             $guard->assertNoOtherRequest($owner, $clearance->id);
-            $guard->assertFinanciallyReady($owner, $clearance->id);
+            $guard->assertFinanciallyReady($owner, $clearance->id, $permit ?? []);
             $this->assertOwnerScenario($clearance, $owner, $guard);
             if (Money::gt($clearance->amount, $owner->credit)) {
                 $guard->reject('当前可用钱包余额不足。');
@@ -127,7 +137,7 @@ class ProcessWalletClearanceAction
         if ($operation === 'start') {
             $this->requireState($clearance, ['reserved'], $guard);
             $guard->verifyHold($clearance, $owner);
-            $guard->assertFinanciallyReady($owner, $clearance->id);
+            $guard->assertFinanciallyReady($owner, $clearance->id, $permit ?? []);
             $this->assertOwnerScenario($clearance, $owner, $guard);
             if ($clearance->scenario === 'closed_account_receipt') {
                 $guard->sourceTotals($guard->sourceFor($owner, $clearance));

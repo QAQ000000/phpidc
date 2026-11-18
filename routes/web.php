@@ -25,6 +25,7 @@ use App\Http\Controllers\MachineOperationReviewController;
 use App\Http\Controllers\NotificationOutboxController;
 use App\Http\Controllers\OperationsAdminController;
 use App\Http\Controllers\PublicContentController;
+use App\Http\Controllers\ReceivableCheckController;
 use App\Http\Controllers\ReconciliationController;
 use App\Http\Controllers\RenewalRecoveryController;
 use App\Http\Controllers\ServiceBillingController;
@@ -66,6 +67,8 @@ Route::post('/auth/{provider}/redirect', [CustomerIdentityController::class, 'so
 Route::get('/auth/telegram/widget', [CustomerIdentityController::class, 'telegramWidget'])->middleware('throttle:telegram-widget');
 Route::get('/auth/{provider}/callback', [CustomerIdentityController::class, 'socialCallback'])->middleware('throttle:oauth-callback');
 Route::middleware('auth')->group(function (): void {
+    Route::get('/console/receivable-checks/{user}/{action}/{requestId}', [ReceivableCheckController::class, 'show'])->withTrashed();
+    Route::post('/console/receivable-checks/{user}/{action}/{requestId}', [ReceivableCheckController::class, 'retry'])->withTrashed()->middleware('throttle:receivable-check');
     Route::get('/console/account', [CustomerIdentityController::class, 'account']);
     Route::get('/console/account/close', [CustomerAccountClosureController::class, 'show']);
     Route::post('/console/account/close', [CustomerAccountClosureController::class, 'store'])->middleware('throttle:account-close');
@@ -140,6 +143,7 @@ Route::post('/admin/reconciliations/{case}/payment', [ReconciliationController::
 Route::post('/admin/reconciliations/{case}/binding', [ReconciliationController::class, 'binding'])->middleware('throttle:reconciliation');
 Route::post('/admin/reconciliations/{case}/reopen', [ReconciliationController::class, 'reopen'])->middleware('throttle:reconciliation');
 Route::post('/admin/reconciliations/{case}/evidence', [ReconciliationController::class, 'evidence']);
+Route::post('/admin/finance/receivables/{user}/review', [ReceivableCheckController::class, 'review'])->withTrashed()->middleware('throttle:receivable-check');
 Route::post('/admin/notification-outbox/{delivery}/resolve', [NotificationOutboxController::class, 'resolve']);
 Route::post('/admin/tasks/{task}/retry', [AdminOperationsController::class, 'retry']);
 Route::post('/admin/fulfillment/{task}/retry', [InventoryOperationsController::class, 'retry'])->name('inventory.retry');

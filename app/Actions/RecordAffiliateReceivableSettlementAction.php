@@ -11,9 +11,11 @@ use App\Models\FinancialTransaction;
 use App\Models\User;
 use App\Services\AffiliateReceivableBalance;
 use App\Services\NotificationManager;
+use App\Services\ReceivableAdmission;
 use App\Support\Money;
 use App\Support\OperationsAudit;
 use App\Support\ReceivableOperation;
+use App\Support\ReceivableRevision;
 use Illuminate\Database\UniqueConstraintViolationException;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
@@ -47,11 +49,9 @@ class RecordAffiliateReceivableSettlementAction
         $operation = app(ReceivableOperation::class);
 
         try {
-            return DB::transaction(function () use ($hint, $actor, $data, $operation, $correctionHint): AffiliateReceivableSettlement {
+            $write = fn (?array $permits) => DB::transaction(function () use ($hint, $actor, $data, $operation, $correctionHint, $permits): AffiliateReceivableSettlement {
                 [$owner, $root] = $operation->lock($hint, $actor, $correctionHint);
                 $balance = app(AffiliateReceivableBalance::class);
-                $projection = $balance->project($root);
-                $balance->assertValid($projection);
                 $existing = AffiliateReceivableSettlement::where('request_id', $data['request_id'])->first();
                 if ($existing !== null) {
                     if ($existing->clawback_transaction_id !== $root->id || $existing->user_id !== $owner->id
@@ -64,6 +64,12 @@ class RecordAffiliateReceivableSettlementAction
 
                     return $existing;
                 }
+                app(ReceivableAdmission::class)->assertLocked($owner, $permits[$owner->id] ?? []);
+                $projection = $permits[$owner->id]['projections'][$root->id] ?? null;
+                if ($projection === null) {
+                    $operation->conflict();
+                }
+                $balance->assertValid($projection);
                 if (AffiliateReceivableReversal::where('request_id', $data['request_id'])->exists()) {
                     $operation->conflict();
                 }
@@ -88,7 +94,13 @@ class RecordAffiliateReceivableSettlementAction
                         || $corrects->clawback_transaction_id !== $correctionHint->clawback_transaction_id) {
                         $operation->conflict();
                     }
-                    $balance->assertValid($balance->project(FinancialTransaction::findOrFail($corrects->clawback_transaction_id)));
+                    $correctionOwner = User::withTrashed()->findOrFail($corrects->user_id);
+                    app(ReceivableAdmission::class)->assertLocked($correctionOwner, $permits[$correctionOwner->id] ?? []);
+                    $correctionProjection = $permits[$correctionOwner->id]['projections'][$corrects->clawback_transaction_id] ?? null;
+                    if ($correctionProjection === null) {
+                        $operation->conflict();
+                    }
+                    $balance->assertValid($correctionProjection);
                 }
                 $ledger = FinancialTransaction::create(['user_id' => $owner->id, 'invoice_id' => $root->invoice_id,
                     'type' => TransactionType::AFFILIATE_RECEIVABLE_SETTLE, 'amount' => $data['amount'], 'balance_after' => $owner->credit,
@@ -100,12 +112,27 @@ class RecordAffiliateReceivableSettlementAction
                     'external_channel' => $data['external_channel'], 'external_reference' => $data['external_reference'],
                     'active_receipt_key' => $receipt, 'request_id' => $data['request_id'], 'ledger_transaction_id' => $ledger->id,
                     'corrects_settlement_id' => $corrects?->id, 'processed_by' => $actor->id, 'reason' => $data['reason'], 'received_at' => $data['received_at']]);
+                app(ReceivableRevision::class)->bump($owner);
+                if (isset($correctionOwner) && $correctionOwner->id !== $owner->id) {
+                    app(ReceivableRevision::class)->bump($correctionOwner);
+                }
                 OperationsAudit::record($actor, 'affiliate.receivable_settled', AffiliateReceivableSettlement::class, $entry->id, $data['reason'],
                     ['remaining' => $projection['remaining']], ['amount' => $entry->amount, 'remaining' => Money::sub($projection['remaining'], $entry->amount), 'clawback_transaction_id' => $root->id]);
                 app(NotificationManager::class)->queue($owner->id, 'affiliate.receivable.settled', ['amount' => $entry->amount, 'currency' => 'CNY', 'status' => 'settled'], eventKey: 'receivable-receipt:'.$entry->id.':settled');
 
                 return $entry;
             });
+            if (AffiliateReceivableSettlement::where('request_id', $data['request_id'])->exists()) {
+                return $write(null);
+            }
+            $owners = User::withTrashed()->whereKey(array_filter([$hint->user_id, $correctionHint?->user_id]))->orderBy('id')->get()->all();
+            $captures = [$hint->user_id => [$hint->id]];
+            if ($correctionHint !== null) {
+                $captures[$correctionHint->user_id][] = $correctionHint->clawback_transaction_id;
+            }
+
+            return app(ReceivableAdmission::class)->runMany($owners, 'receivable-settle', $data['request_id'],
+                ['root_id' => $hint->id, 'actor_id' => $actor->id, ...$data], $write, false, false, $captures);
         } catch (UniqueConstraintViolationException) {
             $operation->conflict();
         }

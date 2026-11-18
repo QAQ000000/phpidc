@@ -14,6 +14,7 @@ use App\Services\DriverManager;
 use App\Services\SettingService;
 use App\Support\RetryableNotificationException;
 use App\Support\UncertainNotificationException;
+use Closure;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 
@@ -100,7 +101,7 @@ class ExecuteNotificationDeliveryAction
                 $note = 'Delivery uncertain; manual verification required. No automatic replay.';
             }
         }
-        $this->locked($id, function (NotificationDelivery $delivery, User $user) use ($worker, $status, $code, $note, $retry): void {
+        $this->locked($id, function (NotificationDelivery $delivery, User $user, Closure $observe) use ($worker, $status, $code, $note, $retry): void {
             if (! $this->current($delivery, $worker)) {
                 return;
             }
@@ -111,7 +112,7 @@ class ExecuteNotificationDeliveryAction
                 $message = 'Retryable rejection; attempt '.$delivery->attempts.'/'.$delivery->max_attempts.'.';
                 $delivery->available_at = now()->addSeconds(max($retry->retryAfter, [60, 300, 900][min($delivery->attempts - 1, 2)]));
             }
-            $this->finish($delivery, $user, $state, $code, $message);
+            $this->finish($delivery, $user, $state, $code, $message, $observe);
         });
         if ($retry !== null) {
             throw $retry;
@@ -122,16 +123,16 @@ class ExecuteNotificationDeliveryAction
     {
         $hint = NotificationDelivery::findOrFail($id);
 
-        return DB::transaction(function () use ($hint, $callback): mixed {
+        return app(RecordObservedOperationalEventAction::class)->transaction(function (Closure $observe) use ($hint, $callback): mixed {
             $user = User::withTrashed()->whereKey($hint->user_id)->lockForUpdate()->firstOrFail();
             NotificationEvent::whereKey($hint->notification_event_id)->lockForUpdate()->firstOrFail();
             $delivery = NotificationDelivery::whereKey($hint->id)->lockForUpdate()->firstOrFail();
 
-            return $callback($delivery, $user);
+            return $callback($delivery, $user, $observe);
         });
     }
 
-    public function finish(NotificationDelivery $delivery, User $user, string $status, string $code, ?string $message = null): void
+    public function finish(NotificationDelivery $delivery, User $user, string $status, string $code, ?string $message = null, ?Closure $observe = null): void
     {
         $payload = $delivery->encrypted_payload;
         $closed = $user->trashed() || $user->anonymized_at !== null;
@@ -150,6 +151,16 @@ class ExecuteNotificationDeliveryAction
             $delivery->encrypted_payload = null;
         }
         $delivery->save();
+        if ($status === 'uncertain') {
+            $variables = ['delivery_id' => $delivery->id, 'status' => 'uncertain'];
+            $key = 'notification-delivery:'.$delivery->id.':uncertain';
+            $recursive = $event->event_type === 'notification.uncertain';
+            if ($observe !== null) {
+                $observe('notification.uncertain', $variables, $key, $recursive);
+            } else {
+                app(RecordOperationalIncidentAction::class)->execute('notification.uncertain', $variables, $key, $recursive);
+            }
+        }
     }
 
     private function current(NotificationDelivery $delivery, string $worker): bool

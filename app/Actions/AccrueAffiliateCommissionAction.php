@@ -11,6 +11,7 @@ use App\Models\Invoice;
 use App\Models\User;
 use App\Services\NotificationManager;
 use App\Support\Money;
+use App\Support\ReceivableRevision;
 use Illuminate\Support\Facades\DB;
 
 class AccrueAffiliateCommissionAction
@@ -55,6 +56,7 @@ class AccrueAffiliateCommissionAction
                 'buyer_id' => $invoice->user_id, 'rate_snapshot' => $snapshot['rate'], 'amount' => $amount, 'status' => 'pending',
                 'available_at' => $invoice->paid_at->copy()->addDays($snapshot['freeze_days'])]);
             if ($commission->wasRecentlyCreated) {
+                app(ReceivableRevision::class)->bump($users->get($commission->referrer_id));
                 app(NotificationManager::class)->queue($commission->referrer_id, 'affiliate.pending', ['amount' => $commission->amount], eventKey: 'commission:'.$commission->id.':pending');
             }
 

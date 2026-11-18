@@ -1,0 +1,17 @@
+[Unit]
+Description=CloudCMS independent read-only operations check
+After=network-online.target
+
+[Service]
+Type=oneshot
+User=www
+Group=www
+WorkingDirectory=/www/wwwroot/Laravel13idc
+RuntimeDirectory=cloudcms-operations
+RuntimeDirectoryMode=0750
+RuntimeDirectoryPreserve=yes
+ExecStart=/usr/bin/python3 /www/wwwroot/Laravel13idc/scripts/operations-watchdog.py check
+TimeoutStartSec=15
+UMask=0027
+StandardOutput=journal
+StandardError=journal

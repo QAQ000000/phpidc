@@ -8,6 +8,7 @@ use App\Models\User;
 use App\Models\UserNotificationBinding;
 use App\Models\UserOauthAccount;
 use App\Services\AccountClosureEligibility;
+use App\Services\ReceivableAdmission;
 use App\Support\OperationsAudit;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
@@ -19,13 +20,13 @@ use Illuminate\Validation\ValidationException;
 
 class CloseCustomerAccountAction
 {
-    public function execute(User $user, string $currentPassword, bool $confirmed): User
+    public function execute(User $user, string $currentPassword, bool $confirmed, ?string $requestId = null): User
     {
         if (! $confirmed) {
             throw ValidationException::withMessages(['confirm' => '请明确确认注销不可恢复及历史业务证据的留存范围。']);
         }
 
-        return DB::transaction(function () use ($user, $currentPassword): User {
+        $operation = fn (?array $permit) => DB::transaction(function () use ($user, $currentPassword, $permit): User {
             $locked = User::withTrashed()->whereKey($user->id)->lockForUpdate()->firstOrFail();
             if ($locked->anonymized_at !== null && $locked->trashed()) {
                 return $locked;
@@ -33,7 +34,7 @@ class CloseCustomerAccountAction
             if ($locked->trashed() || $locked->anonymized_at !== null || ! Hash::check($currentPassword, $locked->getAuthPassword())) {
                 throw ValidationException::withMessages(['current_password' => '当前密码错误或账户已停用。']);
             }
-            app(AccountClosureEligibility::class)->assertMayClose($locked);
+            app(AccountClosureEligibility::class)->assertMayClose($locked, $permit ?? []);
             $notifications = app(CancelUserNotificationsAction::class)->execute($locked);
             $oldEmail = $locked->email;
             $counts = ['oauth' => UserOauthAccount::where('user_id', $locked->id)->delete(),
@@ -58,5 +59,12 @@ class CloseCustomerAccountAction
 
             return $locked;
         });
+        $current = User::withTrashed()->findOrFail($user->id);
+        if ($current->trashed() && $current->anonymized_at !== null) {
+            return $operation(null);
+        }
+
+        return app(ReceivableAdmission::class)->run($user, 'account-close', $requestId ?? 'account-close-'.$user->id,
+            ['confirmed' => $confirmed, 'current_password' => $currentPassword], $operation);
     }
 }

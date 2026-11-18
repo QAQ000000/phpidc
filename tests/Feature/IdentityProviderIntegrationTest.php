@@ -158,6 +158,8 @@ it('binds a Telegram subject using the official signature then logs in without s
 });
 
 it('rejects invalid expired future tampered nested or unknown-field Telegram proofs without authenticating', function (string $case): void {
+    // Keep the signed +31-second fixture outside the allowed +30-second window through the callback.
+    $this->freezeTime();
     $token = configureTelegramLogin();
     UserOauthAccount::create(['user_id' => User::factory()->create()->id, 'provider' => 'telegram', 'provider_subject' => '123456789']);
     $this->post('/auth/telegram/redirect')->assertRedirect();

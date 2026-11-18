@@ -12,6 +12,7 @@ use App\Models\Invoice;
 use App\Models\User;
 use App\Services\NotificationManager;
 use App\Support\Money;
+use App\Support\ReceivableRevision;
 use DomainException;
 use Illuminate\Support\Facades\DB;
 
@@ -37,6 +38,7 @@ class MatureAffiliateCommissionsAction
                 'amount' => $commission->amount, 'balance_after' => $user->credit, 'frozen_after' => $user->frozen_credit,
                 'reference_key' => 'affiliate:'.$commission->id, 'meta' => ['currency' => 'CNY', 'affiliate_balance_after' => $balance]]);
             $commission->update(['status' => 'available']);
+            app(ReceivableRevision::class)->bump($user);
             app(NotificationManager::class)->queue($user->id, 'affiliate.available', ['amount' => $commission->amount], eventKey: 'commission:'.$commission->id.':available');
         });
     }

@@ -46,9 +46,10 @@ class WalletClearanceEligibility
         return $data;
     }
 
-    public function assertFinanciallyReady(User $owner, ?int $exceptId = null): void
+    public function assertFinanciallyReady(User $owner, ?int $exceptId, array $permit): void
     {
-        if (app(AffiliateReceivableBalance::class)->hasOutstanding($owner->id)
+        app(ReceivableAdmission::class)->assertLocked($owner, $permit);
+        if ($permit['has_outstanding']
             || PaymentAttempt::whereIn('invoice_id', Invoice::where('user_id', $owner->id)->select('id'))->whereIn('status', ['unknown', 'reconciling'])->exists()
             || AffiliateWithdrawal::where('user_id', $owner->id)->where('destination', 'external')->where('status', 'unknown')->exists()
             || WalletClearance::where('user_id', $owner->id)->where('status', 'unknown')->when($exceptId !== null, fn ($q) => $q->whereKeyNot($exceptId))->exists()) {
