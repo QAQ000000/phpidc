@@ -26,6 +26,22 @@ class ApplyCouponAction
             return ['coupon' => null, 'discount' => Money::zero()];
         }
         $coupon = Coupon::where('code', $code)->lockForUpdate()->first();
+
+        return $this->discount($user, $product, $type, $subtotal, $currency, $coupon, true);
+    }
+
+    /** Read-only preview: confirmation rechecks eligibility under the coupon lock. */
+    public function preview(User $user, Product $product, InvoiceType $type, string $subtotal, string $currency, ?string $code): array
+    {
+        if ($code === null || trim($code) === '') {
+            return ['coupon' => null, 'discount' => Money::zero()];
+        }
+
+        return $this->discount($user, $product, $type, $subtotal, $currency, Coupon::where('code', $code)->first(), false);
+    }
+
+    private function discount(User $user, Product $product, InvoiceType $type, string $subtotal, string $currency, ?Coupon $coupon, bool $reserve): array
+    {
         if ($coupon === null || $currency !== 'CNY' || ! in_array($type, [InvoiceType::NEW_ORDER, InvoiceType::RENEW], true)) {
             throw ValidationException::withMessages(['coupon_code' => '此优惠券不适用于当前账单类型或币种。']);
         }
@@ -46,7 +62,9 @@ class ApplyCouponAction
             'percent' => Money::min($subtotal, Money::percentOf($subtotal, $coupon->value)),
             default => throw ValidationException::withMessages(['coupon_code' => '未知优惠券类型。']),
         };
-        $coupon->increment('used_count');
+        if ($reserve) {
+            $coupon->increment('used_count');
+        }
 
         return ['coupon' => $coupon, 'discount' => $discount];
     }

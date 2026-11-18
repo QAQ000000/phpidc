@@ -27,7 +27,7 @@ return Application::configure(basePath: dirname(__DIR__))
     })
     ->withExceptions(function (Exceptions $exceptions): void {
         $exceptions->dontFlash(['codes', 'api_secret', 'options', 'current_password', 'code', 'state', 'token', 'id_number', 'real_name',
-            'install_token', 'admin_password', 'admin_password_confirmation', 'db_password']);
+            'install_token', 'admin_password', 'admin_password_confirmation', 'db_password', 'quote_token', 'proof']);
         $exceptions->shouldRenderJsonWhen(
             fn (Request $request) => $request->is('api/*') || $request->expectsJson(),
         );

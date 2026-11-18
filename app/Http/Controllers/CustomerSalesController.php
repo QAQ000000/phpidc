@@ -4,7 +4,10 @@ declare(strict_types=1);
 
 namespace App\Http\Controllers;
 
+use App\Actions\DescribeRenewalRecoveryAction;
 use App\Actions\InitiatePaymentAction;
+use App\Actions\OpenInstancePanelAction;
+use App\Actions\ReadInstanceControlsAction;
 use App\Enums\InstanceStatus;
 use App\Enums\InvoiceStatus;
 use App\Models\Instance;
@@ -32,7 +35,22 @@ class CustomerSalesController extends Controller
     {
         $user = $this->user($request);
 
-        return view('sales.console', ['user' => $user, 'products' => Product::publicCatalog()->with('category')->orderBy('id')->get(),
+        $products = Product::publicCatalog()->select(['id', 'name', 'category_id', 'slug', 'currency', 'driver_type',
+            'local_prices->onetime as console_price', 'provisioning_rules->hostname_mode as console_hostname_mode',
+            'provisioning_rules->password_min_len as console_password_min_len', 'provisioning_rules->password_max_len as console_password_max_len',
+            'provisioning_rules->password_regex as console_password_regex'])->orderBy('id')->limit(6)->get();
+        foreach ($products as $product) {
+            $product->local_prices = ['onetime' => json_decode($product->getAttribute('console_price') ?? '{}', true, flags: JSON_THROW_ON_ERROR)];
+            $rules = [];
+            foreach (['hostname_mode', 'password_min_len', 'password_max_len', 'password_regex'] as $key) {
+                if ($product->getAttribute('console_'.$key) !== null) {
+                    $rules[$key] = $product->getAttribute('console_'.$key);
+                }
+            }
+            $product->provisioning_rules = $rules;
+        }
+
+        return view('sales.console', ['user' => $user, 'products' => $products,
             ...$queries->dashboard($user)]);
     }
 
@@ -52,12 +70,19 @@ class CustomerSalesController extends Controller
 
     public function invoice(Request $request, Invoice $invoice, CustomerPortalQueries $queries): View
     {
-        return view('sales.invoice', $queries->invoiceDetails($this->user($request), $invoice));
+        return view('sales.invoice', $queries->invoiceDetails($this->user($request), $invoice) + ['recoveryInfo' => app(DescribeRenewalRecoveryAction::class)->execute($invoice)]);
     }
 
-    public function instance(Request $request, Instance $instance, CustomerPortalQueries $queries): Response
+    public function instance(Request $request, Instance $instance, CustomerPortalQueries $queries, OpenInstancePanelAction $panel): Response
     {
-        return response()->view('sales.instance', $queries->instanceDetails($this->user($request), $instance))->header('Cache-Control', 'private, no-store');
+        $details = $queries->instanceDetails($this->user($request), $instance);
+        $root = $instance->next_due_at === null ? null : Invoice::where('user_id', $instance->user_id)->where('instance_id', $instance->id)
+            ->where('billing_period_key', $instance->id.':renew:'.$instance->next_due_at->copy()->utc()->format('Y-m-d\TH:i:s\Z'))->first();
+
+        return response()->view('sales.instance', [...$details,
+            'renewalRecoveryInfo' => $root === null ? null : app(DescribeRenewalRecoveryAction::class)->execute($root),
+            'canOpenPanel' => $panel->available($this->user($request), $instance),
+            'canControlMachine' => app(ReadInstanceControlsAction::class)->available($this->user($request), $instance)])->header('Cache-Control', 'private, no-store');
     }
 
     public function pay(Request $request, Invoice $invoice, InitiatePaymentAction $pay): JsonResponse|View

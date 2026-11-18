@@ -6,7 +6,8 @@ namespace App\Data;
 
 /**
  * Protocol-verified callback. Produced ONLY by a payment adapter; it carries no
- * model state and no DB access has happened yet (INV-L2, external-drivers-spec §1.4).
+ * financial state. The adapter performs no DB access; DriverManager may resolve
+ * immutable credential metadata before verification (INV-L2).
  *
  * `outTradeNo` is OUR merchant order number (epay `out_trade_no`) and is resolved
  * to an invoice via `payment_attempts`; `gatewayTradeNo` is the gateway's own id.

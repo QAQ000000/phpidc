@@ -176,7 +176,7 @@ it('rejects hidden categories at checkout before wallet mutation and rejects mis
         $this->get($path)->assertNotFound();
     }
     $user = User::factory()->create(['credit' => '100.00']);
-    expect(fn () => app(CreateComboInvoiceAction::class)->execute($user, $product, BillingCycle::ONETIME, [], true))->toThrow(ValidationException::class);
+    expect(fn () => app(CreateComboInvoiceAction::class)->execute($user, $product, BillingCycle::ONETIME, [], true, input: ['request_id' => (string) Str::ulid()]))->toThrow(ValidationException::class);
     expect($user->fresh()->credit)->toBe('100.00');
     $this->assertDatabaseCount('invoices', 0);
     $this->assertDatabaseCount('financial_transactions', 0);

@@ -9,6 +9,7 @@ use App\Data\GatewayChargeResult;
 use App\Data\VerifiedPaymentResult;
 use App\Models\Invoice;
 use App\Support\Money;
+use App\Support\SettlementCurrency;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Validation\ValidationException;
@@ -30,6 +31,9 @@ class EpayGateway implements PaymentGatewayInterface
 
     public function charge(Invoice $invoice, string $amount, string $outTradeNo): GatewayChargeResult
     {
+        if (! SettlementCurrency::supports($invoice->currency)) {
+            return new GatewayChargeResult(success: false, errorMessage: 'Epay only supports CNY settlement; review this invoice manually.', outTradeNo: $outTradeNo);
+        }
         if (! $this->isEnabled() || ! preg_match('/^\d+\.\d{2}$/D', $amount)) {
             return new GatewayChargeResult(success: false, errorMessage: 'Payment gateway is not configured or amount is invalid.', outTradeNo: $outTradeNo);
         }

@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Actions;
 
+use App\Drivers\Notification\IdcsmartSmsDriver;
 use App\Jobs\SendEventNotificationJob;
 use App\Models\NotificationTemplate;
 use App\Models\User;
@@ -11,15 +12,18 @@ use App\Models\UserNotificationBinding;
 use App\Services\DriverManager;
 use App\Services\NotificationManager;
 use App\Services\SettingService;
+use App\Support\RetryableNotificationException;
+use App\Support\UncertainNotificationException;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 
 class SendEventNotificationAction
 {
-    public function execute(SendEventNotificationJob $job): void
+    public function execute(SendEventNotificationJob $job, ?int $attempt = null): void
     {
         $status = 'failed';
         $error = null;
+        $retry = null;
         $user = User::find($job->userId);
         $binding = $job->bindingId === null ? null : UserNotificationBinding::whereKey($job->bindingId)->where('user_id', $job->userId)->whereNotNull('verified_at')->first();
         $valid = $user !== null && ($job->bindingId === null
@@ -51,16 +55,19 @@ class SendEventNotificationAction
             }
             try {
                 $drivers = app(DriverManager::class);
+                $sms = $job->channel === 'sms' ? $drivers->sms() : null;
                 $ok = match ($job->channel) {
                     'email' => app(SettingService::class)->get('mail.transport', 'log') === 'log' || $drivers->mail()->send($job->target, $subject, $body),
                     'telegram' => $drivers->bot()->send($job->target, $body),
-                    'sms' => $template?->external_template_id !== null && $drivers->sms()->sendTemplate($job->target, $template->external_template_id, $params),
+                    'sms' => $template?->external_template_id !== null && $sms->sendTemplate($job->target, $template->external_template_id, $params),
                     default => false,
                 };
                 $simulation = ($job->channel === 'email' && app(SettingService::class)->get('mail.transport', 'log') === 'log') || ($job->channel === 'sms' && app(SettingService::class)->get('sms.driver', 'log') === 'log');
                 $status = $ok ? ($simulation ? 'simulated' : 'sent') : 'failed';
                 if (! $ok) {
-                    $error = 'Transport unavailable or rejected; SMS requires an audited template.';
+                    $error = $sms instanceof IdcsmartSmsDriver && $sms->deliveryUncertain
+                        ? 'Delivery uncertain; manual verification required. No automatic replay.'
+                        : 'Permanent rejection or unconfigured transport; SMS requires an audited template.';
                 } else {
                     $notes = [];
                     if ($job->bindingId === null) {
@@ -71,6 +78,11 @@ class SendEventNotificationAction
                     }
                     $error = $notes === [] ? null : implode(' ', $notes);
                 }
+            } catch (RetryableNotificationException $e) {
+                $retry = $e;
+                $error = 'Retryable rejection; attempt '.($attempt ?? $job->attempts()).'/'.$job->tries.'.';
+            } catch (UncertainNotificationException) {
+                $error = 'Delivery uncertain; manual verification required. No automatic replay.';
             } catch (\Exception $e) {
                 // Each channel has its own job; report failure without secrets or blocking other channels.
                 $error = 'Transport failed: '.get_class($e);
@@ -80,6 +92,9 @@ class SendEventNotificationAction
             'user_id' => $user?->id, 'event_key' => $job->event, 'channel' => $job->channel, 'target' => $job->target,
             'status' => $status, 'error_message' => $error, 'created_at' => now(), 'updated_at' => now(),
         ]));
+        if ($retry !== null) {
+            throw $retry;
+        }
         if ($status === 'simulated') {
             Log::info('Event notification simulated; no external delivery.', ['event' => $job->event, 'user_id' => $job->userId]);
         }

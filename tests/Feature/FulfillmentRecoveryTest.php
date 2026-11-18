@@ -67,6 +67,8 @@ it('reclaims a running task whose lease expired', function (): void {
     Queue::fake();
     $task = FulfillmentTask::factory()->create([
         'status' => 'running',
+        // C21: the expired worker already consumed its claim; recovery must preserve it.
+        'attempts' => 1,
         'locked_by' => 'worker-1',
         'locked_at' => now()->subMinutes(10),
         'lease_expires_at' => now()->subMinutes(5),

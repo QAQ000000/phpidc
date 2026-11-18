@@ -99,7 +99,7 @@ App\Models\User::factory()->create(['name'=>'Inventory Viewer','email'=>'viewer@
         operator = login('operator@example.test')
         viewer = login('viewer@example.test')
         html, _, _ = request(buyer, '/console')
-        checkout, status, _ = request(buyer, '/checkout', {'_token': csrf(html), 'product_id': 1, 'billing_cycle': 'onetime', 'use_credit': 1}, 'application/json')
+        checkout, status, _ = request(buyer, '/checkout', {'request_id': '01KAD000000000000000000001', '_token': csrf(html), 'product_id': 1, 'billing_cycle': 'onetime', 'use_credit': 1}, 'application/json')
         assert status == 201
         invoice = json.loads(checkout)['invoice_id']
         with sqlite3.connect(db) as connection:
@@ -171,7 +171,7 @@ App\Models\User::factory()->create(['name'=>'Inventory Viewer','email'=>'viewer@
         if args.preview:
             # Keep another genuine paid shortage visible for manual browser review.
             html, _, _ = request(buyer, '/console')
-            request(buyer, '/checkout', {'_token': csrf(html), 'product_id': 1, 'billing_cycle': 'onetime', 'use_credit': 1}, 'application/json')
+            request(buyer, '/checkout', {'request_id': '01KAD000000000000000000002', '_token': csrf(html), 'product_id': 1, 'billing_cycle': 'onetime', 'use_credit': 1}, 'application/json')
             with sqlite3.connect(db) as connection:
                 connection.execute("update fulfillment_tasks set max_attempts=1 where status='pending'")
             cli('queue:work', 'database', '--stop-when-empty', '--tries=3', '--timeout=180')

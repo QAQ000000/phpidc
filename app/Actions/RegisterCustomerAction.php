@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Actions;
 
 use App\Models\User;
+use App\Support\CustomerEmailLookup;
 use Illuminate\Database\UniqueConstraintViolationException;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
@@ -20,7 +21,7 @@ class RegisterCustomerAction
         ])->validate();
         try {
             return DB::transaction(function () use ($data, $referrerId): User {
-                if (User::withTrashed()->whereRaw('LOWER(email) = ?', [$data['email']])->exists()) {
+                if (app(CustomerEmailLookup::class)->matching($data['email'], withTrashed: true)->exists()) {
                     throw ValidationException::withMessages(['email' => '此邮箱不可用于注册，请尝试登录或找回密码。']);
                 }
                 $referrer = $referrerId === null ? null : User::whereKey($referrerId)->lockForUpdate()->first();

@@ -168,7 +168,7 @@ echo json_encode(['product'=>$product->id,'operator'=>$operator->id,'buyer'=>$bu
         error(operator, '/admin/operations/config/coupon', 419, {'code': 'NO-CSRF'})
         post(buyer, '/console/coupons', '/console/coupons', {'code': 'HTTP-SAVE'})
         html, _, _ = request(buyer, '/console')
-        invoice_json, status, _ = request(buyer, '/checkout', {'_token': token(html), 'product_id': ids['product'], 'billing_cycle': 'onetime', 'use_credit': 1, 'coupon_code': 'HTTP-SAVE'}, 'application/json')
+        invoice_json, status, _ = request(buyer, '/checkout', {'request_id': '01KAD000000000000000000001', '_token': token(html), 'product_id': ids['product'], 'billing_cycle': 'onetime', 'use_credit': 1, 'coupon_code': 'HTTP-SAVE'}, 'application/json')
         invoice = json.loads(invoice_json)
         assert status == 201 and invoice['total_amount'] == '9.00' and invoice['status'] == 'Paid', invoice
         cli('queue:work', '--stop-when-empty', '--tries=1')

@@ -12,6 +12,7 @@ use App\Jobs\ExecuteFulfillmentTaskJob;
 use App\Models\FulfillmentTask;
 use App\Models\Instance;
 use App\Models\Invoice;
+use App\Models\PaymentAttempt;
 use App\Models\User;
 use App\Services\DriverManager;
 use DomainException;
@@ -35,16 +36,25 @@ class RequestInstanceOperationAction
         }
 
         return DB::transaction(function () use ($instance, $action, $reason, $requestId, $actor, $source): FulfillmentTask {
-            User::whereKey($instance->user_id)->lockForUpdate()->firstOrFail();
-            $unpaid = Invoice::where('instance_id', $instance->id)->where('status', InvoiceStatus::UNPAID)->when($action === 'suspend', fn ($query) => $query->where('type', '!=', InvoiceType::RENEW))->lockForUpdate()->exists();
+            $user = User::whereKey($instance->user_id)->lockForUpdate()->firstOrFail();
+            $unpaid = Invoice::where('instance_id', $instance->id)->where('status', InvoiceStatus::UNPAID)->orderBy('id')->lockForUpdate()->get();
+            if ($action === 'terminate') {
+                PaymentAttempt::whereIn('invoice_id', $unpaid->modelKeys())->orderBy('id')->lockForUpdate()->get();
+            }
             $locked = Instance::whereKey($instance->id)->lockForUpdate()->firstOrFail();
             $key = 'control:'.$locked->id.':'.$action.':'.$requestId;
             $existing = FulfillmentTask::where('idempotency_key', $key)->first();
             if ($existing !== null) {
                 return $existing;
             }
-            if (! $locked->status->isBillable() || $locked->upstream_instance_id === null || $unpaid || FulfillmentTask::where('instance_id', $locked->id)->whereIn('status', [FulfillmentTaskStatus::PENDING, FulfillmentTaskStatus::RUNNING, FulfillmentTaskStatus::FAILED])->exists()) {
+            $blockingInvoices = in_array($action, ['suspend', 'terminate'], true) ? $unpaid->contains(fn ($invoice) => $invoice->type !== InvoiceType::RENEW) : $unpaid->isNotEmpty();
+            if ($locked->user_id !== $user->id || ! $locked->status->isBillable() || $locked->upstream_instance_id === null || $blockingInvoices || FulfillmentTask::where('instance_id', $locked->id)->whereIn('status', [FulfillmentTaskStatus::PENDING, FulfillmentTaskStatus::RUNNING, FulfillmentTaskStatus::FAILED])->exists()) {
                 throw new DomainException('Resolve billing and earlier operations on this live binding first.');
+            }
+            if ($action === 'terminate') {
+                foreach ($unpaid as $invoice) {
+                    app(ExpireUnpaidInvoicesAction::class)->cancelRenewalForTermination($user, $invoice, $reason, $actor);
+                }
             }
             $context = ['upstream_api_id' => $locked->upstream_api_id, 'upstream_instance_id' => $locked->upstream_instance_id,
                 'base_url' => $locked->upstreamApi?->base_url, 'token_hash' => hash('sha256', $locked->downstream_token ?? ''), 'reason' => $reason,

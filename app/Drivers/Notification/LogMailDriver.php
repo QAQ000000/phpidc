@@ -6,7 +6,11 @@ namespace App\Drivers\Notification;
 
 use App\Contracts\MailDriverInterface;
 use App\Services\SettingService;
+use App\Support\RetryableNotificationException;
+use App\Support\UncertainNotificationException;
 use Illuminate\Support\Facades\Mail;
+use Symfony\Component\Mailer\Exception\TransportExceptionInterface;
+use Symfony\Component\Mailer\Exception\UnexpectedResponseException;
 
 class LogMailDriver implements MailDriverInterface
 {
@@ -25,7 +29,20 @@ class LogMailDriver implements MailDriverInterface
         if ($config === null) {
             return false;
         }
-        Mail::build($config)->raw($bodyMarkdown, fn ($message) => $message->to($to)->from($this->settings->get('mail.from_address', 'noreply@example.test'))->subject($subject));
+        try {
+            Mail::build($config)->raw($bodyMarkdown, fn ($message) => $message->to($to)->from($this->settings->get('mail.from_address', 'noreply@example.test'))->subject($subject));
+        } catch (UnexpectedResponseException $e) {
+            if ($e->getCode() >= 400 && $e->getCode() < 500) {
+                throw new RetryableNotificationException;
+            }
+
+            if ($e->getCode() >= 500 && $e->getCode() < 600) {
+                return false;
+            }
+            throw new UncertainNotificationException;
+        } catch (TransportExceptionInterface) {
+            throw new UncertainNotificationException;
+        }
 
         return true;
     }

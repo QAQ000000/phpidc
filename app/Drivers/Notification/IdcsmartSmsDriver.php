@@ -11,6 +11,9 @@ use Illuminate\Support\Facades\Http;
 
 class IdcsmartSmsDriver implements SmsDriverInterface
 {
+    /** Per-call transport evidence; never persisted by the driver. */
+    public bool $deliveryUncertain = false;
+
     public function __construct(private readonly SettingService $settings) {}
 
     public function ready(): bool
@@ -26,6 +29,7 @@ class IdcsmartSmsDriver implements SmsDriverInterface
 
     public function sendTemplate(string $phone, string $templateCode, array $params): bool
     {
+        $this->deliveryUncertain = false;
         $template = $this->template($templateCode);
         // The supplied plugin's sendCnSms path removes +86; no global SMS protocol was supplied.
         if (! $this->ready() || $template === null || preg_match('/^\+861[0-9]{10}$/D', $phone) !== 1) {
@@ -50,12 +54,16 @@ class IdcsmartSmsDriver implements SmsDriverInterface
             ])->post($this->endpoint().'?action=send', ['to' => substr($phone, 3), 'content' => $this->signature().$content,
                 'template_id' => $template['id'], 'vars' => $vars]);
         } catch (ConnectionException) {
+            $this->deliveryUncertain = true;
+
             // Delivery may have occurred; do not replay a billable SMS or expose the request body.
             return false;
         }
 
         $body = $response->body();
         $result = json_decode(str_starts_with($body, "\xEF\xBB\xBF") ? substr($body, 3) : $body, true);
+
+        $this->deliveryUncertain = $response->serverError() || $response->redirect() || ! is_array($result) || ! array_key_exists('status', $result);
 
         return $response->status() === 200 && is_array($result) && in_array($result['status'] ?? null, [200, '200'], true);
     }

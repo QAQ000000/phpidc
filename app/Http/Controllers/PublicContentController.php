@@ -12,9 +12,12 @@ use App\Models\CmsCategory;
 use App\Models\Product;
 use App\Services\SettingService;
 use App\Support\CmsRenderer;
+use App\Support\CmsSlugAliases;
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Response;
+use Illuminate\Support\LazyCollection;
 
 class PublicContentController extends Controller
 {
@@ -50,16 +53,20 @@ class PublicContentController extends Controller
             return $this->markdown($body."\n[查看产品与购买](".$this->canonical($item->publicPath()).")\n", $item->publicPath());
         }
 
-        return $this->page('product', ['product' => $item] + $details, $item->publicPath(), $item->name, $this->renderer->summary($item->description ?? ''));
+        return $this->page('product', ['product' => $item] + $details, $item->publicPath(), $item->name, $this->renderer->summary($item->description ?? ''))
+            ->header('Cache-Control', 'private, no-store');
     }
 
-    public function articles(Request $request, string $type, ?string $category = null): Response
+    public function articles(Request $request, string $type, ?string $category = null): Response|RedirectResponse
     {
         $kind = CmsArticleType::from($type);
         $data = $request->validate(['q' => ['nullable', 'string', 'max:100']]);
         $search = trim($data['q'] ?? '');
         $categories = CmsCategory::visible()->where('type', $kind)->orderBy('sort_order')->orderBy('id');
-        $selected = $category === null ? null : (clone $categories)->where('slug', $category)->firstOrFail();
+        $selected = $category === null ? null : app(CmsSlugAliases::class)->category($kind, $category);
+        if ($selected !== null && $selected->slug !== $category) {
+            return $this->redirectCms($request, $selected->publicPath());
+        }
         $articles = CmsArticle::published()->with('category')->whereHas('category', fn (Builder $query) => $query->where('type', $kind))
             ->when($selected !== null, fn (Builder $query) => $query->where('cms_category_id', $selected->id))
             ->when($search !== '', fn (Builder $query) => $query->where('title', 'like', '%'.$search.'%'));
@@ -70,31 +77,57 @@ class PublicContentController extends Controller
             $selected->seo_description ?? '产品动态与使用指南。', $selected?->seo_keywords);
     }
 
-    public function article(Request $request, string $type, string $category, string $article): Response
+    public function article(Request $request, string $type, string $category, string $article): Response|RedirectResponse
     {
-        $item = CmsArticle::published()->with('category')->where('slug', $article)
-            ->whereHas('category', fn (Builder $query) => $query->where('type', CmsArticleType::from($type))->where('slug', $category))->firstOrFail();
+        $aliases = app(CmsSlugAliases::class);
+        $selected = $aliases->category(CmsArticleType::from($type), $category);
+        $item = $aliases->article($selected, $article);
+        if ($item->category->slug !== $category || $item->slug !== $article) {
+            $path = $item->publicPath().(str_ends_with($request->path(), '.md') ? '.md' : '');
+
+            return $this->redirectCms($request, $path);
+        }
         if ($request->attributes->get('markdown')) {
             return $this->markdown($this->renderer->markdown($item), $item->publicPath());
         }
 
-        return $this->page('article', ['article' => $item, 'body' => $this->renderer->html($item)], $item->publicPath(),
-            $item->seo_title ?? $item->title, $item->seo_description ?? $this->renderer->excerpt($item), $item->seo_keywords);
+        $html = $this->renderer->html($item);
+
+        return $this->page('article', ['article' => $item, 'body' => $html], $item->publicPath(),
+            $item->seo_title ?? $item->title, $item->seo_description ?? $this->renderer->excerpt($item, $html), $item->seo_keywords);
     }
 
     public function sitemap(): Response
     {
-        $entries = array_map(fn (string $path) => ['url' => $this->canonical($path), 'modified' => null], ['/', '/store', '/news', '/help']);
-        foreach (Category::where('is_hidden', false)->whereHas('products', fn (Builder $query) => $query->publicCatalog())->get() as $category) {
-            $entries[] = ['url' => $this->canonical('/store/'.rawurlencode($category->slug)), 'modified' => $category->updated_at?->toAtomString()];
+        return response()->view('public.sitemap', ['entries' => $this->sitemapEntries()])->header('Content-Type', 'application/xml; charset=UTF-8');
+    }
+
+    private function sitemapEntries(): \Generator
+    {
+        foreach (['/', '/store', '/news', '/help'] as $path) {
+            yield ['url' => $this->canonical($path), 'modified' => null];
         }
-        foreach ([Product::publicCatalog()->with('category')->get(), CmsCategory::visible()->get(), CmsArticle::published()->with('category')->get()] as $items) {
+        foreach (Category::where('is_hidden', false)->whereHas('products', fn (Builder $query) => $query->publicCatalog())
+            ->select(['id', 'slug', 'updated_at'])->lazyById(100) as $category) {
+            yield ['url' => $this->canonical('/store/'.rawurlencode($category->slug)), 'modified' => $category->updated_at?->toAtomString()];
+        }
+        foreach ([$this->indexProducts(), CmsCategory::visible()->select(['id', 'type', 'slug', 'updated_at'])->lazyById(100), $this->indexArticles()] as $items) {
             foreach ($items as $item) {
-                $entries[] = ['url' => $this->canonical($item->publicPath()), 'modified' => $item->updated_at?->toAtomString()];
+                yield ['url' => $this->canonical($item->publicPath()), 'modified' => $item->updated_at?->toAtomString()];
             }
         }
+    }
 
-        return response()->view('public.sitemap', ['entries' => $entries])->header('Content-Type', 'application/xml; charset=UTF-8');
+    private function indexProducts(): LazyCollection
+    {
+        return Product::publicCatalog()->select(['id', 'category_id', 'slug', 'name', 'updated_at'])
+            ->with('category:id,slug')->lazyById(100);
+    }
+
+    private function indexArticles(): LazyCollection
+    {
+        return CmsArticle::published()->select(['id', 'cms_category_id', 'slug', 'title', 'updated_at'])
+            ->with('category:id,type,slug')->lazyById(100);
     }
 
     public function llms(): Response
@@ -103,7 +136,7 @@ class PublicContentController extends Controller
         foreach (['/store' => '产品', '/news' => '新闻', '/help' => '帮助'] as $path => $label) {
             $body .= '- ['.$label.']('.$this->canonical($path).")\n";
         }
-        foreach (['产品' => Product::publicCatalog()->with('category')->get(), '文章' => CmsArticle::published()->with('category')->get()] as $section => $items) {
+        foreach (['产品' => $this->indexProducts(), '文章' => $this->indexArticles()] as $section => $items) {
             $body .= "\n## ".$section."\n\n";
             foreach ($items as $item) {
                 $body .= '- '.str_replace(["\r", "\n"], ' ', $item instanceof Product ? $item->name : $item->title).': '.$this->canonical($item->publicPath()).".md\n";
@@ -122,6 +155,14 @@ class PublicContentController extends Controller
     private function canonical(string $path): string
     {
         return rtrim(config('app.url'), '/').$path;
+    }
+
+    private function redirectCms(Request $request, string $path): RedirectResponse
+    {
+        $query = $request->getQueryString();
+
+        // An object may reclaim an old slug; caching the previous redirect could create a client-side loop.
+        return redirect($this->canonical($path).($query === null ? '' : '?'.$query), 301)->header('Cache-Control', 'no-store');
     }
 
     private function markdown(string $body, string $path): Response

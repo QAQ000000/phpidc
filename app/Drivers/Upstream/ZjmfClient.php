@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Drivers\Upstream;
 
+use App\Enums\ProvisionCommand;
 use App\Models\UpstreamApi;
 use App\Services\UpstreamOperationBuffer;
 use Illuminate\Http\Client\ConnectionException;
@@ -52,7 +53,7 @@ class ZjmfClient
         $httpStatus = null;
         $secrets = array_filter([$this->account->encrypted_secret, $jwt]);
         array_walk_recursive($params, function ($value, $key) use (&$secrets): void {
-            if (is_string($value) && preg_match('/password|token|secret|customfield/i', (string) $key)) {
+            if (is_string($value) && preg_match('/password|token|secret|customfield|^pass$|temp_pass/i', (string) $key)) {
                 $secrets[] = $value;
             }
         });
@@ -70,7 +71,8 @@ class ZjmfClient
             $result = ['status' => 400, 'msg' => 'Upstream connection failed.', '_transport_failure' => true];
         }
         $outcome = in_array($result['status'] ?? null, [200, 1001, 'success'], true) ? 'ok' : 'failed';
-        if (in_array($path, ['/cart/settle', '/apply_credit', '/apply_credit_limit', '/host/renew', '/host/cancel', '/upgrade/checkout_config_upgrade', '/provision/default'], true) && ! empty($result['_transport_failure'])) {
+        if (in_array($path, ['/cart/settle', '/apply_credit', '/apply_credit_limit', '/host/renew', '/host/cancel', '/upgrade/checkout_config_upgrade', '/provision/default'], true)
+            && ! ($path === '/provision/default' && ($params['func'] ?? null) === ProvisionCommand::STATUS->value) && ! empty($result['_transport_failure'])) {
             $outcome = 'ambiguous';
         }
         if ($path === '/apply_credit' && ($params['use_credit'] ?? null) === 0 && $outcome === 'ok') {
@@ -79,7 +81,8 @@ class ZjmfClient
         $this->operations->append(['upstream_api_id' => $this->account->id, 'instance_id' => $context['instance_id'] ?? null,
             'invoice_id' => $context['invoice_id'] ?? null, 'method' => $method, 'path' => $path, 'http_status' => $httpStatus,
             'request_payload' => json_encode($this->redact($params, $secrets), JSON_THROW_ON_ERROR | JSON_INVALID_UTF8_SUBSTITUTE),
-            'response_body' => mb_strcut(json_encode($this->redact($result, $secrets), JSON_THROW_ON_ERROR | JSON_INVALID_UTF8_SUBSTITUTE), 0, 16384, 'UTF-8'),
+            'response_body' => mb_strcut(json_encode($this->redact($path === '/provision/default' && ($params['func'] ?? null) === 'vnc'
+                ? array_replace($result, ['data' => '[REDACTED VNC connection]']) : $result, $secrets), JSON_THROW_ON_ERROR | JSON_INVALID_UTF8_SUBSTITUTE), 0, 16384, 'UTF-8'),
             'duration_ms' => (int) ((hrtime(true) - $started) / 1000000), 'correlation_key' => $this->correlation,
             'outcome' => $outcome]);
 
@@ -91,7 +94,7 @@ class ZjmfClient
         if (is_array($value)) {
             $safe = [];
             foreach ($value as $key => $item) {
-                $safe[$key] = preg_match('/password|token|secret|jwt|authorization|ippassword|customfield/i', (string) $key) ? '[REDACTED]' : $this->redact($item, $secrets);
+                $safe[$key] = preg_match('/password|token|secret|jwt|authorization|ippassword|customfield|^html$|^pass$|temp_pass/i', (string) $key) ? '[REDACTED]' : $this->redact($item, $secrets);
             }
 
             return $safe;

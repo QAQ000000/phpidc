@@ -61,10 +61,13 @@ php artisan app:deployment-check --production
 
 ## 4. worker 与调度器
 
-审查 `deploy/cloudcms-worker.service`、`cloudcms-schedule.service`、`cloudcms-schedule.timer` 的账户、工作目录和 PHP 路径后，才由服务器运维安装到 systemd 并启动。模板未在本轮加载到业务服务器。
+审查 `deploy/cloudcms-worker.service`、`cloudcms-lifecycle@.service`、`cloudcms-catalog.service`、`cloudcms-schedule.service`、`cloudcms-schedule.timer` 的账户、工作目录和 PHP 路径后，才由服务器运维安装到 systemd 并启动。模板未在本轮加载到业务服务器。
 
 - worker：Redis/default，job timeout=180，`REDIS_QUEUE_RETRY_AFTER=240`，停止宽限=210。HTTP timeout=30 < 180 < 240（INV-Q1）；不要改成相等。
-- scheduler：每分钟 `schedule:run`。若选择 cron，运行账户同上，使用绝对 PHP/项目路径，**与 systemd timer 二选一**。业务调度已有 withoutOverlapping/onOneServer，所有节点必须共享 Redis 锁。
+- FIX-011新增队列必须随代码部署：两个独立实例 `cloudcms-lifecycle@lifecycle-urgent`、`cloudcms-lifecycle@lifecycle`，以及一个 `cloudcms-catalog`；分别只消费对应队列，default另设。所有worker/cache必须共享同一Redis；不要用sync连接运行派发器。
+- lifecycle默认每分钟最多100临近到期+100全量轮转，catalog默认每5分钟100商品；job timeout=180、共享实例锁210、retry_after=240，unique排队TTL3600。1000实例/临期≤100/平均任务≤3s的容量假设下，目标临期≤10分钟、全量≤75分钟，尚未生产验收。持续上游错误或积压不在该时效内，及时人工核对失败记录。
+- 监测urgent最老任务等待>5分钟、rotation>30分钟、应同步实例last_synced_at>75分钟或长期为空，并核对worker健康/失败队列；这些为运维巡检门槛，本轮未接入自动监控告警。不得简单增加worker数量突破已评估的上游并发。
+- scheduler：每分钟 `schedule:run`，模板TimeoutStartSec=55，供应商HTTP已移至独立worker。若选择 cron，运行账户同上，使用绝对 PHP/项目路径，**与 systemd timer 二选一**。业务调度已有 withoutOverlapping/onOneServer，所有节点必须共享 Redis 锁。
 - 部署验收检查 `systemctl status`、`journalctl -u`、`list-timers`、`php artisan schedule:list`、失败任务和 fulfillment_tasks；不能只看 service 文件存在。
 - 新代码发布后重启 FPM 和 worker 以清除长生命周期旧设置；`queue:restart` 要在同一 Redis/cache 配置下执行。首次启动前确认已安装和 migrations 完成。
 - 不运行 `queue:retry all` 来代替核对上游成本/交付状态。付款后缺货仍是人工确认、补库存、显式重试；不自动退款或重新购买。

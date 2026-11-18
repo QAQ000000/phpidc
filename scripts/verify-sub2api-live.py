@@ -111,7 +111,7 @@ if (($argv[1] ?? '') === 'setup') {
     $account=$app->make(App\Actions\ConfigureSub2ApiAction::class)->execute('Authorized live test',getenv('SUB2API_TEST_URL'),$key,'Authorized one-unit integration acceptance');
     $product=$app->make(App\Actions\CreateSub2ApiProductAction::class)->execute($account,'Live one-unit balance code','1.00','1','CNY','Authorized one-unit integration acceptance');
     $buyer=App\Models\User::factory()->create(['credit'=>'2.00']);
-    $invoice=$app->make(App\Actions\CreateComboInvoiceAction::class)->execute($buyer,$product,App\Enums\BillingCycle::ONETIME,[],true);
+    $invoice=$app->make(App\Actions\CreateComboInvoiceAction::class)->execute($buyer,$product,App\Enums\BillingCycle::ONETIME,[],true,input:['request_id'=>'01KAD000000000000000000001']);
     echo json_encode(['invoice_id'=>$invoice->id,'buyer_id'=>$buyer->id,'task_id'=>App\Models\FulfillmentTask::sole()->id]);
 } else {
     $task=App\Models\FulfillmentTask::sole();

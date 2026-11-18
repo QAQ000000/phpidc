@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace App\Console\Commands;
 
-use App\Actions\ProcessInstanceLifecycleAction;
+use App\Actions\DispatchInstanceLifecycleAction;
 use Illuminate\Console\Command;
 
 class ProcessInstanceLifecycleCommand extends Command
@@ -13,9 +13,9 @@ class ProcessInstanceLifecycleCommand extends Command
 
     protected $description = 'Reconcile due services, prepare renewal invoices and queue overdue controls';
 
-    public function handle(ProcessInstanceLifecycleAction $action): int
+    public function handle(DispatchInstanceLifecycleAction $action): int
     {
-        $this->info('Processed '.$action->execute().' services.');
+        $this->info('Dispatched '.$action->execute().' services.');
 
         return self::SUCCESS;
     }

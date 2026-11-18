@@ -29,9 +29,9 @@
 
 ## 通知兼容与界限
 
-`NotificationManager` 对付款、交付、退款、佣金、提现、客服回复、续费和逾期事件逐渠道派发提交后 Job。只传安全变量白名单，不带卡密、开通密码、证件、密钥、提现账户原文；某渠道失败独立记脱敏类别和告警。无模板使用内置模板；显式停用记 `disabled`，绑定失效记 `skipped`，传输失败记 `failed`。新通知的邮件/SMS 日志模式记 `simulated`，不得当作实际发送。
+`NotificationManager` 对付款、交付、退款、佣金、提现、客服回复、续费和逾期事件逐渠道派发提交后 Job。只传安全变量白名单，不带卡密、开通密码、证件、密钥、提现账户原文；某渠道失败独立记脱敏类别和告警。无模板使用内置模板；显式停用记 `disabled`，绑定失效记 `skipped`，传输失败记 `failed`。所有新记录（含旧续费Job）的邮件/SMS日志模式记 `simulated`，不得当作实际发送。
 
-保留旧 `SendNotificationJob` 构造参数及续费默认行为，支持新模板并在执行时重新核实绑定；兼容历史 `mail` 别名。旧续费日志的 `sent` 可能来自日志驱动，不应据此追认真实发送。新记录统一使用 `email`。后台投递列表不展示完整目标和异常原文。
+保留旧 `SendNotificationJob` 构造参数及续费默认行为，支持新模板并在执行时重新核实绑定；兼容历史 `mail` 别名。历史旧续费日志的 `sent` 可能来自日志驱动，不应据此追认真实发送；FIX-012后的新记录统一区分模拟。新记录统一使用 `email`。后台投递列表不展示完整目标和异常原文。
 
 已存在的 `LogMailDriver` 实际支持 SettingService 配置的 SMTP，直接复用；本轮用独立回环 SMTP 验证。真实 Telegram 和 idcsmart SMS 未向真人发送，SMS/KYC 按用户先前决定继续暂停。`sent` 仅表示传输受理，不是送达证明。没有事件 outbox / 远程送达幂等字段，因此崩溃窗口可能漏通知或重复，失败需按日志人工核对；本轮不承诺 exactly-once。资金流水及计佣补偿独立于通知投递结果。
 
@@ -63,3 +63,10 @@ python scripts/verify-operations-concurrency.py
 最终结果：**Pest 433 passed / 3398 assertions；PHPStan 0 errors；Pint clean；Specs 0（命令返回 No tests found，符合已清空状态）**。新增 `OperationsExpansionTest.php` 共 47 个展开后用例，其余旧断言未修改。两份独立验收脚本最终版本均返回 PASS；临时服务 PID 检查为空，原业务 `storage/installed.lock` 仍不存在。
 
 本轮验收输出：`/tmp/operations-expansion-{pest,phpstan,pint}.log`、`/tmp/operations-http-final.log`、`/tmp/operations-mysql-final.log`；浏览器截图为 `/tmp/operations-coupons-desktop.png`、`/tmp/operations-coupons-mobile.png`、`/tmp/operations-affiliate-mobile.png`。这些是本机临时验收产物，不加入版本库，也不包含真实站点凭据。
+
+
+## 2026-11-18 通知恢复补充（FIX-012）
+
+两个通知Job均最多3次总尝试。仅协议明确未接受的临时拒绝可重放（Telegram ok=false/error_code=429，遵守retry_after；SMTP4xx），退避至少60/300秒，第三次失败进入failed_jobs。超时、丢响应、未核实5xx为结果不确定，不盲目重发收费短信。永久拒绝/未配置不自动重试。每次重试先保存脱敏失败记录；最终失败的安全异常不串联原传输异常。通知Job沿用安全变量/收件人，不包含供应商密钥；失败库及备份仍须受控。
+
+`/admin/notifications`支持用户/状态过滤及安全失败分类，始终不输出收件人或原异常；最终耗尽在`/admin/tasks`核查failed_jobs的UUID。先核对供应商是否接受，再决定人工重试，禁止queue:retry all。发送后崩溃仍可能重复或漏通知；本轮未新增事件outbox或供应商幂等协议，没有向真人发送通知。证据见backend-fix007-017-verification.md。

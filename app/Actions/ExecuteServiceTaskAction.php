@@ -16,8 +16,8 @@ use App\Models\Instance;
 use App\Models\Invoice;
 use App\Services\DriverManager;
 use App\Services\NotificationManager;
+use App\Support\InstanceDueDate;
 use App\Support\Money;
-use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Crypt;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
@@ -47,7 +47,7 @@ class ExecuteServiceTaskAction
         if ($state === null) {
             if ($task->action === 'renew') {
                 $before = $call->execute(fn () => $driver->syncInfo($binding));
-                if ($before->nextDueDate === null || ! Carbon::parse($before->nextDueDate)->eq(Carbon::parse($context['due_boundary']))) {
+                if ($before->nextDueDate === null || ! InstanceDueDate::parse($before->nextDueDate)->eq(InstanceDueDate::parse($context['due_boundary']))) {
                     return ProvisionResult::fail('Upstream due boundary changed before renewal; reconcile the existing payment first.');
                 }
             }
@@ -57,6 +57,10 @@ class ExecuteServiceTaskAction
             $result = $call->execute(fn () => $task->action === 'renew' ? $driver->renew($binding, $context['cycle'])
                 : $driver->changeConfig($binding, $context['options'] + ['expected_cost' => $task->invoice->upstream_expected_cost, 'invoice_id' => $task->invoice_id]));
             if (! $result->success) {
+                if ($result->retryable && ($result->rawResponse['not_sent'] ?? null) === true) {
+                    return $this->releaseUnsentIntent($task, $binding, $context, $worker)
+                        ? $result : ProvisionResult::fail('Operation changed before its unsent intent could be released.');
+                }
                 $this->evidence($task, ['state' => 'create_uncertain']);
 
                 return ProvisionResult::fail($result->errorMessage ?? 'Upstream invoice requires manual reconciliation.');
@@ -88,7 +92,7 @@ class ExecuteServiceTaskAction
         // An unknown payment may only be reconciled through authenticated read-only state, never repaid.
         $snapshot = $call->execute(fn () => $driver->syncInfo($binding));
         $confirmed = $task->action === 'renew'
-            ? $snapshot->nextDueDate !== null && Carbon::parse($snapshot->nextDueDate)->gte(Carbon::parse($context['renew_until']))
+            ? $snapshot->nextDueDate !== null && InstanceDueDate::parse($snapshot->nextDueDate)->gte(InstanceDueDate::parse($context['renew_until']))
             : $call->execute(fn () => $driver->configurationMatches($binding, $context['options']));
         if (! $confirmed || ! in_array($snapshot->upstreamStatus, ['Active', 'Suspended'], true)) {
             return ProvisionResult::fail('Payment or fulfillment is not confirmed; reconcile this same operation.', retryable: true);
@@ -106,11 +110,11 @@ class ExecuteServiceTaskAction
             return $this->commit($task, $binding, $context, $worker, $snapshot);
         }
         if ($task->trigger_source === 'cron_overdue') {
-            if ($task->action === 'unsuspend' && ($snapshot->nextDueDate === null || ! Carbon::parse($snapshot->nextDueDate)->isFuture()
+            if ($task->action === 'unsuspend' && ($snapshot->nextDueDate === null || ! InstanceDueDate::parse($snapshot->nextDueDate)->isFuture()
                 || $snapshot->suspendReason === null || $snapshot->suspendReason !== ($binding->active_config['overdue_suspend_reason'] ?? null))) {
                 return ProvisionResult::fail('Automatic recovery cannot clear a manual or unverified suspension.');
             }
-            if ($task->action === 'suspend' && ($snapshot->nextDueDate === null || Carbon::parse($snapshot->nextDueDate)->isFuture())) {
+            if ($task->action === 'suspend' && ($snapshot->nextDueDate === null || InstanceDueDate::parse($snapshot->nextDueDate)->isFuture())) {
                 return ProvisionResult::fail('Upstream service is no longer overdue; old suspension discarded.');
             }
             if ($task->action === 'suspend' && ($binding->next_due_at === null || $binding->next_due_at->isFuture())) {
@@ -176,6 +180,26 @@ class ExecuteServiceTaskAction
         });
     }
 
+    private function releaseUnsentIntent(FulfillmentTask $candidate, Instance $binding, array $context, string $worker): bool
+    {
+        return DB::transaction(function () use ($candidate, $binding, $context, $worker): bool {
+            if ($candidate->invoice_id !== null) {
+                Invoice::whereKey($candidate->invoice_id)->lockForUpdate()->firstOrFail();
+            }
+            $instance = Instance::whereKey($binding->id)->lockForUpdate()->firstOrFail();
+            $task = FulfillmentTask::whereKey($candidate->id)->lockForUpdate()->firstOrFail();
+            if (! $this->current($task, $instance, $context, $worker) || ($task->payload['operation']['state'] ?? null) !== 'create_requested') {
+                return false;
+            }
+            // The adapter explicitly proved no creation request was sent. Unknown outcomes retain their intent.
+            $payload = $task->payload;
+            unset($payload['operation']);
+            $task->update(['payload' => $payload]);
+
+            return true;
+        });
+    }
+
     private function commit(FulfillmentTask $candidate, Instance $binding, array $context, string $worker, InstanceInfoResult $snapshot): ProvisionResult
     {
         return DB::transaction(function () use ($candidate, $binding, $context, $worker, $snapshot): ProvisionResult {
@@ -194,7 +218,7 @@ class ExecuteServiceTaskAction
             $before = ['status' => $instance->status->value, 'recurring_amount' => $instance->recurring_amount];
             $changes = ['status' => $target, 'last_synced_at' => now()];
             if ($snapshot->nextDueDate !== null) {
-                $changes['next_due_at'] = Carbon::parse($snapshot->nextDueDate);
+                $changes['next_due_at'] = InstanceDueDate::parse($snapshot->nextDueDate);
             }
             if ($snapshot->suspendReason !== null && $snapshot->suspendReason !== '') {
                 $changes['suspend_reason'] = $snapshot->suspendReason;
@@ -208,7 +232,7 @@ class ExecuteServiceTaskAction
                 if ($task->trigger_source === 'cron_overdue' && ($task->payload['operation']['state'] ?? null) === 'control_accepted') {
                     $config['overdue_suspension'] = true;
                     $config['overdue_suspend_reason'] = $snapshot->suspendReason;
-                    $changes['overdue_since'] = Carbon::parse($context['due_boundary']);
+                    $changes['overdue_since'] = InstanceDueDate::parse($context['due_boundary']);
                 }
             }
             if ($task->action === 'unsuspend' && $target === InstanceStatus::ACTIVE) {

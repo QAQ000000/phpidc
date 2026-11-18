@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Jobs;
 
 use App\Actions\SendLifecycleNotificationAction;
+use App\Support\RetryableNotificationException;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Queue\Queueable;
 
@@ -22,6 +23,13 @@ class SendNotificationJob implements ShouldQueue
 
     public function handle(SendLifecycleNotificationAction $action): void
     {
-        $action->execute($this->invoiceId, $this->channel, $this->target, $this->fallback);
+        try {
+            $action->execute($this->invoiceId, $this->channel, $this->target, $this->fallback, $this->attempts());
+        } catch (RetryableNotificationException $e) {
+            if ($this->job === null || $this->attempts() >= $this->tries) {
+                throw $e;
+            }
+            $this->release(max($e->retryAfter, $this->backoff[$this->attempts() - 1]));
+        }
     }
 }

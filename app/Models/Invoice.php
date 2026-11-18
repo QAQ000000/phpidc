@@ -45,6 +45,7 @@ class Invoice extends Model
         return $this->belongsTo(User::class);
     }
 
+    /** @return BelongsTo<Instance, $this> */
     public function instance(): BelongsTo
     {
         return $this->belongsTo(Instance::class);

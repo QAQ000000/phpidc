@@ -19,9 +19,12 @@ it('mirrors all 18 ZJMF billing cycles', function (): void {
 })->group('phase0');
 
 it('maps each cycle to its upstream price column and excludes non-renewable cycles', function (): void {
-    expect(BillingCycle::MONTHLY->priceKey())->toBe('msetupfee')
-        ->and(BillingCycle::FOURLY->priceKey())->toBe('foursetupfee')
+    expect(BillingCycle::MONTHLY->priceKey())->toBe('monthly')
+        ->and(BillingCycle::FOURLY->priceKey())->toBe('fourly')
         ->and(BillingCycle::FREE->priceKey())->toBeNull()
+        ->and(BillingCycle::MONTHLY->setupFeeKey())->toBe('msetupfee')
+        ->and(BillingCycle::FOURLY->setupFeeKey())->toBe('foursetupfee')
+        ->and(BillingCycle::FREE->setupFeeKey())->toBeNull()
         ->and(BillingCycle::ONETIME->isRenewable())->toBeFalse()
         ->and(BillingCycle::ONTRIAL->isRenewable())->toBeFalse()
         ->and(BillingCycle::MONTHLY->isRenewable())->toBeTrue()

@@ -20,6 +20,7 @@ use Filament\Panel;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\Queue;
+use Illuminate\Support\Str;
 use Livewire\Livewire;
 use Spatie\Permission\PermissionRegistrar;
 use Tests\Concerns\InstallsApplication;
@@ -104,7 +105,7 @@ it('keeps paid shortages manual at the retry limit and delivers exactly once aft
     Queue::fake();
     $buyer = User::factory()->create(['credit' => '20.00']);
     $product = Product::factory()->create(['local_prices' => ['onetime' => ['price' => '10.00', 'setup_fee' => '0.00', 'enabled' => true]]]);
-    $invoice = app(CreateComboInvoiceAction::class)->execute($buyer, $product, BillingCycle::ONETIME, [], true);
+    $invoice = app(CreateComboInvoiceAction::class)->execute($buyer, $product, BillingCycle::ONETIME, [], true, input: ['request_id' => (string) Str::ulid()]);
     $task = FulfillmentTask::sole();
     $task->update(['max_attempts' => 1]);
     app(ExecuteFulfillmentTaskAction::class)->execute($task->id);

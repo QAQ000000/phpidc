@@ -29,4 +29,10 @@
 <section class="inventory-box inventory-scroll"><h2>支付回调核查</h2><table class="inventory-table"><thead><tr><th>ID / 网关交易</th><th>金额</th><th>处理结果 / 时间</th></tr></thead><tbody>
 @forelse($callbacks as $callback)<tr><td>#{{ $callback->id }} {{ $callback->gateway }}<br>{{ $callback->gateway_trade_no }}</td><td>{{ $callback->amount }}</td><td>{{ $callback->outcome->value }}<br>{{ $callback->processed_at }}</td></tr>@empty<tr><td colspan="3">没有支付回调。</td></tr>@endforelse
 </tbody></table>{{ $callbacks->links() }}</section>
+@if($recoveryInfo)
+<section class="fi-section"><h2>续费恢复核对（只读）</h2>
+@foreach($recoveryInfo['invoices'] as $member)<p><a href="/admin/finance/invoice?invoice_id={{ $member->id }}">{{ $member->invoice_no }}</a> · {{ $member->status->value }}</p>@endforeach
+<p>当前单：{{ $recoveryInfo['current']->invoice_no }}。{{ $recoveryInfo['eligible'] ? '可由客户本人重新核价确认；运营不可代扣钱包。' : $recoveryInfo['reason'] }}</p>
+</section>
+@endif
 </x-filament-panels::page>

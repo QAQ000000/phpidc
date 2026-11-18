@@ -89,7 +89,7 @@ it('updates content by ID when a slug changes and rejects duplicate or cross-cat
     $this->actingAs($publisher)->post('/admin/content/articles', cmsDraftData(['category_id' => $category->id, 'id' => $article->id, 'slug' => 'renamed']))->assertRedirect();
     expect(CmsArticle::count())->toBe(1)->and($article->fresh()->slug)->toBe('renamed');
     $this->post('/admin/content/articles', cmsDraftData(['category_id' => $category->id, 'slug' => 'renamed', 'title' => 'OVERWRITE']))->assertSessionHasErrors('slug');
-    $this->post('/admin/content/articles', cmsDraftData(['category_id' => $other->id, 'id' => $article->id]))->assertNotFound();
+    $this->post('/admin/content/articles', cmsDraftData(['category_id' => $other->id, 'id' => $article->id]))->assertRedirect()->assertSessionHasErrors('category_id');
     expect($article->fresh()->title)->toBe('Release');
     $this->post('/admin/content/categories', ['id' => $category->id, 'type' => 'help', 'slug' => 'new-guides', 'name' => 'Updated guides', 'reason' => 'Rename category'])->assertRedirect();
     expect(CmsCategory::count())->toBe(2)->and($category->fresh()->slug)->toBe('new-guides');

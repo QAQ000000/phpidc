@@ -15,6 +15,8 @@ use Illuminate\Support\Facades\DB;
 
 class AccrueAffiliateCommissionAction
 {
+    public const ZERO_ACCRUAL_ACTION = 'affiliate.zero_accrual';
+
     public function execute(int $invoiceId): ?AffiliateCommission
     {
         $hint = Invoice::findOrFail($invoiceId);
@@ -33,6 +35,20 @@ class AccrueAffiliateCommissionAction
             }
             $amount = Money::percentOf($invoice->total_amount, $snapshot['rate']);
             if (Money::isZero($amount)) {
+                // Completion evidence is separate from the immutable invoice and money ledger.
+                $audit = DB::table('audit_logs')->where('action', self::ZERO_ACCRUAL_ACTION)
+                    ->where('subject_type', Invoice::class)->where('subject_id', $invoice->id);
+                if (! $audit->exists()) {
+                    DB::table('audit_logs')->insert([
+                        'actor_type' => 'system', 'action' => self::ZERO_ACCRUAL_ACTION,
+                        'subject_type' => Invoice::class, 'subject_id' => $invoice->id,
+                        'reason' => 'The paid invoice commission rounds to zero; no commission is payable.',
+                        'after' => json_encode(['invoice_amount' => $invoice->total_amount, 'rate' => $snapshot['rate'],
+                            'amount' => $amount, 'referrer_id' => $snapshot['referrer_id']], JSON_THROW_ON_ERROR),
+                        'created_at' => now(), 'updated_at' => now(),
+                    ]);
+                }
+
                 return null;
             }
             $commission = AffiliateCommission::firstOrCreate(['invoice_id' => $invoice->id], ['referrer_id' => $snapshot['referrer_id'],

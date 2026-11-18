@@ -19,6 +19,7 @@ class ManageTicketAction
     public function create(User $user, array $input): Ticket
     {
         $data = validator($input, ['subject' => ['required', 'string', 'max:255'], 'body' => ['required', 'string', 'max:20000'], 'instance_id' => ['nullable', 'integer']])->validate();
+        $this->validateBodyBytes($data['body']);
 
         return DB::transaction(function () use ($user, $data): Ticket {
             $user = User::whereKey($user->id)->lockForUpdate()->firstOrFail();
@@ -38,6 +39,7 @@ class ManageTicketAction
             'operation' => ['required', 'in:reply,close,reopen'], 'body' => ['required_if:operation,reply', 'nullable', 'string', 'max:20000'],
             'reason' => [$staff ? 'required' : 'nullable', 'string', 'max:255'],
         ])->validate();
+        $this->validateBodyBytes($body);
         DB::transaction(function () use ($actor, $ticket, $operation, $body, $staff, $reason): void {
             $actor = User::whereKey($actor->id)->lockForUpdate()->firstOrFail();
             if ($staff) {
@@ -64,5 +66,12 @@ class ManageTicketAction
                 OperationsAudit::record($actor, 'ticket.'.$operation, Ticket::class, $ticket->id, $reason, ['status' => $before], ['status' => $ticket->status]);
             }
         });
+    }
+
+    private function validateBodyBytes(?string $body): void
+    {
+        if ($body !== null && strlen($body) > 65535) {
+            throw ValidationException::withMessages(['body' => '正文的 UTF-8 长度不能超过 65,535 字节，请缩短内容后重试。']);
+        }
     }
 }

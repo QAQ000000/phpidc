@@ -6,6 +6,8 @@
 > **Credential Ownership Rule (F09)**:
 > - **Global singletons** (`payment.*`, `telegram.*`, `mail.*`, `sms.*`, `oauth.*`, `kyc.*`) live in `system_settings` and are read via `SettingService::get()`.
 > - **Multi-account resource connections** (multiple ZJMF accounts, PVE clusters, Sub2API instances) live in `upstream_apis` (`encrypted_secret`, `config`).
+>
+> Epay payment selection is serialized against configuration changes and reads its immutable encrypted profiles directly from `system_settings` under the configuration metadata lock. This avoids stale process caches selecting another merchant; credential ownership remains in settings. Other global settings retain the `SettingService` path.
 
 ---
 
@@ -18,6 +20,8 @@
 - `payment.epay_key`: merchant MD5 secret key (`is_encrypted = true`)
 - Unified Gateway Identifiers: `epay_alipay` (channel `alipay`), `epay_wechat` (channel `wxpay`)
 
+Payment attempts additionally store `request_payload.epay_profile_id`, selecting an encrypted immutable `payment.epay_profile_<ULID>` settings row. Configure through `ConfigureEpayAction`, which atomically preserves the previous configuration for all unversioned attempts before switching. Exact `(gateway,out_trade_no)` callback lookup selects that attempt's profile before pure adapter verification; request-supplied merchant/profile identifiers cannot select credentials. Unmapped complete invoice numbers and unknown orders use the current profile. Profiles remain encrypted and participate in existing secret rotation. See `backend-review-payment-affiliate-fixes.md` for historical limits.
+
 ### 1.2 Instance construction
 
 One class serves both channels, so **the identifier and channel are injected by `DriverManager`, never inferred inside the adapter**:
@@ -26,9 +30,9 @@ One class serves both channels, so **the identifier and channel are injected by 
 new EpayGateway(
     identifier: 'epay_wechat',   // persisted on invoices.gateway
     channel: 'wxpay',            // protocol-level `type` field
-    apiUrl: $settings->get('payment.epay_api_url'),
-    pid: $settings->get('payment.epay_pid'),
-    key: $settings->get('payment.epay_key'),
+    apiUrl: $profile['api_url'], // immutable profile selected for this payment
+    pid: $profile['pid'],
+    key: $profile['key'],
 );
 ```
 
@@ -46,6 +50,7 @@ new EpayGateway(
 
 ### 1.4 Initiate Payment (`charge(Invoice $invoice, string $amount, string $outTradeNo)`)
 
+- **Settlement currency (human-approved C20)**: current wallets and Epay support CNY only. Invoice creation and payment initiation reject a non-CNY invoice before balance changes or a payment request; `EpayGateway::charge()` independently returns a failed result preserving the injected `outTradeNo`, without HTTP. Source catalog currencies do not authorize conversion. See `backend-remediation-decisions.md` C20.
 - **Strict type rule**: `$amount` is a validated fixed-point decimal string (`/^\d+\.\d{2}$/`). Pass it directly as `money` — NEVER call `number_format()` under `strict_types=1`.
 - **Order number and ownership**: `InitiatePaymentAction` mints a fresh `out_trade_no` (e.g. `{invoice_no}{attempt_seq}`), inserts a `payment_attempts` row (`gateway`, `out_trade_no`, `amount`, `status=created`) and commits before calling the adapter. `charge()` sends the exact injected `$outTradeNo` and echoes it on `GatewayChargeResult::outTradeNo`; it never inserts or updates models. HTTP runs outside database locks (F10, INV-L3). A failed or ambiguous call leaves its attempt intact; a customer retry creates a new attempt rather than reusing a gateway order number. Callback resolution uses the exact attempt mapping, with complete invoice_no as its only fallback.
 - **Redirect / API mode**: `POST` (`application/x-www-form-urlencoded`) to `{epay_api_url}/submit.php` or `{epay_api_url}/mapi.php`.
@@ -71,6 +76,7 @@ new EpayGateway(
    );
    ```
 5. All DB locking, `payment_callbacks` deduplication, `frozen_credit` settlement, late/overpaid/unknown-invoice handling and `DB::afterCommit()` task dispatch are executed exclusively by `App\Actions\HandlePaymentCallbackAction`, following `docs/domain-invariants.md` §4.
+6. For a historical non-CNY invoice, verification still returns the protocol DTO. The Action uses the locked invoice's currency, never an untrusted callback currency parameter. After matching the gateway, before any terminal-state or amount branch, it records `rejected_unsupported_currency`, preserves verified evidence and deduplication, alerts and ACKs after commit. It neither settles/unfreezes funds nor credits a wallet or delivers a service. Historical non-CNY refunds and expiry unfreezes also remain blocked pending manual reconciliation (C20).
 
 ### 1.6 Identifier hygiene
 

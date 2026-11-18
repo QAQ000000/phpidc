@@ -23,6 +23,7 @@ use App\Services\DriverManager;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Queue;
+use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
 use Tests\Concerns\InstallsApplication;
 
@@ -43,7 +44,7 @@ it('sells a Sub2API local-pool card through the existing wallet and combo settle
     $buyer = User::factory()->create(['credit' => $combo ? '3.00' : '20.00']);
     $this->actingAs($buyer)->get($product->publicPath())->assertOk()->assertSee('创建订单')->assertDontSee('SUB2-PRIVATE-CARD');
     $this->get('/console')->assertOk()->assertSee('Sub2API recharge');
-    $checkout = $this->postJson('/checkout', ['product_id' => $product->id, 'billing_cycle' => 'onetime', 'use_credit' => true, 'gateway' => 'epay_wechat'])->assertCreated();
+    $checkout = $this->postJson('/checkout', ['request_id' => (string) Str::ulid(), 'product_id' => $product->id, 'billing_cycle' => 'onetime', 'use_credit' => true, 'gateway' => 'epay_wechat'])->assertCreated();
     $invoice = Invoice::findOrFail($checkout->json('invoice_id'));
     expect($invoice->credit_applied)->toBe($combo ? '3.00' : '10.00')->and($invoice->gateway_amount)->toBe($combo ? '7.00' : '0.00');
     if ($combo) {
@@ -73,7 +74,7 @@ it('refuses Sub2API remote mode and unsupported billing without changing the wal
     expect(fn () => app(DriverManager::class)->fulfillment(DriverType::SUB2API, $account->id))->toThrow(DomainException::class);
     $this->artisan('cards:create-product', ['name' => 'Sub2API', 'price' => '10.00', '--driver' => 'sub2api', '--reason' => 'Setup'])->assertSuccessful();
     $user = User::factory()->create(['credit' => '100.00']);
-    expect(fn () => app(CreateComboInvoiceAction::class)->execute($user, Product::sole(), BillingCycle::MONTHLY, [], true))->toThrow(ValidationException::class);
+    expect(fn () => app(CreateComboInvoiceAction::class)->execute($user, Product::sole(), BillingCycle::MONTHLY, [], true, input: ['request_id' => (string) Str::ulid()]))->toThrow(ValidationException::class);
     expect($user->fresh()->credit)->toBe('100.00');
     $this->assertDatabaseCount('invoices', 0);
 });

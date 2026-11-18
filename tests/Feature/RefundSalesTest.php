@@ -19,6 +19,7 @@ use App\Models\RedemptionCode;
 use App\Models\User;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\Queue;
+use Illuminate\Support\Str;
 use Tests\Concerns\InstallsApplication;
 
 uses(InstallsApplication::class);
@@ -29,7 +30,7 @@ it('completes a paid local card sale and a single audited wallet refund without 
     $product = app(CreateLocalCardProductAction::class)->execute('Refundable Sub2API card', '10.00', '0.00', 'CNY', 'Setup', DriverType::SUB2API);
     app(ImportRedemptionCodesAction::class)->execute($product, ['ONCE-DELIVERED-CARD'], 'Import');
     $buyer = User::factory()->create(['credit' => $combo ? '3.00' : '20.00']);
-    $response = $this->actingAs($buyer)->postJson('/checkout', ['product_id' => $product->id, 'billing_cycle' => 'onetime', 'use_credit' => true, 'gateway' => 'epay_wechat'])->assertCreated();
+    $response = $this->actingAs($buyer)->postJson('/checkout', ['request_id' => (string) Str::ulid(), 'product_id' => $product->id, 'billing_cycle' => 'onetime', 'use_credit' => true, 'gateway' => 'epay_wechat'])->assertCreated();
     $invoice = Invoice::findOrFail($response->json('invoice_id'));
     if ($combo) {
         app(HandlePaymentCallbackAction::class)->execute(new VerifiedPaymentResult('epay_wechat', 'REFUND-SALE-TRADE', $invoice->invoice_no, '7.00'));

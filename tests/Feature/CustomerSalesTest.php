@@ -18,6 +18,7 @@ use Illuminate\Support\Facades\Crypt;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Queue;
+use Illuminate\Support\Str;
 use Tests\Concerns\InstallsApplication;
 
 uses(InstallsApplication::class);
@@ -29,7 +30,7 @@ it('sells a local card through wallet checkout, a queued job and the owner conso
     $user = User::factory()->create(['credit' => '30.00']);
     $product = Product::factory()->create(['local_prices' => ['onetime' => ['price' => '10.00', 'enabled' => true]]]);
     $code = RedemptionCode::factory()->create(['product_id' => $product->id, 'code' => '<CARD-SECRET>']);
-    $response = $this->actingAs($user)->postJson('/checkout', [
+    $response = $this->actingAs($user)->postJson('/checkout', ['request_id' => (string) Str::ulid(),
         'product_id' => $product->id, 'billing_cycle' => 'onetime', 'use_credit' => true,
         'total_amount' => '0.01', 'credit_applied' => '0.01',
     ])->assertCreated()->assertJsonPath('total_amount', '10.00')->assertJsonPath('status', 'Paid');
@@ -57,7 +58,7 @@ it('signs and initiates an epay attempt outside locks then delivers only after a
     $user = User::factory()->create(['credit' => '3.00']);
     $product = Product::factory()->create(['local_prices' => ['onetime' => ['price' => '10.00', 'enabled' => true]]]);
     RedemptionCode::factory()->create(['product_id' => $product->id, 'code' => 'GATEWAY-CARD']);
-    $response = $this->actingAs($user)->postJson('/checkout', ['product_id' => $product->id, 'use_credit' => true, 'gateway' => 'epay_wechat'])
+    $response = $this->actingAs($user)->postJson('/checkout', ['request_id' => (string) Str::ulid(), 'product_id' => $product->id, 'use_credit' => true, 'gateway' => 'epay_wechat'])
         ->assertCreated()->assertJsonPath('gateway_amount', '7.00')->assertJsonPath('status', 'Unpaid');
     $invoice = Invoice::findOrFail($response->json('invoice_id'));
     $level = DB::transactionLevel();

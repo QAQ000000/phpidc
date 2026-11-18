@@ -18,6 +18,7 @@ use App\Models\User;
 use App\Services\NotificationManager;
 use App\Support\AdminAuditContext;
 use App\Support\Money;
+use App\Support\SettlementCurrency;
 use DomainException;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Gate;
@@ -43,6 +44,10 @@ class RefundInvoiceAction
             $locked = Invoice::whereKey($candidate->id)->lockForUpdate()->firstOrFail();
             if ($locked->user_id !== $candidate->user_id || ! Gate::forUser($actor)->allows('refund-invoice', $locked)) {
                 throw new DomainException('Refund is not authorized for this invoice.');
+            }
+            if (! SettlementCurrency::supports($locked->currency)) {
+                Log::warning('Non-CNY refund requires manual reconciliation.', ['invoice_id' => $locked->id, 'currency' => $locked->currency]);
+                throw new DomainException('Non-CNY invoices require manual currency reconciliation before refund.');
             }
             $buyer = $users->get($locked->user_id);
             $commission = AffiliateCommission::where('invoice_id', $locked->id)->lockForUpdate()->first();

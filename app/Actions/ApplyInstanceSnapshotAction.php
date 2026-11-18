@@ -9,7 +9,7 @@ use App\Enums\FulfillmentTaskStatus;
 use App\Enums\InstanceStatus;
 use App\Models\FulfillmentTask;
 use App\Models\Instance;
-use Illuminate\Support\Carbon;
+use App\Support\InstanceDueDate;
 use Illuminate\Support\Facades\DB;
 
 class ApplyInstanceSnapshotAction
@@ -35,12 +35,29 @@ class ApplyInstanceSnapshotAction
                 $changes['suspend_reason'] = $snapshot->suspendReason;
             }
             if ($snapshot->nextDueDate !== null) {
-                $changes['next_due_at'] = Carbon::parse($snapshot->nextDueDate);
+                $changes['next_due_at'] = InstanceDueDate::parse($snapshot->nextDueDate);
             }
             $credentials = $instance->encrypted_credentials ?? [];
             foreach (['username' => $snapshot->username, 'password' => $snapshot->password, 'port' => $snapshot->port, 'os' => $snapshot->os] as $key => $value) {
                 if ($value !== null && $value !== '') {
                     $credentials[$key] = $value;
+                }
+            }
+            foreach ($snapshot->panelWidgets as $widget) {
+                if (($widget['type'] ?? null) === 'cloud_capabilities' && is_array($widget['data'] ?? null)) {
+                    $config = $instance->active_config ?? [];
+                    $config['upstream_panel'] = $widget['data'];
+                    $changes['active_config'] = $config;
+                }
+                if (($widget['type'] ?? null) === 'redemption_code' && is_array($widget['data'] ?? null)
+                    && is_string($widget['data']['card_key'] ?? null) && trim($widget['data']['card_key']) !== ''
+                    && $snapshot->upstreamStatus === 'Active') {
+                    $credentials['card_key'] = $widget['data']['card_key'];
+                    // Only structured fields from the verified protocol enter the encrypted cast.
+                    unset($credentials['redeem_url']);
+                    if (is_string($widget['data']['redeem_url'] ?? null)) {
+                        $credentials['redeem_url'] = $widget['data']['redeem_url'];
+                    }
                 }
             }
             if ($credentials !== []) {

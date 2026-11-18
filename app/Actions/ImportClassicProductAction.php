@@ -39,9 +39,15 @@ class ImportClassicProductAction
             throw new DomainException('No enabled price exists for the selected cycle and currency.');
         }
         $cost = Money::of($value);
+        $setup = $cycle->setupFeeKey() === null ? Money::zero() : ($row[$cycle->setupFeeKey()] ?? null);
+        if ($setup === null) {
+            throw new DomainException('The selected cycle has no explicit setup fee.');
+        }
+        $setup = Money::of($setup);
         $price = Money::add($cost, Money::percentOf($cost, $markup));
+        $setupPrice = Money::add($setup, Money::percentOf($setup, $markup));
 
-        return DB::transaction(function () use ($accountId, $pid, $cycle, $currency, $markup, $reason, $configuration, $cost, $price, $actor): Product {
+        return DB::transaction(function () use ($accountId, $pid, $cycle, $currency, $markup, $reason, $configuration, $cost, $price, $setup, $setupPrice, $actor): Product {
             $product = Product::where('upstream_api_id', $accountId)->where('upstream_pid', $pid)->lockForUpdate()->first();
             if ($product !== null && ($product->driver_type !== DriverType::ZJMF_API || $product->currency !== $currency)) {
                 throw new DomainException('Existing mapping has a different driver or currency.');
@@ -52,9 +58,9 @@ class ImportClassicProductAction
                     'driver_type' => DriverType::ZJMF_API, 'upstream_api_id' => $accountId, 'upstream_pid' => $pid, 'currency' => $currency]);
             }
             $prices = $product->upstream_base_prices ?? [];
-            $prices[$cycle->value] = ['price' => $cost, 'setup_fee' => Money::zero(), 'enabled' => true];
+            $prices[$cycle->value] = ['price' => $cost, 'setup_fee' => $setup, 'enabled' => true];
             $local = $product->local_prices ?? [];
-            $local[$cycle->value] = ['price' => $price, 'setup_fee' => Money::zero(), 'enabled' => true];
+            $local[$cycle->value] = ['price' => $price, 'setup_fee' => $setupPrice, 'enabled' => true];
             $product->fill(['name' => $configuration['products']['name'] ?? 'Cloud '.$pid, 'markup_percent' => $markup,
                 'upstream_base_prices' => $prices, 'local_prices' => $local])->save();
             DB::table('audit_logs')->insert(['actor_type' => $actor ? 'user' : 'system', 'actor_id' => $actor?->id, 'action' => 'upstream.classic_product_import', 'subject_type' => Product::class,

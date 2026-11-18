@@ -29,6 +29,22 @@ If a test genuinely encodes a wrong rule, **stop and say so**. Do not "fix" it. 
 
 **Approved correction record (2026-11-17):** the human approved C01–C09 in `docs/contract-clarifications.md`. That specific revision permits the listed specification setup/call/type corrections and Money input-test correction while preserving all 17 case names, strict assertions and business guarantees. It is not an implementation or a count reduction, and is not continuing permission to edit other specifications. After that revision, the corrected cases are again moved unchanged when implemented.
 
+**Approved C19 correction (2026-11-17):** real classic ZJMF configuration and live quotation disproved the old period/setup mapping. The human approved `docs/classic-zjmf-live-acceptance.md` C19 and one PID 391 monthly purchase at CNY 0.01 (total authorization ceiling CNY 0.10). This permits the targeted billing enum expectations and classic wire fixtures to use cycle fields for period prices and paired setup fields for one-time fees. Existing financial assertions and all Specs remain unchanged; this is not general permission to rewrite tests.
+
+**Approved C20 boundary (2026-11-18):** the human approved `docs/backend-remediation-decisions.md` C20, limiting current wallets/Epay to CNY, adding the `rejected_unsupported_currency` callback outcome and its preceding currency guard, and pausing historical foreign-currency refunds/unfreezes for manual review. This authorizes those specific enum/invariant changes, not a schema change, FX conversion or historical ledger adjustment. Existing CNY assertions and all Specs remain unchanged.
+
+**Approved C21 correction (2026-11-18):** the human approved `docs/backend-remediation-decisions.md` C21: attempts count successful worker claims only; pending recovery never consumes attempts or postpones due execution; expired leases retain consumed attempts and back off, with at most five claims. This permits the targeted INV-T2/T3 and charter corrections, and fixtures/expectations explicitly encoding the old recovery count. Preserve strict financial/idempotency/lease/authorization/audit assertions and all Specs. No schema change, historical bulk reset or blind upstream replay is authorized.
+
+**Approved C22 boundary (2026-11-18):** the human approved `docs/backend-remediation-decisions.md` C22: add nullable invoice purchase_request_id and user-scoped uniqueness, require stable ULIDs for new purchases, encrypt caller identity and rotate it, and add INV-K5. Old purchase fixtures/scripts may add request IDs while preserving existing assertions. No Specs edits, historical duplicate repair or migration of existing acceptance/business databases is authorized.
+
+**Approved C22 change (2026-11-18):** the human approved `docs/backend-remediation-decisions.md` C22: nullable purchase_request_id and its user-scoped unique index, required stable purchase ULIDs, encrypted canonical caller intent, INV-K5 and key rotation coverage. Only add request keys to old purchase test/script setup; preserve all existing business assertions and all Specs. No historical duplicate repair or migration of existing preview/business databases is authorized.
+
+**Approved C22 boundary (2026-11-18):** the human approved `docs/backend-remediation-decisions.md` C22: add nullable invoice purchase_request_id and the user/key unique index, stable ULID purchase inputs, encrypted canonical intent and its rotation, and INV-K5. Existing purchase fixtures/scripts may receive request IDs, preserving their case names and all business assertions. No Specs changes, historical duplicate-order repair or migration of existing business/acceptance databases is authorized.
+
+**Approved C23 boundary (2026-11-18):** the human approved `docs/backend-remediation-decisions.md` C23: nullable renewal_root_id and unique replaces_invoice_id, a linear renewal recovery chain retaining the root billing key, explicit owner quotation/confirmation, encrypted replay identity and the targeted INV-K1/charter clarification. Preserve Expired predecessors, wallet/coupon/callback invariants and all old strict assertions/Specs. Operators only inspect; no existing database migration or real supplier renewal/payment is authorized.
+
+**Approved C24/C25 corrections (2026-11-18):** the human approved the targeted test corrections in `docs/backend-remediation-decisions.md`: cross-category article tampering returns redirect plus category_id validation error (one assertion), and legacy log SMS/mail notifications are simulated (two status assertions). Preserve case names, requests, recipient/fallback/channel-isolation checks, database assertions and all Specs. No broader test changes authorized.
+
 ### 1.2 Never bypass a failing guard by disabling the guard
 
 `tests/Unit/ConventionGuardTest.php` scans the source for the specific mistakes that break the money, driver and config invariants. If it fails, fix the source. Do not:
@@ -42,6 +58,8 @@ That is not passing the check; it is defeating it. The guard exists because thes
 ### 1.3 Never invent a schema or contract change
 
 The migration, the enums, the DTOs and the contracts are the agreed interface. Changing them requires a human decision, because six other files and four documents depend on them.
+
+**Approved review decisions A/B/C (2026-11-18):** the human explicitly selected the three limited proposals in `docs/backend-review-fix-decisions.md`: one owner payment-allocation confirmation on newly marked automatic renewal invoices; administrator-only terminate rebinding of non-refunded Deleted services to verified live hosts; and indexed CMS slug reservation/history tables for permanent old-URL redirects. This authorizes the corresponding targeted INV-I1/INV-S1/charter clarifications and isolated migration tests. Existing tests/Specs remain unchanged. Migration of existing databases, live supplier changes and historical repairs are separate actions.
 
 - Need a new column? Say so. Do not add it silently.
 - Need a new `func`, status, or transaction type? Add it to the enum **and** state why in your report.
@@ -133,7 +151,7 @@ These are the mistakes that produce green tests and corrupt money in production.
 
 **Every balance movement needs a unique `reference_key`.** Without it, a retry writes a second ledger row (INV-W2).
 
-**Every billable event needs an idempotency key.** Renewal invoices carry `billing_period_key`; fulfillment tasks carry `idempotency_key` (INV-K1, INV-K2). A scheduler without `withoutOverlapping()` + `onOneServer()` is a defect (INV-K3).
+**Every billable event needs an idempotency key.** Renewal invoices carry `billing_period_key`; fulfillment tasks carry `idempotency_key` (INV-K1, INV-K2); new purchases require a user-scoped purchase_request_id (INV-K5). A scheduler without `withoutOverlapping()` + `onOneServer()` is a defect (INV-K3).
 
 ---
 

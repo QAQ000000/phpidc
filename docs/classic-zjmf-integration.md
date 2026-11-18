@@ -18,6 +18,9 @@
 | 自动到期 | 提前出续费单并多渠道通知；到期预同步暂停；仅恢复有本系统已受理暂停证据且暂停原因相同的服务；不自动扣客户钱包 |
 | 热切换 | 已有目标主机的产品/币种/周期/状态核验；旧资源处置、历史绑定、换 token、旧任务 stale、重新注册回调；不迁移磁盘数据 |
 | 运营重试 | 后台仅允许有独立上游生命周期权限的人员显式重试原任务，保留全部上游意图；库存权限不授予上游操作能力 |
+| 面板登录 | 本人 Active 服务页提供按钮，点击后认证读取 information 内容并转交已核实的 HTTPS Kangle/EasyPanel 表单；真实主机 4291 点击登录成功，其他插件协议按需另验 |
+| 上游激活码 | Active 且广告 redeem 栏目时读取已发码内容，结构化提取后加密同步、仅本人服务页展示；PID 731 / 已有主机 4066 实测读取 32 位码，无新增付款或兑换 |
+| 云监控与登录信息 | PID 14 / 已有主机 4253 实测 IP、22 端口、用户名/密码及系统同步；本人入口读取开机状态、CPU/硬盘IO/内存/网卡图表。存在上游延迟与异步 3 秒超时，详见独立验收记录 |
 
 商品同步使用用户批准 C12 的 `CatalogSnapshotResult`：Driver 只返回快照，Action 事务中落库并返回真实 `SyncCatalogResult` 计数。上游选项 ID 和展示容器 ID 分开；按稳定 ID 更新，消失项隐藏，保留历史和本地来源记录。不修改已有实例绑定。
 
@@ -27,7 +30,7 @@
 
 - 早期新购裁决：上游账单对账 `upstream_expected_cost`，不使用客户 `gateway_amount`；从商品配置读取首次密码规则，与本地规则求交集，无法读取则拒绝新购。
 - C12–C14 已明确批准并定向应用，见 [裁决与源码证据](classic-zjmf-expansion-decisions.md)：纯配置快照、独立 `quoteRenewal`、`{instance_id}:renew:{due_boundary_utc}` 唯一键。
-- 同一续费边界只有一张账单；日付/时付可以在同月产生不同边界。已取消/过期账单不会被重开或另加随机键重新出账。客户请求 ID 同时持久化，续费完成后重复提交仍返回原账单。
+- 同一续费边界只有一个唯一账期根单；日付/时付可以在同月产生不同边界。已取消/过期账单不会被重开或另加随机键重新出账。已批准C23允许客户对实际Expired、从未结算且无未决操作的当前末端重新核价确认，通过唯一前驱关系创建恢复单；根单保留原键和终态，旧款仍只入钱包。普通账期查找定位当前末端，已有请求ID重放返回该请求原单。详情与未部署/真实供应商边界见 [FIX-005验收](backend-fix005-renewal-recovery.md)。
 - 续费账单保留至到期加宽限期（`billing.renewal_grace_days`，默认 7 天，且至少 30 分钟），避免提前提醒时 30 分钟即失效；不变更迟到付款规则。终态账单重新出账策略未授权，仍需另行设计。
 - 续费先认证同步，冻结到期边界、预计延长到的日期、周期、报价、绑定、地址和 token 指纹；若执行前上游边界已变化则停止对账，不重复购买一期。
 - 锁价实例客户续费使用 recurring_amount；未锁价按服务器商品加价规则计算，上游成本独立保存。客户付款比例不改变上游成本授权。
@@ -79,6 +82,14 @@ php artisan schedule:run
 
 ## 证据与未验证边界
 
+**最新真实联调状态（2026-11-17）**：用户批准 C19 价格语义纠正及 PID 391 的 0.01 元月付联调（总授权上限 0.10）。独立验收库完成真实导入、报价、钱包 checkout、队列交付、成本对账与主动同步：上游账单 811446、服务 4291，认证 Active，余额 5.86 → 5.85 CNY，创建/付款各一次。公网回调、CDN 实际流量及其他真实生命周期操作仍未验证。详见 [真实联调与已批准 C19](classic-zjmf-live-acceptance.md)。下文“没有经典供应商测试凭据”是此前模拟验收阶段的历史边界。
+
+**面板登录补验（2026-11-17 至 18）**：复用上述主机，真实浏览器看到按钮、实际点击并进入已认证 EasyPanel 首页，确认「安全退出」等菜单。只读核对余额仍 5.85 CNY，无新增计费操作；没有扩大 CDN 流量或生命周期验收声明。协议、支持边界与证据见 [面板登录验收](classic-zjmf-panel-login.md)。
+
+**AI 交付补验（2026-11-18）**：新增隔离商品 API KEY（PID 731）并绑定用户指定的已开通主机 4066，认证 Active，实际读取已有 32 位兑换码并加密同步。原 CDN 服务和本地财务记录未变，上游余额仍 5.85 CNY，没有新购、发码、消费卡密或回调改绑。详见 [AI专区交付验收](classic-zjmf-ai-delivery.md)。
+
+**洛杉矶云补验（2026-11-18）**：隔离商品/服务 3 绑定 PID 14 / host 4253，Active；真实浏览器验证登录信息、开机状态和四类图表，22 端口可达且有 SSH banner；未尝试密码认证或改变机器状态。余额与账务不变，按用户要求保留预览服务。header 的异步复查两次超时、监控整页约 26 秒，不能宣称无延迟问题。见 [洛杉矶云验收](classic-zjmf-cloud4253-acceptance.md)。
+
 只读参考 `/www/wwwroot/zjmf-manger-decoded`，AGENTS 声明 3.7.7 自维护 / 3.5.8 解密基线。未启动参考项目，也没有使用 Laravel PHP 运行它。核心方法包括 CartController::getProductConfig、HostController::getRenewPage/postRenew/postCancel、UpgradeController::upgradeConfigPost/getUpgradeConfigPage/checkoutConfigUpgrade、PayController::useCreditPage/applyCredit。精确语义见裁决文档和 [协议](zjmf-api-spec.md)。
 
 参考密码校验方法存在不一致，本实现按声明逐项执行；目标供应商版本、特殊字符和首次密码规则仍需真实验收。暂停原因未返回时不会覆盖旧值，也不会据此自动恢复。
@@ -108,3 +119,16 @@ python3 scripts/verify-classic-zjmf-lifecycle.py --redis-server /www/server/redi
 - Playwright Chromium：客户选择 Large 后实时显示 12.00 CNY；后台商品/配置列表、独立上游导航、降价边界表单保存及审计反馈通过；服务任务页显示 provision/renew/upgrade success。390px 移动端页面无水平溢出。
 - 通过浏览器确认后台 Livewire/Alpine 实际加载，纯 Blade CMS 不自动注入脚本；新增专项测试覆盖同一进程先访问后台再访问公共页。
 - 以上使用临时账号、临时数据库/资源和 loopback 上游；不是目标供应商或实际客户的验收。测试服务和临时 Redis 在验收后关闭，不部署生产服务。
+
+## 2026-11-18 机器管理与 VNC
+
+本人 Active 服务新增机器管理：按上游广告显示电源、重装（系统/版本联动）、救援和 VNC。沿用冻结的 PowerControllable 与 ProvisionCommand；救援线协议拼写差异由驱动转换。操作先提交带原因的审计意图，事务外 HTTP，结果未决不重放。
+
+4253 已实际点击 VNC，本站页面通过浏览器直连远端 WSS，收到 RFB 数据并显示控制台，未使用本站代理。真实重装、救援和电源变更尚未执行；exitRescue 自定义命令不在冻结枚举中，尚未接入。详细协议、B64 边界及验收限制见 [机器管理验收](classic-zjmf-machine-controls.md)。按用户要求保留当前隔离预览和浏览器，不关闭项目。
+
+
+## 2026-11-18 同步派发与目录失败隔离
+
+FIX-011将定时lifecycle和classic-sync改为有界派发，不在分钟调度器等待HTTP。全量状态轮转包含本地未知到期日期，临近到期另有优先队列；生产需安装独立worker，时效/租约/容量假设见deployment.md。已同步的账期如有账单，先查重，不再次进入续费预同步；首张账单仍保留独立报价/写入前复验，未跳过金融保护。
+
+FIX-013在单商品处理DomainException/ValidationException，失败商品不更新、继续同账号及其他账号；供应商整体探测失败单独计数，未知程序错误继续抛出。汇总synced/products_failed/accounts_failed，日志只保存ID及错误类别。定时每个商品一个唯一队列任务，因此账号的大批量失败不占用调度器；手工ProbeAction仍支持同账号合并探测。不是公网回调或真实新购的重新验收。

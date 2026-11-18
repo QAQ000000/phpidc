@@ -6,6 +6,7 @@ use App\Actions\AssignInventoryRoleAction;
 use App\Actions\AssignUpstreamRoleAction;
 use App\Actions\ConfigureDowngradeBoundsAction;
 use App\Actions\CreateComboInvoiceAction;
+use App\Actions\DispatchStalePendingTasksAction;
 use App\Actions\DowngradeCalculatorAction;
 use App\Actions\ExecuteFulfillmentTaskAction;
 use App\Actions\HandlePaymentCallbackAction;
@@ -76,7 +77,7 @@ function expandedClassic(): array
             '/api/product/proinfo' => ['status' => 200, 'data' => ['info' => [['id' => 17, 'location_version' => $state->version, 'stock_control' => 1, 'qty' => 20]]]],
             '/user_info' => ['status' => 200, 'data' => ['user' => ['currency' => 1]]],
             '/cart/stock_control' => ['status' => 200, 'data' => ['product' => ['hidden' => 0, 'stock_control' => 1, 'qty' => 20]]],
-            '/cart/get_total' => ['status' => 200, 'products' => ['total' => $state->cost], 'currency' => ['code' => 'CNY']],
+            '/cart/get_total' => ['status' => 200, 'products' => ['total' => $state->cost, 'setupfee_total' => '0.00'], 'currency' => ['code' => 'CNY']],
             '/host/header' => ['status' => 200, 'data' => ['host_data' => ['domainstatus' => $state->deleted ? 'Deleted' : $state->status,
                 'nextduedate' => $state->due, 'productid' => 17, 'billingcycle' => $instance->fresh()->billing_cycle->value, 'password' => 'PRIVATE-HOST-SECRET'], 'currency' => ['code' => 'CNY']]],
             '/host/renewpage' => ['status' => 200, 'data' => ['host' => ['amount' => $state->cost, 'billingcycle' => $instance->fresh()->billing_cycle->value], 'currency' => ['code' => 'CNY']]],
@@ -111,10 +112,10 @@ function expandedCatalog(int $version = 1): array
 {
     return ['products' => ['id' => 17, 'name' => 'Expanded Cloud', 'location_version' => $version, 'stock_control' => 1, 'qty' => 20,
         'password' => ['show' => 0], 'host' => ['show' => 0]],
-        'product_pricings' => [['code' => 'CNY', 'msetupfee' => '8.00', 'hsetupfee' => '1.00', 'dsetupfee' => '2.00']],
+        'product_pricings' => [['code' => 'CNY', 'monthly' => '8.00', 'msetupfee' => '0.00', 'hour' => '1.00', 'hsetupfee' => '0.00', 'day' => '2.00', 'dsetupfee' => '0.00']],
         'config_groups' => [['id' => 10, 'options' => [['id' => 50, 'option_name' => 'cpu|CPU', 'option_type' => 1, 'upgrade' => 1,
-            'sub' => [['id' => 501, 'option_name' => 'small|Small', 'pricings' => [['code' => 'CNY', 'msetupfee' => '1.00']]],
-                ['id' => 502, 'option_name' => 'large|Large', 'pricings' => [['code' => 'CNY', 'msetupfee' => '3.00']]]]]]]],
+            'sub' => [['id' => 501, 'option_name' => 'small|Small', 'pricings' => [['code' => 'CNY', 'monthly' => '1.00', 'msetupfee' => '0.00']]],
+                ['id' => 502, 'option_name' => 'large|Large', 'pricings' => [['code' => 'CNY', 'monthly' => '3.00', 'msetupfee' => '0.00']]]]]]]],
         'customfields' => [['id' => 80, 'fieldname' => 'License', 'fieldtype' => 'password', 'required' => 1, 'regexpr' => '^[A-Z]+$']], 'advanced' => []];
 }
 
@@ -151,14 +152,39 @@ it('returns pure catalog snapshots and synchronizes stable option IDs without to
 it('rejects unknown or missing option selections and required fields before wallet mutation', function (array $options): void {
     [$user,$product] = expandedClassic();
     app(SyncClassicCatalogAction::class)->execute($product, 'Import options');
-    expect(fn () => app(CreateComboInvoiceAction::class)->execute($user, $product->fresh(), BillingCycle::MONTHLY, $options, true))->toThrow(ValidationException::class);
+    expect(fn () => app(CreateComboInvoiceAction::class)->execute($user, $product->fresh(), BillingCycle::MONTHLY, $options, true, input: ['request_id' => (string) Str::ulid()]))->toThrow(ValidationException::class);
     expect($user->fresh()->credit)->toBe('100.00')->and(Invoice::count())->toBe(0);
 })->with([[[]], [['configoption' => [50 => 999], 'customfield' => [80 => 'PRIVATE']]], [['configoption' => [50 => 501]]]]);
+
+it('syncs period and setup option prices separately without repricing existing services', function (): void {
+    [$user, $product, $instance, $state] = expandedClassic();
+    $before = $instance->fresh()->getRawOriginal();
+    $state->hook = function ($path) {
+        if ($path !== '/cart/get_product_config') {
+            return null;
+        }
+        $catalog = expandedCatalog();
+        $catalog['product_pricings'][0]['msetupfee'] = '2.00';
+        $catalog['product_pricings'][0]['hour'] = '-1.00';
+        $catalog['config_groups'][0]['options'][0]['sub'][0]['pricings'][0]['msetupfee'] = '3.00';
+
+        return Http::response(['status' => 200, 'data' => $catalog]);
+    };
+    app(SyncClassicCatalogAction::class)->execute($product, 'Verify C19 sync');
+    $product->refresh();
+    $item = ProductOptionGroup::where('upstream_group_id', 50)->sole()->items()->where('upstream_sub_id', 501)->sole();
+    expect($product->upstream_base_prices['monthly'])->toBe(['price' => '8.00', 'setup_fee' => '2.00', 'enabled' => true])
+        ->and($product->local_prices['monthly'])->toBe(['price' => '9.60', 'setup_fee' => '2.40', 'enabled' => true])
+        ->and($product->upstream_base_prices)->not->toHaveKey('hour')
+        ->and($item->upstream_base_prices['monthly'])->toBe(['price' => '1.00', 'setup_fee' => '3.00', 'enabled' => true])
+        ->and($item->local_prices['monthly'])->toBe(['price' => '1.20', 'setup_fee' => '3.60', 'enabled' => true])
+        ->and($instance->fresh()->getRawOriginal())->toBe($before);
+});
 
 it('preserves paired option snapshots and encrypted custom values in the paid purchase', function (): void {
     [$user,$product] = expandedClassic();
     app(SyncClassicCatalogAction::class)->execute($product, 'Map options');
-    $invoice = app(CreateComboInvoiceAction::class)->execute($user, $product->fresh(), BillingCycle::MONTHLY, expandedOptions(), true);
+    $invoice = app(CreateComboInvoiceAction::class)->execute($user, $product->fresh(), BillingCycle::MONTHLY, expandedOptions(), true, input: ['request_id' => (string) Str::ulid()]);
     $created = Instance::findOrFail($invoice->instance_id);
     expect($created->active_config['options'][0]['upstream_group_id'])->toBe(50)->and($created->active_config['options'][0]['upstream_sub_id'])->toBe(501)
         ->and($created->active_config['options'][0]['unit_price'])->toBe('1.20');
@@ -212,6 +238,40 @@ it('retains an uncertain renewal invoice creation and refuses replay even after 
     expandedWorker($task);
     expect($state->calls['/host/renew'])->toBe(1)->and($state->calls['/apply_credit'] ?? 0)->toBe(0)->and($task->fresh()->status)->toBe(FulfillmentTaskStatus::FAILED);
 });
+
+it('retains a crashed operation creation intent across automatic lease recovery without recreating or paying', function (string $action): void {
+    [$user, $product, $instance, $state] = expandedClassic();
+    if ($action === 'renew') {
+        $invoice = app(CreateComboInvoiceAction::class)->renewal($user, $instance, true);
+        $endpoint = '/host/renew';
+    } else {
+        app(SyncClassicCatalogAction::class)->execute($product, 'C21 test configuration');
+        $mapped = app(ResolveProductOptionsAction::class)->execute($product->fresh(), 'monthly', expandedOptions());
+        $instance->update(['active_config' => ['options' => $mapped['pairs'], 'upstream_configoption' => [50 => 501]]]);
+        $invoice = app(CreateComboInvoiceAction::class)->upgrade($user, $instance->fresh(), ['configoption' => [50 => 502]], (string) Str::ulid(), true);
+        $endpoint = '/upgrade/checkout_config_upgrade';
+    }
+    $balance = $user->fresh()->credit;
+    $state->hook = function ($path) use ($endpoint) {
+        if ($path === $endpoint) {
+            throw new RuntimeException('C21 interrupted operation creation.');
+        }
+
+        return null;
+    };
+    $task = FulfillmentTask::sole();
+    expect(fn () => expandedWorker($task))->toThrow(RuntimeException::class, 'C21 interrupted operation creation.');
+    expect($task->fresh()->attempts)->toBe(1)->and($task->fresh()->payload['operation']['state'])->toBe('create_requested');
+    $this->travel(211)->seconds();
+    app(DispatchStalePendingTasksAction::class)->execute();
+    expect($task->fresh()->attempts)->toBe(1)->and($task->fresh()->status)->toBe(FulfillmentTaskStatus::PENDING);
+    $this->travel(61)->seconds();
+    app(ExecuteFulfillmentTaskAction::class)->execute($task->id);
+    expect($state->calls[$endpoint])->toBe(1)->and($state->calls['/apply_credit'] ?? 0)->toBe(0)
+        ->and($task->fresh()->attempts)->toBe(2)->and($task->fresh()->status)->toBe(FulfillmentTaskStatus::FAILED)
+        ->and($task->fresh()->payload['operation']['state'])->toBe('create_requested')
+        ->and($invoice->fresh()->status)->toBe(InvoiceStatus::PAID)->and($user->fresh()->credit)->toBe($balance);
+})->with(['renew', 'upgrade']);
 
 it('reconciles a lost operation payment response through due state without a second debit', function (): void {
     [$user,$product,$instance,$state] = expandedClassic();
@@ -467,8 +527,8 @@ it('keeps notification channel failures independent and records account email fa
         $job->handle(app(SendLifecycleNotificationAction::class));
     }
     $this->assertDatabaseHas('notification_logs', ['channel' => 'telegram', 'status' => 'failed']);
-    $this->assertDatabaseHas('notification_logs', ['channel' => 'sms', 'status' => 'sent']);
-    $this->assertDatabaseHas('notification_logs', ['channel' => 'email', 'target' => $user->email, 'status' => 'sent', 'event_key' => 'renewal.invoice.'.$invoice->id.'.fallback']);
+    $this->assertDatabaseHas('notification_logs', ['channel' => 'sms', 'status' => 'simulated']);
+    $this->assertDatabaseHas('notification_logs', ['channel' => 'email', 'target' => $user->email, 'status' => 'simulated', 'event_key' => 'renewal.invoice.'.$invoice->id.'.fallback']);
     $this->assertDatabaseMissing('notification_logs', ['target' => 'unverified@example.test']);
 });
 
@@ -510,9 +570,9 @@ it('accepts disabled toggles and bounded quantities while enforcing linked confi
         $catalog = expandedCatalog();
         $catalog['customfields'] = [];
         $catalog['config_groups'][0]['options'] = [
-            ['id' => 51, 'option_type' => 3, 'option_name' => 'Backup', 'sub' => [['id' => 510, 'option_name' => 'On', 'pricings' => [['code' => 'CNY', 'msetupfee' => '2.00']]]]],
+            ['id' => 51, 'option_type' => 3, 'option_name' => 'Backup', 'sub' => [['id' => 510, 'option_name' => 'On', 'pricings' => [['code' => 'CNY', 'monthly' => '2.00', 'msetupfee' => '0.00']]]]],
             ['id' => 52, 'option_type' => 4, 'option_name' => 'Disk', 'qty_minimum' => 2, 'qty_maximum' => 10, 'qty_step' => 2,
-                'sub' => [['id' => 520, 'option_name' => 'GB', 'qty_minimum' => 2, 'qty_maximum' => 10, 'pricings' => [['code' => 'CNY', 'msetupfee' => '1.00']]]]],
+                'sub' => [['id' => 520, 'option_name' => 'GB', 'qty_minimum' => 2, 'qty_maximum' => 10, 'pricings' => [['code' => 'CNY', 'monthly' => '1.00', 'msetupfee' => '0.00']]]]],
         ];
         $catalog['advanced'] = [
             ['id' => 1, 'type' => 'condition', 'config_id' => 51, 'relation' => 'seq', 'sub_id' => [510 => ['qty_minimum' => 0, 'qty_maximum' => 0]]],

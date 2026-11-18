@@ -1,0 +1,18 @@
+[Unit]
+Description=CloudCMS lifecycle worker %i
+After=network-online.target
+
+[Service]
+Type=simple
+User=www
+Group=www
+WorkingDirectory=/www/wwwroot/Laravel13idc
+# Install exactly two: cloudcms-lifecycle@lifecycle-urgent and @lifecycle. Shared Redis queue/cache required.
+ExecStart=/www/server/php/84/bin/php artisan queue:work redis --queue=%i --sleep=1 --tries=3 --timeout=180 --max-time=3600
+Restart=always
+RestartSec=5
+TimeoutStopSec=210
+UMask=0027
+
+[Install]
+WantedBy=multi-user.target

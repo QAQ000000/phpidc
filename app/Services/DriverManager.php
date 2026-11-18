@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Services;
 
+use App\Actions\ConfigureEpayAction;
 use App\Contracts\BotDriverInterface;
 use App\Contracts\FulfillmentDriver;
 use App\Contracts\MailDriverInterface;
@@ -24,8 +25,12 @@ use App\Drivers\SelfHosted\Sub2ApiRemoteDriver;
 use App\Drivers\Upstream\ZjmfClient;
 use App\Drivers\Upstream\ZjmfFinanceDriver;
 use App\Enums\DriverType;
+use App\Models\PaymentAttempt;
 use App\Models\UpstreamApi;
+use App\Support\EpayProfiles;
 use DomainException;
+use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Laravel\Socialite\Facades\Socialite;
 use Laravel\Socialite\Two\GithubProvider;
 use Laravel\Socialite\Two\GoogleProvider;
@@ -79,10 +84,10 @@ class DriverManager
         return new SocialiteDriver($adapter);
     }
 
-    public function fulfillment(DriverType $type, ?int $upstreamApiId = null): FulfillmentDriver
+    public function fulfillment(DriverType $type, ?int $upstreamApiId = null, array $panelWidgetTypes = []): FulfillmentDriver
     {
         return match ($type) {
-            DriverType::ZJMF_API => $this->classicAccount($upstreamApiId),
+            DriverType::ZJMF_API => $this->classicAccount($upstreamApiId, $panelWidgetTypes),
             DriverType::REDEMPTION => app(RedemptionCodeDriver::class),
             DriverType::SUB2API => $upstreamApiId === null ? app(Sub2ApiDriver::class) : $this->sub2ApiAccount($upstreamApiId),
             default => throw new DomainException('This fulfillment driver is not available yet.'),
@@ -100,14 +105,14 @@ class DriverManager
         return new Sub2ApiRemoteDriver(new Sub2ApiClient($account, app(UpstreamOperationBuffer::class)));
     }
 
-    public function classicAccount(?int $id): ZjmfFinanceDriver
+    public function classicAccount(?int $id, array $panelWidgetTypes = []): ZjmfFinanceDriver
     {
         $account = UpstreamApi::find($id);
         if ($account === null || ! $account->is_active || $account->driver !== DriverType::ZJMF_API) {
             throw new DomainException('An active classic ZJMF account is required.');
         }
 
-        return new ZjmfFinanceDriver(new ZjmfClient($account, app(UpstreamOperationBuffer::class)), $account);
+        return new ZjmfFinanceDriver(new ZjmfClient($account, app(UpstreamOperationBuffer::class)), $account, $panelWidgetTypes);
     }
 
     public function mail(): MailDriverInterface
@@ -129,16 +134,34 @@ class DriverManager
         return app(TelegramBotDriver::class);
     }
 
-    public function payment(string $identifier): PaymentGatewayInterface
+    /** @param array{api_url: string, pid: string, key: string}|null $profile */
+    public function payment(string $identifier, ?array $profile = null): PaymentGatewayInterface
     {
         $channel = match ($identifier) {
             'epay_wechat' => 'wxpay',
             'epay_alipay' => 'alipay',
             default => throw new DomainException('Unsupported payment gateway.'),
         };
-        $settings = app(SettingService::class);
+        $profile ??= app(SettingService::class)->isInstalled() ? app(EpayProfiles::class)->currentCredentials()
+            : ['api_url' => '', 'pid' => '', 'key' => ''];
 
-        return new EpayGateway($identifier, $channel, $settings->get('payment.epay_api_url', '') ?? '',
-            $settings->get('payment.epay_pid', '') ?? '', $settings->get('payment.epay_key', '') ?? '');
+        return new EpayGateway($identifier, $channel, $profile['api_url'], $profile['pid'], $profile['key']);
+    }
+
+    public function paymentForCallback(string $identifier, Request $request): PaymentGatewayInterface
+    {
+        return DB::transaction(function () use ($identifier, $request): PaymentGatewayInterface {
+            app(ConfigureEpayAction::class)->lockConfiguration();
+            $outTradeNo = $request->input('out_trade_no');
+            $attempt = is_string($outTradeNo) && strlen($outTradeNo) <= 64
+                ? PaymentAttempt::where('gateway', $identifier)->where('out_trade_no', $outTradeNo)->first() : null;
+            $profileId = $attempt?->request_payload[EpayProfiles::ATTEMPT_KEY] ?? null;
+            $profiles = app(EpayProfiles::class);
+            // Only an exact attempt can select history. Unmapped invoice numbers use the current merchant.
+            $profile = $profileId === null ? $profiles->currentCredentials()
+                : (is_string($profileId) ? $profiles->find($profileId) : throw new DomainException('Invalid payment credential profile.'));
+
+            return $this->payment($identifier, $profile);
+        });
     }
 }

@@ -54,11 +54,27 @@ abstract class OperationsPage extends Page
                 'replies' => $edit ? TicketReply::where('ticket_id', $edit)->orderBy('id')->paginate(30, ['*'], 'replies_page')->withQueryString() : null],
             'notifications' => ['records' => NotificationTemplate::orderBy('event_key')->paginate(20, ['*'], 'templates_page'),
                 'editing' => $edit ? NotificationTemplate::findOrFail($edit) : null,
-                'logs' => DB::table('notification_logs')->select(['id', 'user_id', 'event_key', 'channel', 'status', 'created_at'])->latest('id')->paginate(20, ['*'], 'logs_page')],
+                'logs' => DB::table('notification_logs')->select(['id', 'user_id', 'event_key', 'channel', 'status', 'error_message', 'created_at'])
+                    ->when(request()->integer('user_id'), fn ($q, $id) => $q->where('user_id', $id))
+                    ->when(in_array(request('delivery_status'), ['sent', 'failed', 'simulated', 'skipped', 'disabled'], true), fn ($q) => $q->where('status', request('delivery_status')))
+                    ->latest('id')->paginate(20, ['*'], 'logs_page')->withQueryString()],
             'downloads' => ['records' => DownloadResource::orderBy('sort_order')->orderBy('id')->paginate(20, ['id', 'category', 'title', 'version', 'description', 'storage_type', 'file_size', 'sha256', 'access_level', 'download_count', 'is_active', 'sort_order']),
                 'editing' => $edit ? DownloadResource::findOrFail($edit) : null],
             default => [],
         };
+        if ($section === 'notifications') {
+            foreach ($data['logs'] as $log) {
+                // Render allowlisted classifications only, never historical raw transport exception text.
+                $log->delivery_note = match (true) {
+                    $log->status === 'simulated' => '仅模拟，未向外发送',
+                    $log->status === 'sent' => '传输已受理，非阅读证明',
+                    str_starts_with($log->error_message ?? '', 'Retryable rejection;') => '临时拒绝：最多三次尝试，耗尽后核查失败队列',
+                    str_starts_with($log->error_message ?? '', 'Delivery uncertain;') => '结果不确定：核对供应商记录，禁止直接重放',
+                    $log->status === 'failed' => '拒绝、配置或传输失败：人工核对',
+                    default => '未发送：绑定失效或模板停用',
+                };
+            }
+        }
         if ($section === 'payouts') {
             $funds = app(AffiliateFunds::class);
             $data['payoutUsers'] = User::whereKey($data['records']->pluck('user_id'))->get(['id', 'credit', 'affiliate_balance'])->keyBy('id');

@@ -83,7 +83,7 @@ while (!is_file($barrier.'.go')) { if(microtime(true)>$until) { throw new Runtim
 $data=json_decode($argv[3],true,flags:JSON_THROW_ON_ERROR);
 try {
     $result=match($op) {
-        'checkout'=>app(CreateComboInvoiceAction::class)->execute(User::findOrFail($data['user']),App\Models\Product::findOrFail($data['product']),App\Enums\BillingCycle::ONETIME,[],true,null,['coupon_code'=>'RACE'])->id,
+        'checkout'=>app(CreateComboInvoiceAction::class)->execute(User::findOrFail($data['user']),App\Models\Product::findOrFail($data['product']),App\Enums\BillingCycle::ONETIME,[],true,null,['request_id'=>'01KAD000000000000000000001','coupon_code'=>'RACE'])->id,
         'withdraw'=>app(RequestAffiliateWithdrawalAction::class)->execute(User::findOrFail($data['user']),'15.00',$data['request'])->id,
         'approve'=>(function () use($data) { app(ProcessAffiliateWithdrawalAction::class)->execute(AffiliateWithdrawal::findOrFail($data['id']),User::findOrFail($data['operator']),true,'Concurrent timeout retry'); return $data['id']; })(),
     };

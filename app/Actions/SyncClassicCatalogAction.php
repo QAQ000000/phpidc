@@ -150,7 +150,11 @@ class SyncClassicCatalogAction
             if ($value === null || str_starts_with((string) $value, '-')) {
                 continue;
             }
-            $prices[$cycle->value] = ['price' => Money::of($value), 'setup_fee' => Money::zero(), 'enabled' => true];
+            $setup = $row[$cycle->setupFeeKey()] ?? null;
+            if ($setup === null) {
+                throw new DomainException('An enabled catalog cycle has no explicit setup fee.');
+            }
+            $prices[$cycle->value] = ['price' => Money::of($value), 'setup_fee' => Money::of($setup), 'enabled' => true];
         }
 
         return $prices;
@@ -160,6 +164,7 @@ class SyncClassicCatalogAction
     {
         foreach ($prices as &$price) {
             $price['price'] = Money::add($price['price'], Money::percentOf($price['price'], $markup));
+            $price['setup_fee'] = Money::add($price['setup_fee'], Money::percentOf($price['setup_fee'], $markup));
         }
 
         return $prices;

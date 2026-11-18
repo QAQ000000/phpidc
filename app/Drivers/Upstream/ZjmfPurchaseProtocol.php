@@ -66,7 +66,7 @@ class ZjmfPurchaseProtocol
         $options = validator($options, ['configoption' => ['sometimes', 'array'], 'configoption.*' => ['integer', 'min:0'],
             'customfield' => ['sometimes', 'array'], 'customfield.*' => ['string', 'max:4096']])->validate();
         $user = $this->client->request('GET', '/user_info');
-        $currencyId = $user['data']['user']['currency'] ?? null;
+        $currencyId = $user['user']['currency'] ?? $user['data']['user']['currency'] ?? null;
         $stock = $this->client->request('GET', '/cart/stock_control', ['pid' => $product->upstream_pid]);
         $stock = ($stock['status'] ?? null) === 200 ? ($stock['data']['product'] ?? null) : null;
         if (($user['status'] ?? null) !== 200 || $currencyId === null || ! is_array($stock) || ! array_key_exists('hidden', $stock)
@@ -78,17 +78,30 @@ class ZjmfPurchaseProtocol
         // Classic source returns products/currency at the top level; some integrations wrap data.
         $body = $result['data'] ?? $result;
         $pricing = $body['products'] ?? [];
-        $cost = $pricing['total'] ?? null;
-        if (! empty($pricing['type'])) {
-            $cost = Money::add(Money::of($pricing['sale_price']), Money::of($pricing['sale_setupfee_total']));
-        }
-        if (($result['status'] ?? null) !== 200 || (! is_string($cost) && ! is_int($cost)) || ($body['currency']['code'] ?? null) !== $product->currency) {
+        if (($result['status'] ?? null) !== 200 || ($body['currency']['code'] ?? null) !== $product->currency) {
             throw ValidationException::withMessages(['currency' => 'A matching-currency upstream quote is required.']);
         }
-        $cost = Money::of($cost);
-        $price = Money::add($cost, Money::percentOf($cost, $product->markup_percent));
+        $total = $pricing['total'] ?? null;
+        $setup = $pricing['setupfee_total'] ?? null;
+        if (! empty($pricing['type'])) {
+            $total = $pricing['sale_price'] ?? null;
+            $setup = $pricing['sale_setupfee_total'] ?? null;
+        }
+        if ((! is_string($total) && ! is_int($total)) || (! is_string($setup) && ! is_int($setup))) {
+            throw ValidationException::withMessages(['product_id' => 'Explicit upstream period and setup amounts are required.']);
+        }
+        $total = Money::of($total);
+        $setup = Money::of($setup);
+        if (empty($pricing['type']) && Money::gt($setup, $total)) {
+            throw ValidationException::withMessages(['product_id' => 'Upstream setup fee exceeds its total.']);
+        }
+        // Non-sale total includes setup; sale_price excludes sale_setupfee_total (C19).
+        $period = empty($pricing['type']) ? Money::sub($total, $setup) : $total;
+        $cost = Money::add($period, $setup);
+        $price = Money::add($period, Money::percentOf($period, $product->markup_percent));
+        $setupPrice = Money::add($setup, Money::percentOf($setup, $product->markup_percent));
 
-        return new QuoteResult(upstreamBaseCost: $cost, downstreamPrice: $price, currency: $product->currency,
+        return new QuoteResult(upstreamBaseCost: $cost, downstreamPrice: $price, setupFee: $setupPrice, currency: $product->currency,
             breakdown: ['currency_id' => $currencyId, 'options' => $options]);
     }
 
@@ -114,7 +127,8 @@ class ZjmfPurchaseProtocol
             return ProvisionResult::fail('Persisted purchase context is incomplete.');
         }
         $user = $this->client->request('GET', '/user_info', [], $context);
-        if (($user['status'] ?? null) !== 200 || ! isset($user['data']['user']['currency'])) {
+        $currencyId = $user['user']['currency'] ?? $user['data']['user']['currency'] ?? null;
+        if (($user['status'] ?? null) !== 200 || $currencyId === null) {
             return ProvisionResult::fail('Cannot resolve upstream purchase currency.', retryable: true);
         }
         $probe = $this->client->request('POST', '/cart/clear', $downstream, $context);
@@ -132,7 +146,7 @@ class ZjmfPurchaseProtocol
             $options = $params['options'] ?? [];
             $cart = ['pid' => $params['upstream_pid'], 'billingcycle' => $instance->billing_cycle->value,
                 'host' => $params['hostname'] ?? '', 'password' => $params['password'] ?? '',
-                'currencyid' => $user['data']['user']['currency'], 'currecncyid' => $user['data']['user']['currency'],
+                'currencyid' => $currencyId, 'currecncyid' => $currencyId,
                 'qty' => 1, 'configoption' => $options['configoption'] ?? [], 'customfield' => $options['customfield'] ?? []];
             $add = $this->client->request('POST', '/cart/add_to_shop', $cart, $context);
             if (($add['status'] ?? null) !== 200) {

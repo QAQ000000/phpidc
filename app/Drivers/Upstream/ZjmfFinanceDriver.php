@@ -6,7 +6,9 @@ namespace App\Drivers\Upstream;
 
 use App\Contracts\ConfigurableResource;
 use App\Contracts\FulfillmentDriver;
+use App\Contracts\HasCustomPanelWidgets;
 use App\Contracts\LiveQuotable;
+use App\Contracts\PowerControllable;
 use App\Contracts\RenewableResource;
 use App\Contracts\SyncableCatalog;
 use App\Contracts\UpstreamAccount;
@@ -14,18 +16,20 @@ use App\Data\CatalogSnapshotResult;
 use App\Data\InstanceInfoResult;
 use App\Data\ProvisionResult;
 use App\Data\QuoteResult;
+use App\Enums\InstanceStatus;
 use App\Enums\ProvisionCommand;
 use App\Models\Instance;
 use App\Models\Product;
 use App\Models\UpstreamApi;
+use App\Support\InstanceDueDate;
 use App\Support\Money;
 use App\Support\ProvisioningValidator;
 use DomainException;
 use Illuminate\Support\Carbon;
 
-class ZjmfFinanceDriver implements ConfigurableResource, FulfillmentDriver, LiveQuotable, RenewableResource, SyncableCatalog, UpstreamAccount
+class ZjmfFinanceDriver implements ConfigurableResource, FulfillmentDriver, HasCustomPanelWidgets, LiveQuotable, PowerControllable, RenewableResource, SyncableCatalog, UpstreamAccount
 {
-    public function __construct(private readonly ZjmfClient $client, private readonly UpstreamApi $account) {}
+    public function __construct(private readonly ZjmfClient $client, private readonly UpstreamApi $account, private readonly array $panelWidgetTypes = []) {}
 
     public function validateParams(Product $product, array $input): array
     {
@@ -40,6 +44,15 @@ class ZjmfFinanceDriver implements ConfigurableResource, FulfillmentDriver, Live
     public function productConfiguration(Product $product): array
     {
         return (new ZjmfPurchaseProtocol($this->client, $this->account))->configuration($product);
+    }
+
+    public function fetchPanelWidgets(Instance $instance): array
+    {
+        if ($instance->upstream_api_id !== $this->account->id || $instance->upstream_instance_id === null) {
+            return [];
+        }
+
+        return (new ZjmfPanelProtocol($this->client))->widgets($instance, $this->panelWidgetTypes);
     }
 
     public function catalog(): array
@@ -109,7 +122,8 @@ class ZjmfFinanceDriver implements ConfigurableResource, FulfillmentDriver, Live
     {
         $body = $this->client->request('GET', '/host/header', ['host_id' => $instance->upstream_instance_id, 'source' => 'API'], ['instance_id' => $instance->id], 3);
         $host = $body['data']['host_data'] ?? null;
-        if (($body['status'] ?? null) !== 200 || ! is_array($host) || ! is_string($host['domainstatus'] ?? null)) {
+        if (($body['status'] ?? null) !== 200 || ! is_array($host) || ! is_string($host['domainstatus'] ?? null)
+            || (isset($host['id']) && (string) $host['id'] !== $instance->upstream_instance_id)) {
             throw new DomainException('Upstream host snapshot is unavailable.');
         }
         $ips = $host['assignedips'] ?? [];
@@ -117,7 +131,9 @@ class ZjmfFinanceDriver implements ConfigurableResource, FulfillmentDriver, Live
             $ips = preg_split('/[\s,]+/', trim($ips), -1, PREG_SPLIT_NO_EMPTY);
         }
         $due = $host['nextduedate'] ?? null;
-        $due = is_numeric($due) && (int) $due > 0 ? Carbon::createFromTimestampUTC((int) $due)->toDateTimeString() : (is_string($due) && $due !== '' && $due !== '0' ? $due : null);
+        $due = is_numeric($due)
+            ? ((int) $due > 0 ? Carbon::createFromTimestampUTC((int) $due)->toIso8601String() : null)
+            : (is_string($due) && trim($due) !== '' ? InstanceDueDate::parse($due)->toIso8601String() : null);
 
         return new InstanceInfoResult(upstreamStatus: $host['domainstatus'], domainStatus: $host['domainstatus'],
             primaryIp: $host['dedicatedip'] ?? null, assignedIps: is_array($ips) ? $ips : [],
@@ -125,12 +141,32 @@ class ZjmfFinanceDriver implements ConfigurableResource, FulfillmentDriver, Live
             os: $host['os'] ?? null, nextDueDate: $due, suspendReason: $host['suspendreason'] ?? null,
             customFields: $body['data']['custom_field_data'] ?? [],
             passwordRule: isset($host['password_rule']) ? json_encode($host['password_rule'], JSON_THROW_ON_ERROR) : null,
-            allowUpgradeConfig: (bool) ($host['allow_upgrade_config'] ?? false), rawResponse: $body);
+            allowUpgradeConfig: (bool) ($host['allow_upgrade_config'] ?? false),
+            panelWidgets: array_merge((new ZjmfPanelProtocol($this->client))->deliveryWidgets($instance, $body),
+                (new ZjmfTelemetryProtocol($this->client))->capabilityWidgets($body)), rawResponse: $body);
     }
 
     public function supportedCommands(Instance $instance): array
     {
         return array_map(fn (ProvisionCommand $command) => $command->value, ProvisionCommand::cases());
+    }
+
+    public function executePowerCommand(Instance $instance, ProvisionCommand $command, array $payload = []): ProvisionResult
+    {
+        if ($instance->upstream_api_id !== $this->account->id || $instance->upstream_instance_id === null) {
+            return ProvisionResult::fail('服务绑定不匹配。');
+        }
+        if ($command === ProvisionCommand::STATUS) {
+            if ($instance->status !== InstanceStatus::ACTIVE || ($instance->active_config['upstream_panel']['machine_status'] ?? false) !== true) {
+                return ProvisionResult::fail('此服务尚未提供机器电源状态查询。');
+            }
+
+            // Read-only: use the authenticated capability snapshot; status itself rechecks remote access.
+            // Unlike mutations, this path does not load header, panel HTML, controls or historical charts.
+            return (new ZjmfTelemetryProtocol($this->client))->powerStatus($instance);
+        }
+
+        return (new ZjmfCloudControlProtocol($this->client))->execute($instance, $command, $payload);
     }
 
     public function suspend(Instance $instance, string $reason = ''): ProvisionResult

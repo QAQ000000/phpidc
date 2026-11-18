@@ -20,6 +20,7 @@ use App\Models\TicketReply;
 use App\Models\User;
 use App\Services\AffiliateFunds;
 use App\Support\Money;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
@@ -76,8 +77,28 @@ class CustomerOperationsController extends Controller
 
     public function tickets(Request $request)
     {
-        return $this->page('tickets', ['tickets' => Ticket::where('user_id', $request->user()->id)->latest('id')->paginate(20),
-            'instances' => Instance::where('user_id', $request->user()->id)->get(['id', 'display_name'])]);
+        $data = $request->validate(['service_q' => ['nullable', 'string', 'max:100']]);
+        $serviceSearch = trim($data['service_q'] ?? '');
+        $instances = Instance::where('user_id', $request->user()->id)
+            ->when($serviceSearch !== '', fn (Builder $query) => $query->where(function (Builder $match) use ($serviceSearch): void {
+                $term = '%'.str_replace(['!', '%', '_'], ['!!', '!%', '!_'], $serviceSearch).'%';
+                $match->whereRaw("display_name LIKE ? ESCAPE '!'", [$term])->orWhereRaw("primary_ip LIKE ? ESCAPE '!'", [$term]);
+                if (ctype_digit($serviceSearch)) {
+                    $match->orWhereKey($serviceSearch);
+                }
+            }))->latest('id')->limit(51)->get(['id', 'display_name']);
+        $choices = $instances->take(50);
+        $previousId = $request->session()->getOldInput('instance_id');
+        if ((is_string($previousId) || is_int($previousId)) && ctype_digit((string) $previousId)
+            && ! $choices->contains('id', $previousId)) {
+            $previous = Instance::where('user_id', $request->user()->id)->whereKey($previousId)->first(['id', 'display_name']);
+            if ($previous !== null) {
+                $choices = $choices->take(49)->push($previous);
+            }
+        }
+
+        return $this->page('tickets', ['tickets' => Ticket::where('user_id', $request->user()->id)->latest('id')->paginate(20)->withQueryString(),
+            'instances' => $choices, 'instanceHasMore' => $instances->count() > 50, 'serviceSearch' => $serviceSearch]);
     }
 
     public function createTicket(Request $request, ManageTicketAction $action)

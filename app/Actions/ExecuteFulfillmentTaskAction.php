@@ -6,8 +6,11 @@ namespace App\Actions;
 
 use App\Enums\FulfillmentTaskStatus;
 use App\Enums\InstanceStatus;
+use App\Enums\InvoiceStatus;
+use App\Jobs\ExecuteFulfillmentTaskJob;
 use App\Models\FulfillmentTask;
 use App\Models\Instance;
+use App\Models\Invoice;
 use App\Services\NotificationManager;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
@@ -23,23 +26,28 @@ class ExecuteFulfillmentTaskAction
         }
         $worker = (string) Str::uuid();
         $claimed = DB::transaction(function () use ($candidate, $worker): bool {
+            $invoice = $candidate->invoice_id === null ? null : Invoice::whereKey($candidate->invoice_id)->lockForUpdate()->firstOrFail();
             $instance = Instance::whereKey($candidate->instance_id)->lockForUpdate()->firstOrFail();
             $task = FulfillmentTask::whereKey($candidate->id)->lockForUpdate()->firstOrFail();
             if ($task->status !== FulfillmentTaskStatus::PENDING || ($task->available_at !== null && $task->available_at->isFuture())) {
                 return false;
             }
-            if ($task->driver_type !== $instance->driver_type || $task->upstream_api_id !== $instance->upstream_api_id || $instance->status->isTerminal()) {
+            if ($task->instance_id !== $instance->id || $task->invoice_id !== $candidate->invoice_id
+                || ($invoice !== null && ($invoice->status !== InvoiceStatus::PAID || $invoice->instance_id !== $instance->id))
+                || $task->driver_type !== $instance->driver_type || $task->upstream_api_id !== $instance->upstream_api_id || $instance->status->isTerminal()) {
                 $task->update(['status' => FulfillmentTaskStatus::STALE]);
 
                 return false;
             }
             if ($task->attempts >= $task->max_attempts || ! in_array($task->action, ['provision', 'renew', 'upgrade', 'suspend', 'unsuspend', 'terminate', 'register_callback'], true)) {
                 $task->update(['status' => FulfillmentTaskStatus::FAILED, 'error_message' => 'Attempts exhausted or unsupported task action.']);
-                Log::error('Fulfillment task requires attention.', ['task_id' => $task->id]);
+                DB::afterCommit(fn () => Log::error('Fulfillment task requires attention.', ['task_id' => $task->id]));
 
                 return false;
             }
-            $task->update(['status' => FulfillmentTaskStatus::RUNNING, 'locked_by' => $worker, 'locked_at' => now(), 'lease_expires_at' => now()->addSeconds(210)]);
+            // C21 / INV-T2: the claim consumes one attempt even if this worker later crashes.
+            $task->update(['status' => FulfillmentTaskStatus::RUNNING, 'attempts' => $task->attempts + 1,
+                'locked_by' => $worker, 'locked_at' => now(), 'lease_expires_at' => now()->addSeconds(210)]);
 
             return true;
         });
@@ -62,11 +70,15 @@ class ExecuteFulfillmentTaskAction
                 }
                 $changes += ['status' => FulfillmentTaskStatus::SUCCESS, 'executed_at' => now(), 'summary' => $task->action.' completed.'];
             } else {
-                $attempts = $task->attempts + 1;
+                $attempts = $task->attempts;
                 $retry = $result->retryable && $attempts < $task->max_attempts;
+                $available = now()->addSeconds([60, 300, 900][min(max($attempts - 1, 0), 2)]);
                 $changes += ['status' => $retry ? FulfillmentTaskStatus::PENDING : FulfillmentTaskStatus::FAILED,
-                    'attempts' => $attempts, 'available_at' => now()->addSeconds([60, 300, 900][min($attempts - 1, 2)]),
+                    'available_at' => $available,
                     'error_message' => $result->errorMessage];
+                if ($retry) {
+                    DB::afterCommit(fn () => ExecuteFulfillmentTaskJob::dispatch($task->id)->delay($available));
+                }
                 if (! $retry) {
                     if ($instance->status === InstanceStatus::PENDING) {
                         $instance->update(['status' => InstanceStatus::PROVISION_FAILED]);

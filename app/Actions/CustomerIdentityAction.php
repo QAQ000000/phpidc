@@ -8,6 +8,7 @@ use App\Models\User;
 use App\Models\UserNotificationBinding;
 use App\Services\DriverManager;
 use App\Services\SettingService;
+use App\Support\CustomerEmailLookup;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Password;
 use Illuminate\Support\Facades\URL;
@@ -30,8 +31,7 @@ class CustomerIdentityAction
         $this->requireMail();
         // Lock before creating/replacing a token, so concurrent requests cannot bypass broker throttle.
         $pending = DB::transaction(function () use ($email): ?array {
-            $matches = User::whereRaw('LOWER(email) = ?', [Str::lower(trim($email))])->lockForUpdate()->limit(2)->get();
-            $user = $matches->count() === 1 ? $matches->first() : null;
+            $user = app(CustomerEmailLookup::class)->lockUnique($email);
             $tokens = Password::broker()->getRepository();
             if ($user === null || $tokens->recentlyCreatedToken($user)) {
                 return null;
@@ -51,8 +51,7 @@ class CustomerIdentityAction
     {
         validator(['password' => $password], ['password' => ['required', 'string', 'min:12', 'max:255']])->validate();
         DB::transaction(function () use ($email, $token, $password): void {
-            $matches = User::whereRaw('LOWER(email) = ?', [Str::lower(trim($email))])->lockForUpdate()->limit(2)->get();
-            $user = $matches->count() === 1 ? $matches->first() : null;
+            $user = app(CustomerEmailLookup::class)->lockUnique($email);
             if ($user === null || ! Password::broker()->tokenExists($user, $token)) {
                 throw ValidationException::withMessages(['token' => '重置链接无效或已过期。']);
             }

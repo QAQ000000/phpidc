@@ -8,8 +8,8 @@ User=www
 Group=www
 WorkingDirectory=/www/wwwroot/Laravel13idc
 ExecStart=/www/server/php/84/bin/php artisan schedule:run --no-interaction
-# Catalog size can make a synchronous read-only sync longer than a worker's job timeout.
-TimeoutStartSec=0
+# Supplier I/O runs in dedicated queues, never in this minute dispatcher.
+TimeoutStartSec=55
 UMask=0027
 StandardOutput=journal
 StandardError=journal

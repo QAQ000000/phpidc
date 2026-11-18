@@ -14,6 +14,7 @@
 @auth
 @if($live)<p><a class="button" href="/console/products/{{ $product->id }}/configure">选择完整配置与实时报价</a></p>@else
 <form method="post" action="/checkout">@csrf<label>优惠券码（先在客户中心领取；仅新购/续费）<input name="coupon_code" maxlength="64"></label><input type="hidden" name="product_id" value="{{ $product->id }}">
+@include('sales.purchase-request')
 <label for="billing-cycle">计费周期</label><select id="billing-cycle" name="billing_cycle">@foreach($cycles as $cycle)<option value="{{ $cycle['value'] }}">{{ $cycle['label'] }}</option>@endforeach</select>
 @if($live || ($product->provisioning_rules['hostname_mode'] ?? '') === 'custom')<label for="hostname">主机名</label><input id="hostname" name="hostname" @required(($product->provisioning_rules['hostname_mode'] ?? '') === 'custom') value="{{ old('hostname') }}">@endif
 @if($live || isset($product->provisioning_rules['password_min_len']) || isset($product->provisioning_rules['password_max_len']) || isset($product->provisioning_rules['password_regex']))<label for="password">开通密码</label><input id="password" name="password" type="password" required autocomplete="new-password">@endif

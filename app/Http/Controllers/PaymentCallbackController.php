@@ -14,7 +14,7 @@ class PaymentCallbackController extends Controller
     public function __invoke(Request $request, string $gateway, DriverManager $drivers, HandlePaymentCallbackAction $handle): Response
     {
         abort_unless(file_exists(storage_path('installed.lock')), 503);
-        $payment = $drivers->payment($gateway)->verifyCallback($request);
+        $payment = $drivers->paymentForCallback($gateway, $request)->verifyCallback($request);
         $ack = $handle->execute($payment);
 
         return response($ack, 200)->header('Content-Type', 'text/plain');

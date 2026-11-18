@@ -21,7 +21,10 @@
 @endforeach
 @endif
 @elseif($section === 'tickets')
-<section><h2>新建工单</h2><form method="post" action="/console/tickets">@csrf<label>主题<input name="subject" maxlength="255" required></label><label>关联服务<select name="instance_id"><option value="">不关联</option>@foreach($instances as $instance)<option value="{{ $instance->id }}">#{{ $instance->id }} {{ $instance->display_name }}</option>@endforeach</select></label><label>问题描述<textarea name="body" required maxlength="20000" rows="7" style="width:100%"></textarea></label><button>提交工单</button></form></section>
+<section><h2>新建工单</h2>
+<form method="get" action="/console/tickets"><label>查找关联服务（名称、IP 或完整 ID）<input name="service_q" value="{{ $serviceSearch }}" maxlength="100"></label><button>查找服务</button> <a href="/console/tickets">清除搜索</a></form>
+<p>关联服务最多显示 50 个；可搜索较早的服务。@if($instanceHasMore) 当前匹配结果较多，请缩小搜索范围。@endif</p>
+<form method="post" action="/console/tickets">@csrf<label>主题<input name="subject" value="{{ old('subject') }}" maxlength="255" required></label><label>关联服务<select name="instance_id"><option value="">不关联</option>@foreach($instances as $instance)<option value="{{ $instance->id }}" @selected((string) old('instance_id') === (string) $instance->id)>#{{ $instance->id }} {{ $instance->display_name }}</option>@endforeach</select></label><label>问题描述<textarea name="body" required maxlength="20000" rows="7" style="width:100%">{{ old('body') }}</textarea></label><button>提交工单</button></form></section>
 @forelse($tickets as $ticket)<section><a href="/console/tickets/{{ $ticket->id }}">#{{ $ticket->id }} {{ $ticket->subject }}</a> · {{ $ticket->status }}<p>{{ $ticket->updated_at }}</p></section>@empty<p>暂无工单。</p>@endforelse{{ $tickets->links() }}
 @elseif($section === 'ticket')
 <p><a href="/console/tickets">返回工单列表</a></p><h2>#{{ $ticket->id }} {{ $ticket->subject }}</h2><p>{{ $ticket->status }} · 服务 #{{ $ticket->instance_id ?? '—' }}</p>

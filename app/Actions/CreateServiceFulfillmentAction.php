@@ -11,6 +11,7 @@ use App\Models\FulfillmentTask;
 use App\Models\Instance;
 use App\Models\Invoice;
 use App\Services\NotificationManager;
+use App\Support\RenewalRecovery;
 use Illuminate\Support\Facades\Crypt;
 use Illuminate\Support\Facades\DB;
 use LogicException;
@@ -22,6 +23,9 @@ class CreateServiceFulfillmentAction
         if (DB::transactionLevel() === 0 || $invoice->status !== InvoiceStatus::PAID || ! in_array($invoice->type, [InvoiceType::RENEW, InvoiceType::UPGRADE], true)
             || $invoice->instance_id === null || ! isset($invoice->line_items['encrypted_operation'])) {
             throw new LogicException('Paid service fulfillment requires its settlement transaction and operation snapshot.');
+        }
+        if ($invoice->type === InvoiceType::RENEW) {
+            app(RenewalRecovery::class)->assertPayable($invoice, app(RenewalRecovery::class)->rows($invoice, true));
         }
         $params = json_decode(Crypt::decryptString($invoice->line_items['encrypted_operation']), true, flags: JSON_THROW_ON_ERROR);
         Instance::whereKey($invoice->instance_id)->lockForUpdate()->firstOrFail();

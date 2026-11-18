@@ -92,7 +92,7 @@ function operationsPurchase(User $user, ?Coupon $coupon = null, bool $wallet = t
 {
     $product = app(CreateLocalCardProductAction::class)->execute('Operations card', $price, '0.00', 'CNY', 'Isolated sale');
 
-    return app(CreateComboInvoiceAction::class)->execute($user, $product, BillingCycle::ONETIME, [], $wallet, 'epay_wechat', ['coupon_code' => $coupon?->code]);
+    return app(CreateComboInvoiceAction::class)->execute($user, $product, BillingCycle::ONETIME, [], $wallet, 'epay_wechat', ['request_id' => (string) Str::ulid(), 'coupon_code' => $coupon?->code]);
 }
 
 it('discounts before wallet freezing and records one usage with both amount identities', function (): void {
@@ -148,7 +148,7 @@ it('rechecks verified channel conditions after a claim and refuses foreign curre
     expect(fn () => operationsPurchase($user, $coupon))->toThrow(ValidationException::class);
     $binding->update(['verified_at' => now()]);
     $product = app(CreateLocalCardProductAction::class)->execute('USD card', '10.00', '0.00', 'USD', 'Isolated currency');
-    expect(fn () => app(CreateComboInvoiceAction::class)->execute($user, $product, BillingCycle::ONETIME, [], true, null, ['coupon_code' => $coupon->code]))->toThrow(ValidationException::class);
+    expect(fn () => app(CreateComboInvoiceAction::class)->execute($user, $product, BillingCycle::ONETIME, [], true, null, ['request_id' => (string) Str::ulid(), 'coupon_code' => $coupon->code]))->toThrow(ValidationException::class);
 });
 
 it('keeps discounted refunds at the stored total and never restores coupon quota or future price', function (): void {

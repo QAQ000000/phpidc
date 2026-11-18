@@ -15,6 +15,7 @@ enum PaymentCallbackOutcome: string
     case PROCESSED_OVERPAYMENT = 'processed_overpayment';
     case REJECTED_SHORT_AMOUNT = 'rejected_short_amount';
     case REJECTED_GATEWAY_MISMATCH = 'rejected_gateway_mismatch';
+    case REJECTED_UNSUPPORTED_CURRENCY = 'rejected_unsupported_currency';
     case REJECTED_INVALID_STATE = 'rejected_invalid_state';
     case UNKNOWN_INVOICE = 'unknown_invoice';
     case IGNORED_DUPLICATE = 'ignored_duplicate';

@@ -9,6 +9,7 @@ use App\Models\User;
 use App\Services\SettingService;
 use App\Services\UpstreamOperationBuffer;
 use App\Support\InstallationState;
+use App\Support\WebRateLimits;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\ServiceProvider;
@@ -25,6 +26,7 @@ class AppServiceProvider extends ServiceProvider
 
     public function boot(): void
     {
+        WebRateLimits::register();
         // Register a lazy, invoice-scoped authority without touching storage before installation.
         Gate::define('refund-invoice', fn (User $actor, ?Invoice $invoice = null): bool => $actor->exists && ! $actor->trashed()
             && $invoice?->exists && $actor->can('finance.view') && $actor->can('finance.refund'));

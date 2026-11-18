@@ -19,7 +19,7 @@
 @else<p class="inventory-meta">此状态不开放人工重试。</p>@endif
 </td></tr>@empty<tr><td colspan="4">没有匹配的任务。</td></tr>@endforelse
 </tbody></table>{{ $tasks->links() }}</div>
-<section class="inventory-box inventory-scroll"><h2>失败队列记录</h2><p class="inventory-note">仅显示队列元数据。不要直接 queue:retry 重放未知远程操作；先核查对应任务及上游意图。</p><table class="inventory-table"><thead><tr><th>ID / UUID</th><th>连接 / 队列</th><th>失败时间</th></tr></thead><tbody>
+<section class="inventory-box inventory-scroll"><h2>失败队列记录</h2><p>通知重试耗尽也列于此处。@can('notification.manage')<a class="inventory-link" href="/admin/notifications">按用户与状态核对投递日志</a>@endcan</p><p class="inventory-note">仅显示队列元数据。不要直接 queue:retry 重放未知远程操作；先核查对应任务及上游意图。</p><table class="inventory-table"><thead><tr><th>ID / UUID</th><th>连接 / 队列</th><th>失败时间</th></tr></thead><tbody>
 @forelse($failures as $failure)<tr><td>#{{ $failure->id }}<br>{{ $failure->uuid }}</td><td>{{ $failure->connection }} / {{ $failure->queue }}</td><td>{{ $failure->failed_at }}</td></tr>@empty<tr><td colspan="3">没有失败队列记录。</td></tr>@endforelse
 </tbody></table>{{ $failures->links() }}</section>
 </x-filament-panels::page>

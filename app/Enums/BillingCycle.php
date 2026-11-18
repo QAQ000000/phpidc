@@ -7,8 +7,8 @@ namespace App\Enums;
 /**
  * Billing cycles mirror ZJMF classic's 18 `billing_cycle` keys exactly.
  *
- * NOTE (INV-M1 / zjmf-api-spec §2): the upstream `*setupfee` columns are the
- * PERIOD PRICE, not a one-off setup fee. See priceKey().
+ * Human-approved C19: cycle fields hold period prices; the paired
+ * `*setupfee` fields hold one-time setup fees.
  */
 enum BillingCycle: string
 {
@@ -31,11 +31,14 @@ enum BillingCycle: string
     case NINELY = 'ninely';
     case TENLY = 'tenly';
 
-    /**
-     * The upstream price column holding this cycle's recurring price.
-     * NOT a setup fee — upstream has no separate setup-fee column.
-     */
+    /** The upstream column holding this cycle's period price (C19). */
     public function priceKey(): ?string
+    {
+        return $this === self::FREE ? null : $this->value;
+    }
+
+    /** The independent, one-time setup fee column for this cycle (C19). */
+    public function setupFeeKey(): ?string
     {
         return match ($this) {
             self::FREE => null,

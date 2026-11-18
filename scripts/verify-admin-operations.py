@@ -118,7 +118,7 @@ Illuminate\Support\Facades\DB::table('failed_jobs')->insert(['uuid'=>'admin-queu
             rejected(buyer, path, None, 403)
 
         html, _, _ = request(buyer, '/console')
-        created, status, _ = request(buyer, '/checkout', {'_token': csrf(html), 'product_id': 1, 'billing_cycle': 'onetime', 'use_credit': 1}, 'application/json')
+        created, status, _ = request(buyer, '/checkout', {'request_id': '01KAD000000000000000000001', '_token': csrf(html), 'product_id': 1, 'billing_cycle': 'onetime', 'use_credit': 1}, 'application/json')
         assert status == 201
         invoice = json.loads(created)['invoice_id']
         with sqlite3.connect(db) as connection:

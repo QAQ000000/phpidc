@@ -20,6 +20,8 @@
 
 **M4 — Currency.** One invoice carries exactly one currency (`invoices.currency`, ISO-4217, default `CNY`). No FX conversion exists anywhere in the system. A quote whose upstream currency differs from `invoices.currency` MUST be rejected, not converted.
 
+Human-approved C20 (2026-11-18): the current available/frozen wallet, affiliate balance and Epay settlement support **CNY only**. Reject unsupported-currency new purchases, renewals and upgrades (including zero amounts) before any balance mutation or payment request. Catalogs may retain their source currency. Historical non-CNY invoices require manual reconciliation: do not automatically settle, refund or unfreeze them, nor credit late/duplicate/excess payments into the CNY wallet. Preserve verified callback evidence and deduplication, alert, and ACK after commit using the currency-rejection branch below. No implicit 1:1 conversion or historical ledger rewrite is authorized. See `backend-remediation-decisions.md` C20.
+
 ---
 
 ## 2. Invoice amount identity (blocking)
@@ -36,6 +38,8 @@ The purchase Action receives the product, billing cycle and selected options, ob
 5. credit_applied = user-selected, 0 <= credit_applied <= total_amount, and <= available credit
 6. gateway_amount = total_amount - credit_applied
 ```
+
+Human-approved review decision A (2026-11-18, `backend-review-fix-decisions.md`): a newly generated automatic renewal explicitly marked `line_items.automatic_renewal.selection_pending` may receive exactly one owner-confirmed wallet/gateway allocation in `CreateComboInvoiceAction`. Keep its total, quote, coupon and due boundary unchanged. Require an unexpired Unpaid current renewal with no attempts, callbacks, money ledger or unresolved task, and revalidate service/account binding under locks. Store the confirmation request and choices; identical replay has no effects, changed choices reject. Freeze once; pure-wallet Paid + fulfillment remain atomic. Payment initiation requires confirmation first. Unmarked historical invoices and already confirmed/terminal invoices cannot be edited by this exception.
 
 **INV-I2 — Hard identity.** Before persisting, assert:
 
@@ -99,6 +103,8 @@ adjust:{uuid}                                     refund:{invoice_id}
 
 **INV-W5 — Ledger types.**
 
+All current wallet and affiliate balance transitions below are denominated in CNY (human-approved C20); a legacy invoice in another currency cannot authorize one of these wallet transitions or an automatic refund record. Preserve the original bill and evidence for manual reconciliation.
+
 | `TransactionType` | `is_credit` | Meaning |
 |---|---|---|
 | `credit_in` | yes | deposit (gateway late payment, admin top-up, overpayment excess) or wallet refund (C10) |
@@ -131,6 +137,7 @@ Then lock `invoices` (`lockForUpdate()`) and branch:
 | # | Condition | Outcome | Action |
 |---|---|---|---|
 | P1 | `gateway != invoice.gateway` | `rejected_gateway_mismatch` | no state change, alert |
+| PC (C20) | matched gateway, `invoice.currency != CNY` | `rejected_unsupported_currency` | persist verified evidence and invoice association, alert; no settlement/unfreeze/refund/wallet credit/instance/task mutation; ACK after commit. Runs before every terminal-state and amount branch below |
 | P2 | `invoice.status` ∈ {`Expired`,`Cancelled`} | `processed_late_credit` | credit `paidAmount` to wallet (`credit_in`), **never provision**, alert. Frozen amount was already released at expiry — do not unfreeze twice |
 | P3 | `invoice.status == Paid` and a second distinct trade arrives | `processed_overpayment` | credit `paidAmount` to wallet, alert (double payment) |
 | P7 | `invoice.status ∉ {Unpaid}` and not covered above | `rejected_invalid_state` | no change, alert; this guard runs **before** any amount branch, including for `Refunded` |
@@ -155,6 +162,8 @@ Then lock `invoices` (`lockForUpdate()`) and branch:
 users → invoices → payment_attempts → instances → redemption_codes → fulfillment_tasks
 ```
 
+Epay merchant selection additionally takes an application-wide configuration metadata row lock **before** this financial lock sequence. Configuration changes and attempt creation serialize on it; no caller may acquire it after financial row locks. Callback credential resolution releases it before the callback settlement transaction. It does not authorize money writes or HTTP under a transaction.
+
 **INV-L2 — Single writer for money.** `HandlePaymentCallbackAction`, `CreateComboInvoiceAction`, `ExpireUnpaidInvoicesAction`, `RefundInvoiceAction` and `RetryFulfillmentTaskAction` are the only writers of invoice/wallet state. Drivers never write them.
 
 Human-approved C17 adds `ProcessAffiliateWithdrawalAction` solely for approved affiliate-to-wallet transfers: lock the user, debit affiliate_balance, credit credit, append unique `payout:{withdrawal_id}`, audit the authorized actor/reason, and mark the withdrawal approved in one transaction. It cannot adjust arbitrary wallets or write invoice state.
@@ -171,13 +180,21 @@ Human-approved C17 adds `ProcessAffiliateWithdrawalAction` solely for approved a
 - renew: `12:renew:2026-12-01T00:00:00Z` (period_key = the authenticated, locked due boundary before renewal, in UTC; human-approved C14). This supports several hourly/daily periods in one calendar month. Retries reuse the boundary, never the current request time. An expired/cancelled invoice is not reopened or silently replaced under a new key.
 - upgrade/downgrade: `12:upgrade:2026-11-17T10:00:00Z` (the requested change instant)
 
-A duplicate scheduler tick hits the unique constraint and is swallowed as a no-op. Silent duplicate invoicing is a P0 defect.
+Human-approved C23 (2026-11-18) permits **explicit recovery of an actually Expired, never-settled current renewal only**. The unique billing_period_key stays on the original root. A successor has nullable renewal_root_id pointing to that root, unique replaces_invoice_id pointing to its immediate predecessor, and NULL billing_period_key / purchase_request_id. Same user, instance, product, currency and authenticated due boundary must hold throughout a complete linear chain. No automatic replacement, branching or terminal-state reopening is permitted.
+
+The owner must request a new trusted quote and explicitly confirm its customer amount, coupon and wallet/gateway split with a stable ULID and short-lived encrypted token. Revalidate binding/configuration/due boundary, price, coupon and allocation before committing; changes require another quote. Verify each predecessor's original freeze/unfreeze evidence and reject settled/unresolved upstream operations. Under the user lock, lock the invoice family before the instance/tasks; only the current tip may settle or create a renewal task. CreateComboInvoiceAction remains the money writer, with Paid + task atomic and dispatch after commit. Old late payments retain P2 wallet-only treatment and never pay a successor. No old wallet ledger or coupon usage is rewritten.
+
+A committed recovery request stores encrypted caller intent at line_items.recovery.encrypted_request and participates in key rotation. Same-key/same-intent replays its original result even after quote expiry; changed intent rejects. A different key for a predecessor with a child only locates that child. Another actual expiry requires the owner to quote and confirm the new tip. Ordinary due-boundary lookup returns the current tip, while an existing request-ID replay returns its original invoice. Operators may inspect evidence but cannot authorize customer wallet spending. See backend-remediation-decisions.md C23.
+
+A duplicate scheduler tick reuses the existing root/current tip. Silent duplicate invoicing is a P0 defect.
 
 **INV-K2 — Fulfillment tasks.** `fulfillment_tasks.idempotency_key` is `{invoice_id}:{action}:{instance_id}` (unique). Re-dispatch never creates a second row.
 
 **INV-K3 — Schedulers.** Every scheduled command uses `->withoutOverlapping()` and `->onOneServer()`. A cron without both is a defect.
 
 **INV-K4 — Coupons (human-approved C16).** Coupon application happens inside the invoice-creation transaction after locking the user: `SELECT ... FOR UPDATE` the `coupons` row, verify entitlement in `coupon_claims`, re-check `used_count < total_quota` (null quota is unlimited), `per_user_limit` against this user's `coupon_usages`, `valid_from/until`, and `claim_conditions`, then increment and insert usage. `coupon_usages` is `unique(invoice_id)` — one coupon per invoice, double-counting impossible. A claim is unique per user/coupon and does not reserve usage quota. Cancellation, expiry and refunds do not restore consumed quota automatically. See approved C16–C18 in `operations-expansion-decisions.md` for settlement scope.
+
+**INV-K5 — New-purchase requests (human-approved C22).** Every new-purchase HTTP/Action call requires a stable ULID `request_id`. Persist its uppercase form in nullable `invoices.purchase_request_id` with `unique(user_id, purchase_request_id)`; legacy/non-purchase invoices retain NULL. Canonical versioned caller intent includes product, cycle, sorted configuration/custom fields, hostname/password, coupon and wallet/gateway choices; encrypt it as `line_items.purchase.encrypted_request`, include it in key rotation, and never persist plaintext sensitive hashes. Existing same-user/same-key requests must compare intent and return the original invoice before current rules/quotes/coupon usage/money/fulfillment; changed intent is rejected. Repeat the lookup as a locking read after acquiring the user lock inside the creation transaction (INV-L1/W3). Return terminal invoices unchanged; only a new key creates another purchase. Quotation I/O stays outside locks (INV-L3); the composite unique index is the durable backstop. See approved C22 for exact normalization and deployment boundaries.
 
 ---
 
@@ -203,6 +220,8 @@ Every first clawback appends one `affiliate_clawback` ledger row with unique key
 
 **INV-S1 — Status vocabulary.** `Pending → Active → Suspended → Cancelled|Deleted`, plus `ProvisionFailed` and `Fraud`. `Suspended` can only be entered from `Active`; `Active` from `Pending` or `Suspended`. Every transition is written to `audit_logs`.
 
+Human-approved review decision B (2026-11-18, `backend-review-fix-decisions.md`): only an explicitly authorized/confirmed administrator `terminate` hot swap may rebind a Deleted logical service to an authenticated new Active/Suspended host. Reauthenticate old Deleted state, verify target product/cycle/currency and both accounts, reject refunds/unresolved finances/tasks, archive old binding, stale old tasks, rotate callback token and audit the terminal rebinding atomically. Ordinary sync, renewal and workers cannot revive terminal services; Deleted + keep_orphan and refunded services remain rejected.
+
 **INV-S2 — Self-hosted vs upstream termination.** Self-hosted drivers (`redemption`, `proxmox`, `sub2api`) auto-terminate after `overdue_terminate_days`. Upstream-proxied (`zjmf_api`) stays `Suspended` until upstream reports `Deleted`. The rule is keyed on the driver capability, never on the string `zjmf_api`.
 
 **INV-S3 — Hot swap never orphans silently.** Changing `driver_type`/`upstream_api_id` on an instance:
@@ -221,9 +240,9 @@ Every first clawback appends one `affiliate_clawback` ledger row with unique key
 
 **INV-T1 — Lease.** A task is claimed by setting `status=running, locked_by={worker_id}, locked_at=now(), lease_expires_at=now()+lease`. Lease must exceed the job timeout (`INV-Q1`).
 
-**INV-T2 — Reclaim.** The 1-minute sweeper reclaims `pending` older than 60s **and** `running` with `lease_expires_at < now()`. Reclaim = `status=pending, attempts+1, available_at=now()+backoff`.
+**INV-T2 — Claim count and recovery (human-approved C21).** `attempts` is the number of successful worker claims, incremented exactly once in the transaction setting running/worker/lease after validating the current binding, payment and execution eligibility. A crash consumes its claim. Results, duplicate messages and the 1-minute sweeper do not increment it. The sweeper re-dispatches due `pending` tasks older than 60s without changing their already-due `available_at`. Expired `running` leases are cleared and returned to pending with backoff based on the consumed claim count (60/300/900 seconds, capped at 900); live leases and future backoffs are untouched. Retryable results also persist pending/backoff and dispatch only after commit. Short-lived dispatch deduplication is an optimization; database locks and the current lease remain the execution authority. Recovery revalidates payment/binding and retains all remote-intent reconciliation guards; it cannot authorize blind procurement or payment replay.
 
-**INV-T3 — Terminal failure.** When `attempts >= max_attempts` (default 5) the task becomes `failed` and alerts; it is never retried automatically again. `RetryFulfillmentTaskResource` resets `attempts` explicitly.
+**INV-T3 — Terminal failure (human-approved C21).** At most `max_attempts` claims (default 5) are allowed. The final claim may complete successfully; its failed result or expired lease becomes `failed` and alerts, with no automatic next claim. Permanent failures stop earlier. Framework `tries=3` is a separate queue-delivery budget, not permission to exceed the business claim limit. An authorized manual retry explicitly resets `attempts` with a reason and audit via `RetryFulfillmentTaskAction`; never reset historical counts in bulk. See `backend-remediation-decisions.md` C21.
 
 **INV-T4 — Driver-result mapping.**
 
@@ -287,7 +306,7 @@ Every PR touching money, lifecycle, or a driver must answer:
 - [ ] `financial_transactions.reference_key` set, exactly-once — INV-W2?
 - [ ] Callback branch has a row in the §4 table, and a Pest case?
 - [ ] Lock order respected — INV-L1? No I/O under lock — INV-L3?
-- [ ] Idempotency key defined for any new billable event — INV-K1..K2?
+- [ ] Idempotency key defined for any new billable event — INV-K1..K2 / K5?
 - [ ] Instance creation/termination point explicit — INV-P2 / INV-R1?
 - [ ] Driver returns a DTO and mutates nothing — INV-L4?
 - [ ] Timeouts follow INV-Q1? Scheduler has `withoutOverlapping` + `onOneServer` — INV-K3?

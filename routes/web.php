@@ -8,13 +8,17 @@ use App\Http\Controllers\ClassicOperationsController;
 use App\Http\Controllers\CmsOperationsController;
 use App\Http\Controllers\CustomerAuthController;
 use App\Http\Controllers\CustomerIdentityController;
+use App\Http\Controllers\CustomerInstancePanelController;
 use App\Http\Controllers\CustomerKycController;
+use App\Http\Controllers\CustomerMachineController;
 use App\Http\Controllers\CustomerOperationsController;
 use App\Http\Controllers\CustomerSalesController;
 use App\Http\Controllers\InstallController;
 use App\Http\Controllers\InventoryOperationsController;
+use App\Http\Controllers\MachineOperationReviewController;
 use App\Http\Controllers\OperationsAdminController;
 use App\Http\Controllers\PublicContentController;
+use App\Http\Controllers\RenewalRecoveryController;
 use App\Http\Controllers\ServiceBillingController;
 use App\Http\Middleware\NegotiateMarkdown;
 use Illuminate\Support\Facades\Route;
@@ -39,29 +43,29 @@ Route::post('/install', [InstallController::class, 'store'])->name('install.stor
 Route::post('/checkout', [CheckoutController::class, 'store'])->name('checkout.store');
 
 Route::get('/login', [CustomerAuthController::class, 'form'])->middleware('guest')->name('login');
-Route::post('/login', [CustomerAuthController::class, 'login'])->middleware(['guest', 'throttle:10,1']);
+Route::post('/login', [CustomerAuthController::class, 'login'])->middleware(['guest', 'throttle:login']);
 Route::get('/register', [CustomerAuthController::class, 'registrationForm'])->middleware('guest')->name('register');
-Route::post('/register', [CustomerAuthController::class, 'register'])->middleware(['guest', 'throttle:10,1']);
+Route::post('/register', [CustomerAuthController::class, 'register'])->middleware(['guest', 'throttle:register']);
 Route::post('/logout', [CustomerAuthController::class, 'logout']);
 Route::get('/forgot-password', [CustomerIdentityController::class, 'forgot'])->name('password.request');
-Route::post('/forgot-password', [CustomerIdentityController::class, 'sendReset'])->middleware('throttle:5,1');
+Route::post('/forgot-password', [CustomerIdentityController::class, 'sendReset'])->middleware('throttle:password-email');
 Route::get('/reset-password/{token}', [CustomerIdentityController::class, 'resetForm'])->name('password.reset');
-Route::post('/reset-password', [CustomerIdentityController::class, 'reset'])->middleware('throttle:10,1');
-Route::post('/auth/{provider}/redirect', [CustomerIdentityController::class, 'socialBegin'])->middleware('throttle:10,1');
-Route::get('/auth/telegram/widget', [CustomerIdentityController::class, 'telegramWidget'])->middleware('throttle:10,1');
-Route::get('/auth/{provider}/callback', [CustomerIdentityController::class, 'socialCallback'])->middleware('throttle:10,1');
+Route::post('/reset-password', [CustomerIdentityController::class, 'reset'])->middleware('throttle:password-reset');
+Route::post('/auth/{provider}/redirect', [CustomerIdentityController::class, 'socialBegin'])->middleware('throttle:oauth-begin');
+Route::get('/auth/telegram/widget', [CustomerIdentityController::class, 'telegramWidget'])->middleware('throttle:telegram-widget');
+Route::get('/auth/{provider}/callback', [CustomerIdentityController::class, 'socialCallback'])->middleware('throttle:oauth-callback');
 Route::middleware('auth')->group(function (): void {
     Route::get('/console/account', [CustomerIdentityController::class, 'account']);
-    Route::post('/email/verification-notification', [CustomerIdentityController::class, 'sendVerification'])->middleware('throttle:3,1');
+    Route::post('/email/verification-notification', [CustomerIdentityController::class, 'sendVerification'])->middleware('throttle:email-verify');
     Route::get('/email/verify/{id}/{hash}', [CustomerIdentityController::class, 'verify'])->middleware('signed:relative')->name('verification.verify');
-    Route::post('/console/account/oauth/{provider}/unlink', [CustomerIdentityController::class, 'unlink'])->middleware('throttle:5,1');
-    Route::post('/console/account/telegram/notifications', [CustomerIdentityController::class, 'telegramNotifications'])->middleware('throttle:5,1');
-    Route::post('/console/account/phone/send', [CustomerIdentityController::class, 'sendPhone'])->middleware('throttle:5,1');
-    Route::post('/console/account/phone/confirm', [CustomerIdentityController::class, 'confirmPhone'])->middleware('throttle:10,1');
-    Route::post('/console/account/kyc', [CustomerKycController::class, 'initiate'])->middleware('throttle:3,1');
+    Route::post('/console/account/oauth/{provider}/unlink', [CustomerIdentityController::class, 'unlink'])->middleware('throttle:oauth-unlink');
+    Route::post('/console/account/telegram/notifications', [CustomerIdentityController::class, 'telegramNotifications'])->middleware('throttle:telegram-binding');
+    Route::post('/console/account/phone/send', [CustomerIdentityController::class, 'sendPhone'])->middleware('throttle:phone-send');
+    Route::post('/console/account/phone/confirm', [CustomerIdentityController::class, 'confirmPhone'])->middleware('throttle:phone-confirm');
+    Route::post('/console/account/kyc', [CustomerKycController::class, 'initiate'])->middleware('throttle:kyc-start');
     Route::get('/console/account/kyc/return', [CustomerKycController::class, 'returned']);
-    Route::post('/console/account/kyc/{verification}/authorize', [CustomerKycController::class, 'authorization'])->middleware('throttle:10,1');
-    Route::post('/console/account/kyc/{verification}/refresh', [CustomerKycController::class, 'refresh'])->middleware('throttle:10,1');
+    Route::post('/console/account/kyc/{verification}/authorize', [CustomerKycController::class, 'authorization'])->middleware('throttle:kyc-authorize');
+    Route::post('/console/account/kyc/{verification}/refresh', [CustomerKycController::class, 'refresh'])->middleware('throttle:kyc-refresh');
 });
 Route::middleware('auth')->group(function (): void {
     Route::get('/console', [CustomerSalesController::class, 'index']);
@@ -69,9 +73,17 @@ Route::middleware('auth')->group(function (): void {
     Route::get('/console/instances', [CustomerSalesController::class, 'instances']);
     Route::get('/console/invoices/{invoice}', [CustomerSalesController::class, 'invoice']);
     Route::post('/console/invoices/{invoice}/pay', [CustomerSalesController::class, 'pay']);
+    Route::post('/console/invoices/{invoice}/renewal-recovery/quote', [RenewalRecoveryController::class, 'quote'])->middleware('throttle:quote');
+    Route::post('/console/invoices/{invoice}/renewal-recovery', [RenewalRecoveryController::class, 'store']);
     Route::get('/console/instances/{instance}', [CustomerSalesController::class, 'instance']);
+    Route::post('/console/instances/{instance}/panel-login', [CustomerInstancePanelController::class, 'open'])->middleware('throttle:panel-login');
+    Route::post('/console/instances/{instance}/telemetry', [CustomerInstancePanelController::class, 'telemetry'])->middleware('throttle:telemetry');
+    Route::post('/console/instances/{instance}/power-status', [CustomerInstancePanelController::class, 'powerStatus'])->middleware('throttle:power-status');
+    Route::post('/console/instances/{instance}/machine', [CustomerMachineController::class, 'show'])->middleware('throttle:machine-read');
+    Route::post('/console/instances/{instance}/machine/command', [CustomerMachineController::class, 'execute'])->middleware('throttle:machine-command');
+    Route::get('/console/instances/{instance}/vnc', [CustomerMachineController::class, 'vnc'])->middleware('signed:relative')->name('instance.vnc');
     Route::get('/console/products/{product}/configure', [ServiceBillingController::class, 'configure']);
-    Route::post('/console/products/{product}/quote', [ServiceBillingController::class, 'quote'])->middleware('throttle:30,1');
+    Route::post('/console/products/{product}/quote', [ServiceBillingController::class, 'quote'])->middleware('throttle:quote');
     Route::post('/console/instances/{instance}/operations', [ServiceBillingController::class, 'bill']);
 });
 Route::post('/admin/upstreams/configure', [ClassicOperationsController::class, 'configure']);
@@ -81,6 +93,8 @@ Route::post('/admin/upstream-options/{group}/bounds', [ClassicOperationsControll
 Route::post('/admin/upstream-tasks/{task}/retry', [ClassicOperationsController::class, 'retry']);
 Route::post('/admin/upstreams/{product}/sync', [ClassicOperationsController::class, 'sync']);
 Route::post('/admin/upstream-instances/{instance}/control', [ClassicOperationsController::class, 'control']);
+Route::post('/admin/upstream-instances/{instance}/machine-review', [MachineOperationReviewController::class, 'inspect'])->middleware('throttle:machine-review');
+Route::post('/admin/upstream-instances/{instance}/machine-reconcile', [MachineOperationReviewController::class, 'store'])->middleware('throttle:machine-reconcile');
 Route::post('/admin/upstream-instances/{instance}/hot-swap', [ClassicOperationsController::class, 'hotSwap']);
 
 // Explicit POST endpoints: authorization is enforced again by the transactional Actions.
@@ -97,16 +111,16 @@ Route::get('/admin/content/articles/{article}/preview', [CmsOperationsController
 // Operations expansion: customer ownership and admin authority are checked in Actions.
 Route::get('/r/{user}', [CustomerOperationsController::class, 'referral'])->middleware('signed:relative')->name('affiliate.referral');
 Route::get('/downloads', [CustomerOperationsController::class, 'downloads']);
-Route::get('/downloads/{resource}', [CustomerOperationsController::class, 'download'])->middleware('throttle:60,1');
+Route::get('/downloads/{resource}', [CustomerOperationsController::class, 'download'])->middleware('throttle:download');
 Route::middleware('auth')->controller(CustomerOperationsController::class)->group(function (): void {
     Route::get('/console/coupons', 'coupons');
-    Route::post('/console/coupons', 'claim')->middleware('throttle:10,1');
+    Route::post('/console/coupons', 'claim')->middleware('throttle:coupon-claim');
     Route::get('/console/affiliate', 'affiliate');
-    Route::post('/console/affiliate/withdraw', 'withdraw')->middleware('throttle:10,1');
+    Route::post('/console/affiliate/withdraw', 'withdraw')->middleware('throttle:withdrawal');
     Route::get('/console/tickets', 'tickets');
-    Route::post('/console/tickets', 'createTicket')->middleware('throttle:10,1');
+    Route::post('/console/tickets', 'createTicket')->middleware('throttle:ticket-create');
     Route::get('/console/tickets/{ticket}', 'ticket');
-    Route::post('/console/tickets/{ticket}', 'updateTicket')->middleware('throttle:20,1');
+    Route::post('/console/tickets/{ticket}', 'updateTicket')->middleware('throttle:ticket-update');
 });
 Route::controller(OperationsAdminController::class)->group(function (): void {
     Route::post('/admin/operations/config/{kind}', 'save');

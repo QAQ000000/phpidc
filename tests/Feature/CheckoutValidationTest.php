@@ -31,7 +31,7 @@ it('blocks checkout before wallet deduction when hostname or password violates p
     ]);
 
     $this->actingAs($user)
-        ->post('/checkout', [
+        ->post('/checkout', ['request_id' => (string) Str::ulid(),
             'product_id' => $product->id,
             'hostname' => 'INVALID_HOST!@#',
         ])
@@ -61,7 +61,7 @@ it('rejects invalid provisioning inputs without attempting financial writes or e
     });
 
     $this->actingAs($user)
-        ->postJson('/checkout', ['product_id' => $product->id, ...$input])
+        ->postJson('/checkout', ['request_id' => (string) Str::ulid(), 'product_id' => $product->id, ...$input])
         ->assertUnprocessable()
         ->assertJsonValidationErrors($errors);
 

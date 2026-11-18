@@ -3,6 +3,8 @@
 declare(strict_types=1);
 
 use App\Actions\ConfigureClassicUpstreamAction;
+use App\Actions\ImportClassicProductAction;
+use App\Enums\BillingCycle;
 use App\Models\Instance;
 use App\Models\Product;
 use App\Models\UpstreamApi;
@@ -20,7 +22,7 @@ it('encrypts classic API secrets and maps period prices without rebinding existi
     Http::preventStrayRequests();
     Http::fake(['*/zjmf_api_login' => Http::response(['status' => 200, 'jwt' => 'jwt']),
         '*/cart/get_product_config*' => Http::response(['status' => 200, 'data' => ['products' => ['name' => 'Cloud'],
-            'product_pricings' => [['code' => 'CNY', 'monthly' => '500.00', 'msetupfee' => '8.00']]]])]);
+            'product_pricings' => [['code' => 'CNY', 'monthly' => '8.00', 'msetupfee' => '0.00']]]])]);
     $args = ['account' => $account->id, 'pid' => '17', 'cycle' => 'monthly', '--reason' => 'Import supplier product'];
     $this->artisan('upstream:classic-import', $args)->assertSuccessful();
     $product = Product::sole();
@@ -36,4 +38,16 @@ it('requires an explicit reason before configuring an upstream account', functio
     expect(fn () => app(ConfigureClassicUpstreamAction::class)->execute('Supplier', 'https://classic.test', 'user', 'secret', ''))
         ->toThrow(DomainException::class);
     $this->assertDatabaseCount('upstream_apis', 0);
+});
+
+it('imports a nonzero setup fee separately from the period price', function (): void {
+    $account = UpstreamApi::factory()->create();
+    Http::preventStrayRequests();
+    Http::fake(['*/zjmf_api_login' => Http::response(['status' => 200, 'jwt' => 'jwt']),
+        '*/cart/get_product_config*' => Http::response(['status' => 200, 'data' => ['products' => ['name' => 'Setup Cloud'],
+            'product_pricings' => [['code' => 'CNY', 'monthly' => '500.00', 'msetupfee' => '8.00']]]])]);
+    $product = app(ImportClassicProductAction::class)->execute($account->id, '17', BillingCycle::MONTHLY,
+        'CNY', '20.00', 'Verify C19 pricing');
+    expect($product->upstream_base_prices['monthly'])->toBe(['price' => '500.00', 'setup_fee' => '8.00', 'enabled' => true])
+        ->and($product->local_prices['monthly'])->toBe(['price' => '600.00', 'setup_fee' => '9.60', 'enabled' => true]);
 });

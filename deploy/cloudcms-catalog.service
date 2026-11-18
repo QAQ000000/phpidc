@@ -1,0 +1,17 @@
+[Unit]
+Description=CloudCMS catalog worker
+After=network-online.target
+
+[Service]
+Type=simple
+User=www
+Group=www
+WorkingDirectory=/www/wwwroot/Laravel13idc
+ExecStart=/www/server/php/84/bin/php artisan queue:work redis --queue=catalog --sleep=3 --tries=3 --timeout=180 --max-time=3600
+Restart=always
+RestartSec=5
+TimeoutStopSec=210
+UMask=0027
+
+[Install]
+WantedBy=multi-user.target

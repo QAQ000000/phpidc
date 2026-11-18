@@ -1,0 +1,1 @@
+<!doctype html><html lang="zh-CN"><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>操作过于频繁</title><body><h1>操作过于频繁</h1><p>此类操作已达到本分钟限额，请在 {{ max(1, (int) ($exception->getHeaders()['Retry-After'] ?? 60)) }} 秒后手动重试。</p><p><a href="/console">返回客户中心</a></p></body></html>

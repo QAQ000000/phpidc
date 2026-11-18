@@ -27,7 +27,7 @@ class ReconcileHostSyncJob implements ShouldQueue
 
     public function middleware(): array
     {
-        return [(new WithoutOverlapping('host-sync:'.$this->instanceId))->releaseAfter(60)->expireAfter(210)];
+        return [(new WithoutOverlapping('host-sync:'.$this->instanceId))->shared()->releaseAfter(60)->expireAfter(210)];
     }
 
     public function handle(ReconcileHostSyncAction $action): void

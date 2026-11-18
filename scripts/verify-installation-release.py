@@ -167,7 +167,7 @@ with tempfile.TemporaryDirectory(prefix='cloudcms-release-') as tmp:
         request(buyer, '/register', {'_token': csrf(html), 'name': 'Buyer', 'email': 'buyer@example.test',
                                     'password': password, 'password_confirmation': password})
         html, _, _ = request(buyer, '/console')
-        created, status, _ = request(buyer, '/checkout', {'_token': csrf(html), 'product_id': 1, 'billing_cycle': 'onetime'}, 'application/json')
+        created, status, _ = request(buyer, '/checkout', {'request_id': '01KAD000000000000000000001', '_token': csrf(html), 'product_id': 1, 'billing_cycle': 'onetime'}, 'application/json')
         assert status == 201
         invoice_id = json.loads(created)['invoice_id']
         cli('queue:work', 'redis' if args.redis else 'database', '--stop-when-empty', '--tries=3', '--timeout=180')

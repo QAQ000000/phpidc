@@ -11,6 +11,7 @@ use App\Models\FulfillmentTask;
 use App\Models\Product;
 use App\Models\User;
 use Illuminate\Support\Facades\Queue;
+use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
 
 it('freezes wallet credit on combo payment and unfreezes once when expired', function (): void {
@@ -27,7 +28,7 @@ it('freezes wallet credit on combo payment and unfreezes once when expired', fun
         billingCycle: BillingCycle::ONETIME,
         options: [],
         useCredit: true,
-        gateway: 'epay_wechat',
+        gateway: 'epay_wechat', input: ['request_id' => (string) Str::ulid()],
     );
 
     expect($invoice->credit_applied)->toBe('5.00')
@@ -51,7 +52,7 @@ it('settles a full wallet purchase with an atomic instance and unique outbox tas
     Queue::fake();
     $user = User::factory()->create(['credit' => '100.00']);
     $product = Product::factory()->create(['local_prices' => ['onetime' => ['price' => '10.00', 'setup_fee' => '2.00', 'enabled' => true]]]);
-    $invoice = app(CreateComboInvoiceAction::class)->execute($user, $product, BillingCycle::ONETIME, [], true);
+    $invoice = app(CreateComboInvoiceAction::class)->execute($user, $product, BillingCycle::ONETIME, [], true, input: ['request_id' => (string) Str::ulid()]);
     expect($invoice->status)->toBe(InvoiceStatus::PAID)
         ->and($invoice->total_amount)->toBe('12.00')
         ->and($invoice->gateway_amount)->toBe('0.00')
@@ -70,7 +71,7 @@ it('rolls back wallet and invoice when outbox creation fails', function (): void
     $product = Product::factory()->create(['local_prices' => ['onetime' => ['price' => '10.00', 'enabled' => true]]]);
     FulfillmentTask::creating(fn () => throw new RuntimeException('simulated outbox failure'));
     try {
-        expect(fn () => app(CreateComboInvoiceAction::class)->execute($user, $product, BillingCycle::ONETIME, [], true))
+        expect(fn () => app(CreateComboInvoiceAction::class)->execute($user, $product, BillingCycle::ONETIME, [], true, input: ['request_id' => (string) Str::ulid()]))
             ->toThrow(RuntimeException::class, 'simulated outbox failure');
     } finally {
         FulfillmentTask::flushEventListeners();
@@ -85,7 +86,7 @@ it('rolls back wallet and invoice when outbox creation fails', function (): void
 it('rejects invalid provisioning rules before any wallet or invoice mutation in the purchase action', function (): void {
     $user = User::factory()->create(['credit' => '100.00']);
     $product = Product::factory()->create(['provisioning_rules' => ['hostname_mode' => 'custom'], 'local_prices' => ['onetime' => ['price' => '10.00', 'enabled' => true]]]);
-    expect(fn () => app(CreateComboInvoiceAction::class)->execute($user, $product, BillingCycle::ONETIME, [], true))
+    expect(fn () => app(CreateComboInvoiceAction::class)->execute($user, $product, BillingCycle::ONETIME, [], true, input: ['request_id' => (string) Str::ulid()]))
         ->toThrow(ValidationException::class);
     expect($user->fresh()->credit)->toBe('100.00');
     $this->assertDatabaseCount('invoices', 0);
@@ -95,7 +96,7 @@ it('does not release wallet funds from an invoice that is already paid', functio
     Queue::fake();
     $user = User::factory()->create(['credit' => '100.00']);
     $product = Product::factory()->create(['local_prices' => ['onetime' => ['price' => '10.00', 'enabled' => true]]]);
-    $invoice = app(CreateComboInvoiceAction::class)->execute($user, $product, BillingCycle::ONETIME, [], true);
+    $invoice = app(CreateComboInvoiceAction::class)->execute($user, $product, BillingCycle::ONETIME, [], true, input: ['request_id' => (string) Str::ulid()]);
     $invoice->update(['expires_at' => now()->subMinute()]);
     app(ExpireUnpaidInvoicesAction::class)->execute();
     expect($user->fresh()->credit)->toBe('90.00')->and($invoice->fresh()->status)->toBe(InvoiceStatus::PAID);

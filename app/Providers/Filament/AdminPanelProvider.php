@@ -17,6 +17,7 @@ use App\Filament\Pages\FinanceLedger;
 use App\Filament\Pages\FulfillmentQueue;
 use App\Filament\Pages\InventoryCards;
 use App\Filament\Pages\InventoryOverview;
+use App\Filament\Pages\MachineOperationReview;
 use App\Filament\Pages\NotificationOperations;
 use App\Filament\Pages\PromotionCoupons;
 use App\Filament\Pages\SupportTickets;
@@ -55,7 +56,7 @@ class AdminPanelProvider extends PanelProvider
             })
             ->renderHook(PanelsRenderHook::STYLES_AFTER, fn (): string => Blade::render('@livewireStyles'))
             ->renderHook(PanelsRenderHook::SCRIPTS_AFTER, fn (): string => Blade::render('@livewireScripts'))
-            ->pages([PromotionCoupons::class, AffiliateOperations::class, AffiliatePayouts::class, SupportTickets::class, NotificationOperations::class, DownloadOperations::class, InventoryOverview::class, InventoryCards::class, FulfillmentQueue::class, UpstreamAccounts::class, UpstreamInstances::class, CmsContent::class,
+            ->pages([PromotionCoupons::class, AffiliateOperations::class, AffiliatePayouts::class, SupportTickets::class, NotificationOperations::class, DownloadOperations::class, InventoryOverview::class, InventoryCards::class, FulfillmentQueue::class, UpstreamAccounts::class, UpstreamInstances::class, MachineOperationReview::class, CmsContent::class,
                 FinanceInvoices::class, FinanceInvoice::class, FinanceLedger::class, AdminTasks::class, AdminAccess::class, AdminAudit::class])
             ->middleware([EncryptCookies::class, AddQueuedCookiesToResponse::class, StartSession::class,
                 AuthenticateSession::class, ShareErrorsFromSession::class, PreventRequestForgery::class,

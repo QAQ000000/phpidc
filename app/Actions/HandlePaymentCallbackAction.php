@@ -15,9 +15,12 @@ use App\Models\PaymentAttempt;
 use App\Models\PaymentCallback;
 use App\Models\User;
 use App\Support\Money;
+use App\Support\RenewalRecovery;
+use App\Support\SettlementCurrency;
 use Illuminate\Database\UniqueConstraintViolationException;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Validation\ValidationException;
 use LogicException;
 
 class HandlePaymentCallbackAction
@@ -54,13 +57,16 @@ class HandlePaymentCallbackAction
             }
             // Non-locking lookup above only resolves the owner; all decisions use locked rows.
             $user = User::whereKey($candidate->user_id)->lockForUpdate()->firstOrFail();
-            $invoice = Invoice::whereKey($candidate->id)->lockForUpdate()->firstOrFail();
+            $family = $candidate->type === InvoiceType::RENEW ? app(RenewalRecovery::class)->rows($candidate, true) : null;
+            $invoice = $family === null ? Invoice::whereKey($candidate->id)->lockForUpdate()->firstOrFail() : $family->firstWhere('id', $candidate->id);
             if ($attempt !== null) {
                 $attempt = PaymentAttempt::whereKey($attempt->id)->lockForUpdate()->firstOrFail();
             }
             $callback->update(['invoice_id' => $invoice->id, 'invoice_no' => $invoice->invoice_no]);
             if ($payment->gateway !== $invoice->gateway) {
                 $this->finish($callback, Outcome::REJECTED_GATEWAY_MISMATCH);
+            } elseif (! SettlementCurrency::supports($invoice->currency)) {
+                $this->finish($callback, Outcome::REJECTED_UNSUPPORTED_CURRENCY);
             } elseif (in_array($invoice->status, [InvoiceStatus::EXPIRED, InvoiceStatus::CANCELLED], true)) {
                 $this->credit($user, $invoice, $callback, $payment->paidAmount);
                 $this->finish($callback, Outcome::PROCESSED_LATE_CREDIT);
@@ -73,6 +79,15 @@ class HandlePaymentCallbackAction
             } elseif (Money::gt($invoice->gateway_amount, $payment->paidAmount)) {
                 $this->finish($callback, Outcome::REJECTED_SHORT_AMOUNT);
             } else {
+                if ($family !== null) {
+                    try {
+                        app(RenewalRecovery::class)->assertPayable($invoice, $family);
+                    } catch (ValidationException) {
+                        $this->finish($callback, Outcome::REJECTED_INVALID_STATE);
+
+                        return $payment->ackBody;
+                    }
+                }
                 if (! Money::eq(Money::add($invoice->credit_applied, $invoice->gateway_amount), $invoice->total_amount)) {
                     throw new LogicException('Stored invoice amount identity failed.');
                 }

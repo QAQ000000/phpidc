@@ -5,6 +5,7 @@ declare(strict_types=1);
 use App\Actions\ConfigureSub2ApiAction;
 use App\Actions\CreateComboInvoiceAction;
 use App\Actions\CreateSub2ApiProductAction;
+use App\Actions\DispatchStalePendingTasksAction;
 use App\Actions\ExecuteFulfillmentTaskAction;
 use App\Actions\HandlePaymentCallbackAction;
 use App\Actions\RecoverSub2ApiCardAction;
@@ -25,6 +26,7 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Queue;
+use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
 use Tests\Concerns\InstallsApplication;
 
@@ -47,11 +49,35 @@ function sub2Code(string $value = '100', int $id = 71): array
     return ['id' => $id, 'code' => 'SECRET-ISSUED-CARD', 'type' => 'balance', 'value' => $value, 'status' => 'unused'];
 }
 
+it('retains a crashed remote issuance intent across automatic lease recovery without issuing twice', function (): void {
+    $product = remoteSub2Product();
+    $buyer = User::factory()->create(['credit' => '20.00']);
+    $invoice = app(CreateComboInvoiceAction::class)->execute($buyer, $product, BillingCycle::ONETIME, [], true, input: ['request_id' => (string) Str::ulid()]);
+    $task = FulfillmentTask::sole();
+    Http::fake(fn () => throw new RuntimeException('C21 interrupted remote issuance.'));
+    expect(fn () => app(ExecuteFulfillmentTaskAction::class)->execute($task->id))->toThrow(RuntimeException::class, 'C21 interrupted remote issuance.');
+    $intent = $task->fresh()->payload['remote_delivery'];
+    expect($task->fresh()->attempts)->toBe(1)->and($intent['state'])->toBe('requested');
+    $this->travel(211)->seconds();
+    app(DispatchStalePendingTasksAction::class)->execute();
+    expect($task->fresh()->attempts)->toBe(1)->and($task->fresh()->status)->toBe(FulfillmentTaskStatus::PENDING);
+    $this->travel(61)->seconds();
+    Http::fake(fn () => throw new LogicException('Recovered issuance must not be replayed.'));
+    app(ExecuteFulfillmentTaskAction::class)->execute($task->id);
+    Http::assertNothingSent();
+    expect($task->fresh()->attempts)->toBe(2)->and($task->fresh()->status)->toBe(FulfillmentTaskStatus::FAILED)
+        ->and($task->fresh()->payload['remote_delivery'])->toBe($intent)
+        ->and($invoice->fresh()->status)->toBe(InvoiceStatus::PAID)->and($buyer->fresh()->credit)->toBe('10.00')
+        ->and($task->instance->fresh()->encrypted_credentials)->toBeNull();
+    $this->assertDatabaseCount('redemption_codes', 0);
+    expect(DB::table('financial_transactions')->where('reference_key', 'settle:'.$invoice->id)->count())->toBe(1);
+});
+
 it('issues one snapshotted remote face value independently of customer wallet split and later product edits', function (bool $combo): void {
     $product = remoteSub2Product();
     $buyer = User::factory()->create(['credit' => $combo ? '3.00' : '20.00']);
     $this->actingAs($buyer)->get($product->publicPath())->assertOk()->assertSee('付款后自动生成兑换码')->assertSee('创建订单')->assertDontSee('暂时售罄');
-    $invoice = app(CreateComboInvoiceAction::class)->execute($buyer, $product, BillingCycle::ONETIME, [], true, 'epay_wechat');
+    $invoice = app(CreateComboInvoiceAction::class)->execute($buyer, $product, BillingCycle::ONETIME, [], true, 'epay_wechat', input: ['request_id' => (string) Str::ulid()]);
     if ($combo) {
         app(HandlePaymentCallbackAction::class)->execute(new VerifiedPaymentResult('epay_wechat', 'REMOTE-PAY', $invoice->invoice_no, '7.00'));
     }
@@ -89,7 +115,7 @@ it('blocks invalid remote face values before changing a wallet or contacting ups
     $product = remoteSub2Product();
     $product->update(['provisioning_rules' => ['sub2api_face_value' => '1.5']]);
     $buyer = User::factory()->create(['credit' => '20.00']);
-    expect(fn () => app(CreateComboInvoiceAction::class)->execute($buyer, $product, BillingCycle::ONETIME, [], true))->toThrow(ValidationException::class);
+    expect(fn () => app(CreateComboInvoiceAction::class)->execute($buyer, $product, BillingCycle::ONETIME, [], true, input: ['request_id' => (string) Str::ulid()]))->toThrow(ValidationException::class);
     expect($buyer->fresh()->credit)->toBe('20.00');
     $this->assertDatabaseCount('invoices', 0);
     Http::assertNothingSent();
@@ -97,7 +123,7 @@ it('blocks invalid remote face values before changing a wallet or contacting ups
 
 it('never replays an uncertain or rejected request even after an explicit generic retry', function (string $failure): void {
     $product = remoteSub2Product();
-    app(CreateComboInvoiceAction::class)->execute(User::factory()->create(['credit' => '20.00']), $product, BillingCycle::ONETIME, [], true);
+    app(CreateComboInvoiceAction::class)->execute(User::factory()->create(['credit' => '20.00']), $product, BillingCycle::ONETIME, [], true, input: ['request_id' => (string) Str::ulid()]);
     $task = FulfillmentTask::sole();
     Http::fake(function () use ($failure) {
         return match ($failure) {
@@ -124,7 +150,7 @@ it('never replays an uncertain or rejected request even after an explicit generi
 it('fences a remote response after refund, lease loss or binding change while preserving encrypted evidence', function (string $change): void {
     $product = remoteSub2Product();
     $buyer = User::factory()->create(['credit' => '20.00']);
-    $invoice = app(CreateComboInvoiceAction::class)->execute($buyer, $product, BillingCycle::ONETIME, [], true);
+    $invoice = app(CreateComboInvoiceAction::class)->execute($buyer, $product, BillingCycle::ONETIME, [], true, input: ['request_id' => (string) Str::ulid()]);
     $task = FulfillmentTask::sole();
     $actor = User::factory()->create();
     Gate::define('refund-invoice', fn (User $user) => $user->id === $actor->id);
@@ -146,7 +172,7 @@ it('fences a remote response after refund, lease loss or binding change while pr
 
 it('recovers an operator-confirmed existing code using a read-only lookup and the original task', function (): void {
     $product = remoteSub2Product();
-    app(CreateComboInvoiceAction::class)->execute(User::factory()->create(['credit' => '20.00']), $product, BillingCycle::ONETIME, [], true);
+    app(CreateComboInvoiceAction::class)->execute(User::factory()->create(['credit' => '20.00']), $product, BillingCycle::ONETIME, [], true, input: ['request_id' => (string) Str::ulid()]);
     $task = FulfillmentTask::sole();
     Http::fake(['https://sub2.test/api/v1/admin/redeem-codes/generate' => Http::response('uncertain', 502)]);
     app(ExecuteFulfillmentTaskAction::class)->execute($task->id);
@@ -167,7 +193,7 @@ it('recovers an operator-confirmed existing code using a read-only lookup and th
 it('records sold remote-card loss on wallet refund without reclaiming or calling an upstream refund API', function (): void {
     $product = remoteSub2Product();
     $buyer = User::factory()->create(['credit' => '20.00']);
-    $invoice = app(CreateComboInvoiceAction::class)->execute($buyer, $product, BillingCycle::ONETIME, [], true);
+    $invoice = app(CreateComboInvoiceAction::class)->execute($buyer, $product, BillingCycle::ONETIME, [], true, input: ['request_id' => (string) Str::ulid()]);
     $task = FulfillmentTask::sole();
     Http::fake(fn () => Http::response(['code' => 0, 'data' => [sub2Code()]]));
     app(ExecuteFulfillmentTaskAction::class)->execute($task->id);
@@ -182,7 +208,7 @@ it('records sold remote-card loss on wallet refund without reclaiming or calling
 
 it('keeps a committed request intent after a crashed worker and prevents reissuance after manual retry', function (): void {
     $product = remoteSub2Product();
-    app(CreateComboInvoiceAction::class)->execute(User::factory()->create(['credit' => '20.00']), $product, BillingCycle::ONETIME, [], true);
+    app(CreateComboInvoiceAction::class)->execute(User::factory()->create(['credit' => '20.00']), $product, BillingCycle::ONETIME, [], true, input: ['request_id' => (string) Str::ulid()]);
     $task = FulfillmentTask::sole();
     Http::fake(fn () => throw new RuntimeException('Simulated worker crash after sending the request'));
     expect(fn () => app(ExecuteFulfillmentTaskAction::class)->execute($task->id))->toThrow(RuntimeException::class);
@@ -197,7 +223,7 @@ it('keeps a committed request intent after a crashed worker and prevents reissua
 
 it('fences results if the connection endpoint changes while a remote request is running', function (): void {
     $product = remoteSub2Product();
-    app(CreateComboInvoiceAction::class)->execute(User::factory()->create(['credit' => '20.00']), $product, BillingCycle::ONETIME, [], true);
+    app(CreateComboInvoiceAction::class)->execute(User::factory()->create(['credit' => '20.00']), $product, BillingCycle::ONETIME, [], true, input: ['request_id' => (string) Str::ulid()]);
     $task = FulfillmentTask::sole();
     Http::fake(function () use ($product) {
         $product->upstreamApi->update(['base_url' => 'https://different-sub2.test']);

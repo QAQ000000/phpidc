@@ -72,6 +72,7 @@ class ReencryptSecretsAction
                     DB::table('users')->orderBy('id')->lockForUpdate()->get(['id']);
                     $this->rotateJson('invoices', 'line_items', $old, $new);
                     $this->rotateColumn('instances', 'encrypted_credentials', $old, $new);
+                    $this->rotateJson('instances', 'active_config', $old, $new);
                     foreach (DB::table('redemption_codes')->orderBy('id')->lockForUpdate()->get(['id', 'code']) as $row) {
                         $plaintext = $old->decryptString($row->code);
                         DB::table('redemption_codes')->where('id', $row->id)->update([
@@ -113,7 +114,7 @@ class ReencryptSecretsAction
             foreach ($rows as $row) {
                 $value = json_decode($row->{$column}, true, flags: JSON_THROW_ON_ERROR);
                 array_walk_recursive($value, function (&$ciphertext, $key) use ($old, $new): void {
-                    if (in_array($key, ['encrypted_params', 'encrypted_operation', 'encrypted_purchase', 'encrypted_result'], true)) {
+                    if (in_array($key, ['encrypted_params', 'encrypted_operation', 'encrypted_purchase', 'encrypted_result', 'encrypted_request', 'encrypted_binding'], true)) {
                         if (! is_string($ciphertext)) {
                             throw new DomainException('加密载荷格式异常，换钥事务已中止。');
                         }

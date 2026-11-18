@@ -52,7 +52,8 @@ class ServiceBillingController extends Controller
     {
         $this->user($request);
         abort_unless(Product::publicCatalog()->whereKey($product->id)->exists(), 404);
-        $data = $request->validate(['billing_cycle' => ['required', Rule::enum(BillingCycle::class)], 'options' => ['sometimes', 'array']]);
+        $data = $request->validate(['billing_cycle' => ['required', Rule::enum(BillingCycle::class)], 'options' => ['sometimes', 'array'],
+            'request_id' => ['sometimes', 'ulid']]);
         $quote = $this->run(function () use ($product, $data) {
             $options = app(ResolveProductOptionsAction::class)->execute($product, $data['billing_cycle'], $data['options'] ?? []);
             $driver = app(DriverManager::class)->fulfillment($product->driver_type, $product->upstream_api_id);
@@ -66,7 +67,8 @@ class ServiceBillingController extends Controller
             return response()->json(['price' => $quote->downstreamPrice, 'setup_fee' => $quote->setupFee, 'currency' => $quote->currency])->header('Cache-Control', 'private, no-store');
         }
 
-        return response()->view('sales.configure', ['product' => $product, 'details' => app(DescribeStoreProductAction::class)->execute($product), 'quote' => $quote, 'selection' => $data])->header('Cache-Control', 'private, no-store');
+        return response()->view('sales.configure', ['product' => $product, 'details' => app(DescribeStoreProductAction::class)->execute($product),
+            'quote' => $quote, 'selection' => $data, 'purchaseRequestId' => $data['request_id'] ?? null])->header('Cache-Control', 'private, no-store');
     }
 
     public function bill(Request $request, Instance $instance)

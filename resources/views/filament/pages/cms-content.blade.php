@@ -6,7 +6,8 @@
 <section class="inventory-box"><h2>{{ $editArticle ? '编辑文章 #'.$editArticle->id : '新建草稿' }}</h2>
 <form method="post" action="/admin/content/articles" class="inventory-form">@csrf
 @if($editArticle)<input type="hidden" name="id" value="{{ $editArticle->id }}">@endif
-<label>栏目<select name="category_id" required>@foreach($categories as $category)<option value="{{ $category->id }}" @selected((string) old('category_id', $editArticle?->cms_category_id) === (string) $category->id)>{{ $category->type->value }} / {{ $category->name }}{{ $category->is_hidden ? '（隐藏）' : '' }}</option>@endforeach</select></label>
+<label>栏目<select name="category_id" required @disabled($editArticle)>@foreach($categories as $category)<option value="{{ $category->id }}" @selected((string) ($editArticle?->cms_category_id ?? old('category_id')) === (string) $category->id)>{{ $category->type->value }} / {{ $category->name }}{{ $category->is_hidden ? '（隐藏）' : '' }}</option>@endforeach</select></label>
+@if($editArticle)<input type="hidden" name="category_id" value="{{ $editArticle->cms_category_id }}"><p>文章保留原栏目；跨栏目迁移未开放。</p>@endif
 <label>标题<input name="title" value="{{ old('title', $editArticle?->title) }}" required maxlength="255"></label>
 <label>URL slug<input name="slug" value="{{ old('slug', $editArticle?->slug) }}" required pattern="[a-z0-9]+(-[a-z0-9]+)*" maxlength="100"></label>
 <label>格式<select name="content_format"><option value="markdown" @selected(old('content_format', $editArticle?->content_format?->value)==='markdown')>Markdown</option><option value="html" @selected(old('content_format', $editArticle?->content_format?->value)==='html')>HTML（清洗后保存）</option></select></label>
@@ -29,7 +30,8 @@
 @can('cms.publish')
 <section class="inventory-box"><h2>{{ $editCategory ? '编辑栏目 #'.$editCategory->id : '新建栏目' }}</h2><form method="post" action="/admin/content/categories" class="inventory-form">@csrf
 @if($editCategory)<input type="hidden" name="id" value="{{ $editCategory->id }}">@endif
-<label>类型<select name="type"><option value="news" @selected($editCategory?->type->value==='news')>新闻</option><option value="help" @selected($editCategory?->type->value==='help')>帮助</option></select></label>
+<label>类型<select name="type" @disabled($editCategory)><option value="news" @selected($editCategory?->type->value==='news')>新闻</option><option value="help" @selected($editCategory?->type->value==='help')>帮助</option></select></label>
+@if($editCategory)<input type="hidden" name="type" value="{{ $editCategory->type->value }}"><p>既有栏目类型固定，保持公开链接前缀。</p>@endif
 <label>名称<input name="name" value="{{ $editCategory?->name }}" required maxlength="255"></label><label>URL slug<input name="slug" value="{{ $editCategory?->slug }}" required maxlength="100"></label>
 <label>可见性<select name="is_hidden"><option value="0">公开</option><option value="1" @selected($editCategory?->is_hidden)>隐藏</option></select></label>
 <label>SEO 标题<input name="seo_title" value="{{ $editCategory?->seo_title }}" maxlength="255"></label><label>SEO 关键词<input name="seo_keywords" value="{{ $editCategory?->seo_keywords }}" maxlength="255"></label><label>SEO 描述<input name="seo_description" value="{{ $editCategory?->seo_description }}" maxlength="1000"></label><label>排序<input name="sort_order" type="number" min="0" value="{{ $editCategory?->sort_order ?? 0 }}"></label>

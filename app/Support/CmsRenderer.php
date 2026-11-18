@@ -8,6 +8,7 @@ use App\Enums\CmsContentFormat;
 use App\Models\CmsArticle;
 use HTMLPurifier;
 use HTMLPurifier_Config;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Str;
 
 class CmsRenderer
@@ -37,11 +38,14 @@ class CmsRenderer
 
     public function summary(string $body): string
     {
-        return Str::limit(preg_replace('/\s+/u', ' ', html_entity_decode(strip_tags($body), ENT_QUOTES | ENT_HTML5, 'UTF-8')) ?? '', 160);
+        return Str::limit(trim(preg_replace('/\s+/u', ' ', html_entity_decode(strip_tags($body), ENT_QUOTES | ENT_HTML5, 'UTF-8')) ?? ''), 160);
     }
 
-    public function excerpt(CmsArticle $article): string
+    public function excerpt(CmsArticle $article, ?string $safeHtml = null): string
     {
-        return $this->summary($this->html($article));
+        // Increment the rendering version when Markdown, sanitizer or summary rules change.
+        $key = 'cms-excerpt:v1:'.$article->content_format->value.':'.hash('sha256', $article->body);
+
+        return Cache::remember($key, 86400, fn () => $this->summary($safeHtml ?? $this->html($article)));
     }
 }

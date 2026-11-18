@@ -86,13 +86,13 @@ with tempfile.TemporaryDirectory(prefix='laravel13idc-classic-sale-') as tmp:
                 if path == '/cart/get_product_config':
                     result = {'status': 200, 'data': {'products': {'name': 'Acceptance Cloud', 'password': json.dumps(
                         {'show': 1, 'rule': {'upper': 1, 'lower': 1, 'num': 1, 'special': 1}})},
-                        'product_pricings': [{'code': 'CNY', 'msetupfee': '8.00'}]}}
+                        'product_pricings': [{'code': 'CNY', 'monthly': '8.00', 'msetupfee': '0.00'}]}}
                 elif path == '/user_info':
                     result = {'status': 200, 'data': {'user': {'currency': 1}}}
                 elif path == '/cart/stock_control':
                     result = {'status': 200, 'data': {'product': {'hidden': 0, 'stock_control': 1, 'qty': 5}}}
                 elif path == '/cart/get_total':
-                    result = {'status': 200, 'products': {'total': '8.00'}, 'currency': {'id': 1, 'code': 'CNY'}}
+                    result = {'status': 200, 'products': {'total': '8.00', 'setupfee_total': '0.00'}, 'currency': {'id': 1, 'code': 'CNY'}}
                 elif path == '/cart/clear':
                     result = {'status': 400, 'domainstatus': 'Active', 'hostid': 999} if state['paid'] else {'status': 200}
                 elif path == '/cart/add_to_shop':
@@ -189,7 +189,7 @@ $app->make(App\\Actions\\ImportClassicProductAction::class)->execute($account->i
             console, _, _ = request(buyer, '/register', {'_token': token(login), 'name': 'Cloud Buyer', 'email': 'cloud@example.test',
                                   'password': 'AccountPassword123!', 'password_confirmation': 'AccountPassword123!'})
             csrf = token(console)
-            checkout, status, _ = request(buyer, '/checkout', {'_token': csrf, 'product_id': 1, 'billing_cycle': 'monthly',
+            checkout, status, _ = request(buyer, '/checkout', {'request_id': '01KAD000000000000000000001', '_token': csrf, 'product_id': 1, 'billing_cycle': 'monthly',
                                          'gateway': 'epay_wechat', 'hostname': 'buyer-host', 'password': 'StrongPassword12!'}, 'application/json')
             assert status == 201 and json.loads(checkout)['total_amount'] == '9.60'
             invoice = json.loads(checkout)['invoice_id']

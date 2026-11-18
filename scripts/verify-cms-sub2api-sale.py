@@ -93,7 +93,7 @@ with tempfile.TemporaryDirectory(prefix='laravel13idc-http-sale-') as tmp:
         login,_,_=request(buyer,'/login')
         html,_,_=request(buyer,'/register',{'_token':token(login),'name':'Acceptance Buyer','email':'acceptance@example.test','password':'AcceptancePassword123!','password_confirmation':'AcceptancePassword123!'})
         csrf=token(html)
-        checkout,status,_=request(buyer,'/checkout',{'_token':csrf,'product_id':1,'billing_cycle':'onetime','gateway':'epay_wechat'},'application/json')
+        checkout,status,_=request(buyer,'/checkout',{'request_id': '01KAD000000000000000000001', '_token':csrf,'product_id':1,'billing_cycle':'onetime','gateway':'epay_wechat'},'application/json')
         assert status==201, (status,checkout[:1200])
         invoice=json.loads(checkout)['invoice_id']
         payment,status,_=request(buyer,f'/console/invoices/{invoice}/pay',{'_token':csrf},'application/json')
