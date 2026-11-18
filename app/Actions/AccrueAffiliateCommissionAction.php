@@ -55,7 +55,7 @@ class AccrueAffiliateCommissionAction
                 'buyer_id' => $invoice->user_id, 'rate_snapshot' => $snapshot['rate'], 'amount' => $amount, 'status' => 'pending',
                 'available_at' => $invoice->paid_at->copy()->addDays($snapshot['freeze_days'])]);
             if ($commission->wasRecentlyCreated) {
-                app(NotificationManager::class)->queue($commission->referrer_id, 'affiliate.pending', ['amount' => $commission->amount]);
+                app(NotificationManager::class)->queue($commission->referrer_id, 'affiliate.pending', ['amount' => $commission->amount], eventKey: 'commission:'.$commission->id.':pending');
             }
 
             return $commission;

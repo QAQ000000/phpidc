@@ -20,6 +20,10 @@ enum TransactionType: string
     case AFFILIATE_COMMISSION = 'affiliate_commission';
     case AFFILIATE_CLAWBACK = 'affiliate_clawback';
     case AFFILIATE_PAYOUT = 'affiliate_payout';
+    case AFFILIATE_FREEZE = 'affiliate_freeze';
+    case AFFILIATE_UNFREEZE = 'affiliate_unfreeze';
+    case AFFILIATE_RECEIVABLE_SETTLE = 'affiliate_receivable_settle';
+    case AFFILIATE_RECEIVABLE_REVERSE = 'affiliate_receivable_reverse';
     case ADJUSTMENT = 'adjustment';
 
     /** Does this type increase the user's available wallet balance? */
@@ -35,6 +39,8 @@ enum TransactionType: string
             self::AFFILIATE_COMMISSION,
             self::AFFILIATE_CLAWBACK,
             self::AFFILIATE_PAYOUT,
+            self::AFFILIATE_FREEZE,
+            self::AFFILIATE_UNFREEZE,
         ], true);
     }
 }

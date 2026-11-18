@@ -147,6 +147,8 @@ Allowed dependency direction: **`Entry (Controller/Resource) -> Actions -> Contr
 
 ## 4. Exact JSON Column Schemas
 
+**Approved D01–D05 extensions (2026-11-18):** `docs/remaining-capabilities-decisions-2026-11-18.md` and its four linked module proposals define the human-approved scope for wallet top-ups (no product/fulfillment; Paid + wallet credit + durable event atomic), owner account-contact anonymization with retained financial identity, frozen manual external affiliate payouts, append-only receivable settlement/reversal, and notification event/delivery outbox. These are targeted additions to F01/F02/F04/F06/F08, not approval to weaken existing product settlement, audit, driver purity or money rules. Preserve CNY-only settlement, transaction-free external I/O, old strict assertions and existing financial history.
+
 Every schema below is normative. Additions are allowed; renaming or removing a key is a breaking change requiring a migration.
 
 - `products.provisioning_rules`:

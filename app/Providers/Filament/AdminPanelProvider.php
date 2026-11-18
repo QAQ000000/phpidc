@@ -11,14 +11,17 @@ use App\Filament\Pages\AffiliateOperations;
 use App\Filament\Pages\AffiliatePayouts;
 use App\Filament\Pages\CmsContent;
 use App\Filament\Pages\DownloadOperations;
+use App\Filament\Pages\ExternalAffiliatePayouts;
 use App\Filament\Pages\FinanceInvoice;
 use App\Filament\Pages\FinanceInvoices;
 use App\Filament\Pages\FinanceLedger;
+use App\Filament\Pages\FinanceReceivables;
 use App\Filament\Pages\FulfillmentQueue;
 use App\Filament\Pages\InventoryCards;
 use App\Filament\Pages\InventoryOverview;
 use App\Filament\Pages\MachineOperationReview;
 use App\Filament\Pages\NotificationOperations;
+use App\Filament\Pages\NotificationOutbox;
 use App\Filament\Pages\PromotionCoupons;
 use App\Filament\Pages\SupportTickets;
 use App\Filament\Pages\UpstreamAccounts;
@@ -56,8 +59,8 @@ class AdminPanelProvider extends PanelProvider
             })
             ->renderHook(PanelsRenderHook::STYLES_AFTER, fn (): string => Blade::render('@livewireStyles'))
             ->renderHook(PanelsRenderHook::SCRIPTS_AFTER, fn (): string => Blade::render('@livewireScripts'))
-            ->pages([PromotionCoupons::class, AffiliateOperations::class, AffiliatePayouts::class, SupportTickets::class, NotificationOperations::class, DownloadOperations::class, InventoryOverview::class, InventoryCards::class, FulfillmentQueue::class, UpstreamAccounts::class, UpstreamInstances::class, MachineOperationReview::class, CmsContent::class,
-                FinanceInvoices::class, FinanceInvoice::class, FinanceLedger::class, AdminTasks::class, AdminAccess::class, AdminAudit::class])
+            ->pages([PromotionCoupons::class, AffiliateOperations::class, AffiliatePayouts::class, SupportTickets::class, NotificationOperations::class, NotificationOutbox::class, DownloadOperations::class, InventoryOverview::class, InventoryCards::class, FulfillmentQueue::class, UpstreamAccounts::class, UpstreamInstances::class, MachineOperationReview::class, CmsContent::class,
+                FinanceInvoices::class, FinanceInvoice::class, FinanceLedger::class, FinanceReceivables::class, ExternalAffiliatePayouts::class, AdminTasks::class, AdminAccess::class, AdminAudit::class])
             ->middleware([EncryptCookies::class, AddQueuedCookiesToResponse::class, StartSession::class,
                 AuthenticateSession::class, ShareErrorsFromSession::class, PreventRequestForgery::class,
                 SubstituteBindings::class, DisableBladeIconComponents::class, DispatchServingFilamentEvent::class,

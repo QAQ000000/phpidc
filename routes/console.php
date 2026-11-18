@@ -11,3 +11,4 @@ Schedule::command('instances:process-lifecycle')->everyMinute()->withoutOverlapp
 Schedule::command('upstream:classic-sync')->everyFiveMinutes()->withoutOverlapping()->onOneServer();
 
 Schedule::command('affiliate:process')->everyMinute()->withoutOverlapping()->onOneServer();
+Schedule::command('notifications:dispatch-pending')->everyMinute()->withoutOverlapping()->onOneServer();

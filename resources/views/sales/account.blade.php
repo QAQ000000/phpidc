@@ -49,4 +49,5 @@
 </form>
 @endif
 <p>认证完成后请主动查询结果；浏览器返回或提示不会直接改变认证状态。</p></section>
+<section><h2>注销账户</h2><p>结清资金和业务后，可申请注销并匿名化账户联系资料。</p><a href="/console/account/close">查看注销条件</a></section>
 @endsection

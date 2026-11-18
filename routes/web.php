@@ -3,9 +3,11 @@
 declare(strict_types=1);
 
 use App\Http\Controllers\AdminOperationsController;
+use App\Http\Controllers\AffiliateReceivableController;
 use App\Http\Controllers\CheckoutController;
 use App\Http\Controllers\ClassicOperationsController;
 use App\Http\Controllers\CmsOperationsController;
+use App\Http\Controllers\CustomerAccountClosureController;
 use App\Http\Controllers\CustomerAuthController;
 use App\Http\Controllers\CustomerIdentityController;
 use App\Http\Controllers\CustomerInstancePanelController;
@@ -13,13 +15,17 @@ use App\Http\Controllers\CustomerKycController;
 use App\Http\Controllers\CustomerMachineController;
 use App\Http\Controllers\CustomerOperationsController;
 use App\Http\Controllers\CustomerSalesController;
+use App\Http\Controllers\ExternalAffiliatePayoutController;
 use App\Http\Controllers\InstallController;
 use App\Http\Controllers\InventoryOperationsController;
 use App\Http\Controllers\MachineOperationReviewController;
+use App\Http\Controllers\NotificationOutboxController;
 use App\Http\Controllers\OperationsAdminController;
 use App\Http\Controllers\PublicContentController;
 use App\Http\Controllers\RenewalRecoveryController;
 use App\Http\Controllers\ServiceBillingController;
+use App\Http\Controllers\WalletTopupController;
+use App\Http\Controllers\WalletTopupSettingsController;
 use App\Http\Middleware\NegotiateMarkdown;
 use Illuminate\Support\Facades\Route;
 
@@ -56,6 +62,8 @@ Route::get('/auth/telegram/widget', [CustomerIdentityController::class, 'telegra
 Route::get('/auth/{provider}/callback', [CustomerIdentityController::class, 'socialCallback'])->middleware('throttle:oauth-callback');
 Route::middleware('auth')->group(function (): void {
     Route::get('/console/account', [CustomerIdentityController::class, 'account']);
+    Route::get('/console/account/close', [CustomerAccountClosureController::class, 'show']);
+    Route::post('/console/account/close', [CustomerAccountClosureController::class, 'store'])->middleware('throttle:account-close');
     Route::post('/email/verification-notification', [CustomerIdentityController::class, 'sendVerification'])->middleware('throttle:email-verify');
     Route::get('/email/verify/{id}/{hash}', [CustomerIdentityController::class, 'verify'])->middleware('signed:relative')->name('verification.verify');
     Route::post('/console/account/oauth/{provider}/unlink', [CustomerIdentityController::class, 'unlink'])->middleware('throttle:oauth-unlink');
@@ -69,6 +77,10 @@ Route::middleware('auth')->group(function (): void {
 });
 Route::middleware('auth')->group(function (): void {
     Route::get('/console', [CustomerSalesController::class, 'index']);
+    Route::get('/console/wallet', [WalletTopupController::class, 'index']);
+    Route::post('/console/wallet/topups', [WalletTopupController::class, 'store'])->middleware('throttle:wallet-topup');
+    Route::get('/console/affiliate/external', [ExternalAffiliatePayoutController::class, 'index']);
+    Route::post('/console/affiliate/external', [ExternalAffiliatePayoutController::class, 'store'])->middleware('throttle:external-payout');
     Route::get('/console/invoices', [CustomerSalesController::class, 'invoices']);
     Route::get('/console/instances', [CustomerSalesController::class, 'instances']);
     Route::get('/console/invoices/{invoice}', [CustomerSalesController::class, 'invoice']);
@@ -101,6 +113,12 @@ Route::post('/admin/upstream-instances/{instance}/hot-swap', [ClassicOperationsC
 Route::post('/admin/inventory/import', [InventoryOperationsController::class, 'import'])->name('inventory.import');
 Route::post('/admin/access/{target}/role', [AdminOperationsController::class, 'role']);
 Route::post('/admin/finance/invoices/{invoice}/refund', [AdminOperationsController::class, 'refund']);
+Route::post('/admin/finance/wallet-topup-settings', [WalletTopupSettingsController::class, 'store']);
+Route::post('/admin/finance/receivables/{clawback}/settlements', [AffiliateReceivableController::class, 'store']);
+Route::post('/admin/finance/receivable-settlements/{settlement}/reverse', [AffiliateReceivableController::class, 'reverse']);
+Route::post('/admin/external-payouts/{withdrawal}', [ExternalAffiliatePayoutController::class, 'process']);
+Route::post('/admin/external-payouts/{withdrawal}/details', [ExternalAffiliatePayoutController::class, 'details']);
+Route::post('/admin/notification-outbox/{delivery}/resolve', [NotificationOutboxController::class, 'resolve']);
 Route::post('/admin/tasks/{task}/retry', [AdminOperationsController::class, 'retry']);
 Route::post('/admin/fulfillment/{task}/retry', [InventoryOperationsController::class, 'retry'])->name('inventory.retry');
 Route::post('/admin/content/articles', [CmsOperationsController::class, 'saveArticle']);

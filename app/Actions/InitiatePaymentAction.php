@@ -15,6 +15,7 @@ use App\Support\EpayProfiles;
 use App\Support\Money;
 use App\Support\RenewalRecovery;
 use App\Support\SettlementCurrency;
+use App\Support\WalletTopupIntent;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
@@ -35,7 +36,10 @@ class InitiatePaymentAction
             if ($profile === null || ! $gateway->isEnabled()) {
                 throw ValidationException::withMessages(['gateway' => 'Payment gateway is not configured.']);
             }
-            User::whereKey($actor->id)->lockForUpdate()->firstOrFail();
+            $user = User::whereKey($actor->id)->whereNull('anonymized_at')->lockForUpdate()->first();
+            if ($user === null) {
+                throw ValidationException::withMessages(['account' => 'An active account is required.']);
+            }
             $family = $invoice->type === InvoiceType::RENEW ? app(RenewalRecovery::class)->rows($invoice, true) : null;
             $locked = $family === null ? Invoice::whereKey($invoice->id)->lockForUpdate()->firstOrFail() : $family->firstWhere('id', $invoice->id);
             if ($family !== null) {
@@ -43,6 +47,9 @@ class InitiatePaymentAction
             }
             if (($locked->line_items['automatic_renewal']['selection_pending'] ?? false) === true) {
                 throw ValidationException::withMessages(['invoice' => 'Confirm the automatic renewal payment allocation first.']);
+            }
+            if ($locked->type === InvoiceType::WALLET_TOPUP && ! app(WalletTopupIntent::class)->isValid($locked)) {
+                throw ValidationException::withMessages(['invoice' => 'Top-up evidence requires reconciliation before payment.']);
             }
             SettlementCurrency::assertSupported($locked->currency);
             if ($locked->user_id !== $actor->id || $locked->gateway !== $gateway->getIdentifier() || $locked->status !== InvoiceStatus::UNPAID
@@ -60,7 +67,7 @@ class InitiatePaymentAction
         $result = $gateway->charge($invoice, $attempt->amount, $attempt->out_trade_no);
         if (! $result->success) {
             DB::transaction(function () use ($invoice, $actor, $attempt): void {
-                User::whereKey($actor->id)->lockForUpdate()->firstOrFail();
+                User::withTrashed()->whereKey($actor->id)->lockForUpdate()->firstOrFail();
                 Invoice::whereKey($invoice->id)->lockForUpdate()->firstOrFail();
                 $locked = PaymentAttempt::whereKey($attempt->id)->lockForUpdate()->firstOrFail();
                 if ($locked->status === 'created') {

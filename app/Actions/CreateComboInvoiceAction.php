@@ -372,7 +372,7 @@ class CreateComboInvoiceAction
                     'created_at' => now(), 'updated_at' => now()]);
             }
             if ($type === InvoiceType::RENEW) {
-                DB::afterCommit(fn () => app(NotifyRenewalAction::class)->execute($invoice));
+                app(NotifyRenewalAction::class)->execute($invoice);
             }
 
             return $invoice;

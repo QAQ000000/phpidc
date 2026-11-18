@@ -80,6 +80,11 @@ class ReencryptSecretsAction
                         ]);
                     }
                     $this->rotateJson('fulfillment_tasks', 'payload', $old, $new);
+                    $this->rotateColumn('affiliate_withdrawals', 'encrypted_payout_details', $old, $new);
+                    $this->rotateColumn('affiliate_withdrawals', 'encrypted_payout_evidence', $old, $new);
+                    $this->rotateColumn('affiliate_withdrawals', 'operation_requests', $old, $new);
+                    $this->rotateColumn('notification_events', 'encrypted_payload', $old, $new);
+                    $this->rotateColumn('notification_deliveries', 'encrypted_payload', $old, $new);
                     $this->rotateColumn('upstream_apis', 'encrypted_secret', $old, $new);
                     foreach (DB::table('system_settings')->where('is_encrypted', true)->orderBy('id')->lockForUpdate()->get(['id', 'value']) as $row) {
                         if ($row->value !== null) {

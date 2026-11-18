@@ -47,8 +47,16 @@ class PhoneBindingAction
             if ($template === '' || ! app(DriverManager::class)->sms()->sendTemplate($phone, $template, ['code' => $code, 'minutes' => '10'])) {
                 throw ValidationException::withMessages(['phone' => '验证码发送失败，请稍后重试。']);
             }
-            Cache::put('phone-binding:'.$user->id, ['phone' => $phone, 'hash' => Hash::make($code),
-                'password_hash' => $fresh->getAuthPassword(), 'attempts' => 0, 'expires' => now()->addMinutes(10)->timestamp], now()->addMinutes(10));
+            // Delivery runs outside a database transaction. Recheck after it returns so account
+            // closure/password rotation cannot be followed by a newly persisted stale proof.
+            DB::transaction(function () use ($user, $phone, $code, $fresh): void {
+                $locked = User::whereKey($user->id)->lockForUpdate()->firstOrFail();
+                if ($locked->anonymized_at !== null || ! hash_equals($fresh->getAuthPassword(), $locked->getAuthPassword())) {
+                    throw ValidationException::withMessages(['phone' => '账户已改变，请重新登录后发送验证码。']);
+                }
+                Cache::put('phone-binding:'.$user->id, ['phone' => $phone, 'hash' => Hash::make($code),
+                    'password_hash' => $locked->getAuthPassword(), 'attempts' => 0, 'expires' => now()->addMinutes(10)->timestamp], now()->addMinutes(10));
+            });
 
             return true;
         });

@@ -7,6 +7,7 @@ namespace App\Actions;
 use App\Enums\FulfillmentTaskStatus;
 use App\Enums\InstanceStatus;
 use App\Enums\InvoiceStatus;
+use App\Enums\InvoiceType;
 use App\Enums\TransactionType;
 use App\Models\AffiliateCommission;
 use App\Models\FinancialTransaction;
@@ -37,13 +38,18 @@ class RefundInvoiceAction
         // Discover IDs, not balances. Revalidate after locking all users in ascending ID order (INV-W3/L1).
         $candidate = Invoice::findOrFail($invoice->id);
         $commissionHint = AffiliateCommission::where('invoice_id', $candidate->id)->first();
-        $userIds = array_unique(array_filter([$candidate->user_id, $commissionHint?->referrer_id]));
+        $userIds = array_unique(array_filter([$candidate->user_id, $commissionHint?->referrer_id, $actor->id]));
 
         return DB::transaction(function () use ($candidate, $commissionHint, $userIds, $mode, $keepService, $reason, $actor): FinancialTransaction {
             $users = User::withTrashed()->whereKey($userIds)->orderBy('id')->lockForUpdate()->get()->keyBy('id');
+            $operator = $users->get($actor->id);
             $locked = Invoice::whereKey($candidate->id)->lockForUpdate()->firstOrFail();
-            if ($locked->user_id !== $candidate->user_id || ! Gate::forUser($actor)->allows('refund-invoice', $locked)) {
+            if ($operator === null || $operator->trashed() || $operator->anonymized_at !== null
+                || $locked->user_id !== $candidate->user_id || ! Gate::forUser($operator)->allows('refund-invoice', $locked)) {
                 throw new DomainException('Refund is not authorized for this invoice.');
+            }
+            if ($locked->type === InvoiceType::WALLET_TOPUP) {
+                throw new DomainException('Wallet top-ups cannot use product refunds.');
             }
             if (! SettlementCurrency::supports($locked->currency)) {
                 Log::warning('Non-CNY refund requires manual reconciliation.', ['invoice_id' => $locked->id, 'currency' => $locked->currency]);
@@ -77,7 +83,7 @@ class RefundInvoiceAction
             if ($deliveredCard && ! $instance->status->isTerminal()) {
                 $before = $instance->status->value;
                 $instance->update(['status' => InstanceStatus::CANCELLED]);
-                $this->audit($actor, 'instance.refund_cancel', Instance::class, $instance->id, ['status' => $before], ['status' => $instance->status->value], $reason);
+                $this->audit($operator, 'instance.refund_cancel', Instance::class, $instance->id, ['status' => $before], ['status' => $instance->status->value], $reason);
             }
             // A refunded order cannot deliver new resources. Stale tokens also fence workers already running.
             $tasks = FulfillmentTask::whereIn('status', [FulfillmentTaskStatus::PENDING, FulfillmentTaskStatus::RUNNING])
@@ -104,7 +110,7 @@ class RefundInvoiceAction
             $transaction = FinancialTransaction::create(['user_id' => $buyer->id, 'invoice_id' => $locked->id, 'type' => $type,
                 'amount' => $locked->total_amount, 'balance_after' => $buyer->credit, 'frozen_after' => $buyer->frozen_credit,
                 'reference_key' => 'refund:'.$locked->id, 'remark' => $reason,
-                'meta' => ['mode' => $mode, 'currency' => $locked->currency, 'keep_service' => $keepService, 'actor_id' => $actor->id,
+                'meta' => ['mode' => $mode, 'currency' => $locked->currency, 'keep_service' => $keepService, 'actor_id' => $operator->id,
                     'delivered_card_loss' => $deliveredCard, 'external_refund_confirmed' => $mode === 'external_record']]);
             // INV-R3: external expense already records the loss; wallet refunds need a separate noncash loss record.
             if ($deliveredCard && $mode === 'refund_wallet') {
@@ -114,8 +120,9 @@ class RefundInvoiceAction
                         'basis' => 'refunded_invoice_total', 'card_id' => $code->id]]);
             }
             $locked->update(['status' => InvoiceStatus::REFUNDED]);
-            app(NotificationManager::class)->queue($buyer->id, 'invoice.refunded', ['invoice_no' => $locked->invoice_no, 'amount' => $locked->total_amount, 'currency' => $locked->currency]);
-            $this->audit($actor, 'invoice.refund', Invoice::class, $locked->id, $before,
+            app(NotificationManager::class)->queue($buyer->id, 'invoice.refunded', ['invoice_no' => $locked->invoice_no, 'amount' => $locked->total_amount, 'currency' => $locked->currency],
+                eventKey: 'invoice:'.$locked->id.':refunded');
+            $this->audit($operator, 'invoice.refund', Invoice::class, $locked->id, $before,
                 ['status' => $locked->status->value, 'credit' => $buyer->credit, 'frozen_credit' => $buyer->frozen_credit,
                     'mode' => $mode, 'keep_service' => $keepService, 'transaction_id' => $transaction->id], $reason);
 

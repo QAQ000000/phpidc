@@ -8,6 +8,7 @@ use App\Enums\PaymentCallbackOutcome;
 use App\Enums\TransactionType;
 use App\Models\FinancialTransaction;
 use App\Models\PaymentCallback;
+use App\Services\AffiliateReceivableBalance;
 
 class FinanceLedger extends FinanceInvoices
 {
@@ -29,7 +30,10 @@ class FinanceLedger extends FinanceInvoices
             ->when(request('invoice_id'), fn ($q, $id) => $q->where('invoice_id', (int) $id))
             ->when(PaymentCallbackOutcome::tryFrom((string) request('outcome')), fn ($q, $outcome) => $q->where('outcome', $outcome));
 
-        return ['ledger' => $ledger->latest('id')->paginate(20, ['*'], 'ledger_page')->withQueryString(),
+        $entries = $ledger->latest('id')->paginate(20, ['*'], 'ledger_page')->withQueryString();
+
+        return ['ledger' => $entries,
+            'receivables' => app(AffiliateReceivableBalance::class)->many($entries->getCollection()->filter(fn (FinancialTransaction $entry): bool => $entry->type === TransactionType::AFFILIATE_CLAWBACK)),
             'callbacks' => $callbacks->latest('id')->paginate(20, ['*'], 'callbacks_page')->withQueryString(),
             'types' => TransactionType::cases(), 'outcomes' => PaymentCallbackOutcome::cases()];
     }

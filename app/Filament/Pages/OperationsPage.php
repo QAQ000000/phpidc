@@ -16,6 +16,7 @@ use App\Models\Ticket;
 use App\Models\TicketReply;
 use App\Models\User;
 use App\Services\AffiliateFunds;
+use App\Services\AffiliateReceivableBalance;
 use App\Services\NotificationManager;
 use Filament\Pages\Page;
 use Illuminate\Support\Facades\Auth;
@@ -45,7 +46,7 @@ abstract class OperationsPage extends Page
                 'productIds' => $edit ? DB::table('affiliate_rule_product')->where('affiliate_rule_id', $edit)->pluck('product_id')->all() : [],
                 'commissions' => AffiliateCommission::query()->when(request()->integer('user_id'), fn ($q, $id) => $q->where('referrer_id', $id))
                     ->latest('id')->paginate(20, ['id', 'referrer_id', 'buyer_id', 'invoice_id', 'amount', 'rate_snapshot', 'status', 'available_at'], 'commissions_page')->withQueryString()],
-            'payouts' => ['records' => AffiliateWithdrawal::query()->when(request('status'), fn ($q, $status) => $q->where('status', $status))
+            'payouts' => ['records' => AffiliateWithdrawal::where('destination', 'wallet')->when(request('status'), fn ($q, $status) => $q->where('status', $status))
                 ->when(request()->integer('user_id'), fn ($q, $id) => $q->where('user_id', $id))->latest('id')
                 ->paginate(20, ['id', 'user_id', 'amount', 'destination', 'status', 'processed_by', 'processed_at'])->withQueryString()],
             'support' => ['records' => Ticket::query()->when(request('status'), fn ($q, $status) => $q->where('status', $status))
@@ -82,7 +83,8 @@ abstract class OperationsPage extends Page
             foreach ($data['payoutUsers'] as $user) {
                 $data['payoutFunds'][$user->id] = ['pending' => $funds->pending($user->id), 'receivable' => $funds->hasReceivable($user->id)];
             }
-            $data['receivables'] = FinancialTransaction::whereIn('user_id', $data['records']->pluck('user_id'))->where('type', TransactionType::AFFILIATE_CLAWBACK)->get(['id', 'user_id', 'invoice_id', 'meta']);
+            $roots = FinancialTransaction::whereIn('user_id', $data['records']->pluck('user_id'))->where('type', TransactionType::AFFILIATE_CLAWBACK)->get();
+            $data['receivables'] = app(AffiliateReceivableBalance::class)->many($roots);
         }
 
         return ['section' => $section, 'events' => NotificationManager::EVENTS, 'variables' => NotificationManager::VARIABLES] + $data;

@@ -67,6 +67,8 @@ The migration, the enums, the DTOs and the contracts are the agreed interface. C
 
 ### 1.4 Never write money logic outside `App\Support\Money`
 
+**Approved remaining capabilities D01–D05 (2026-11-18):** the human explicitly selected all recommended decisions in `docs/remaining-capabilities-decisions-2026-11-18.md`: CNY 1–10000 wallet top-ups without top-up refunds; owner-confirmed account-contact anonymization with unresolved-business blockers and released identifiers; manual external affiliate transfers with frozen funds and evidence confirmation; externally received receivable settlements with append-only full-entry reversals; and durable notification events/deliveries with no blind replay after uncertain send intent. This approves the specified incremental schemas, transaction vocabulary, limited Actions, permissions, lock-order and normative clarifications. Preserve old strict assertions and Specs. No arbitrary balance adjustment, automatic external payout protocol, historical ledger rewrite, existing database migration or real financial/notification execution is authorized by this design decision.
+
 `ConventionGuardTest` fails on any `bc*()` call or `number_format()` outside that class, and on any money column cast to `float`. This is deliberate.
 
 - No `float`. Not in a cast, not in a calculation, not in a comparison.

@@ -1,16 +1,18 @@
 <x-filament-panels::page>
 @include('filament.inventory-feedback')
 <section class="inventory-box"><h2>{{ $invoice->invoice_no }} · {{ $invoice->status->value }}</h2>
-<p>客户 #{{ $invoice->user_id }} · 商品 #{{ $invoice->product_id ?? '—' }} · {{ $invoice->type->value }} · 币种 {{ $invoice->currency }}</p>
+<p>客户 #{{ $invoice->user_id }} · @if($invoice->type === \App\Enums\InvoiceType::WALLET_TOPUP)钱包充值（{{ $invoice->status === \App\Enums\InvoiceStatus::PAID ? '已到账' : $invoice->status->value }}）@else 商品 #{{ $invoice->product_id ?? '—' }}@endif · {{ $invoice->type->value }} · 币种 {{ $invoice->currency }}</p>
 <p>账单总额 {{ $invoice->total_amount }} = 钱包 {{ $invoice->credit_applied }} + 网关 {{ $invoice->gateway_amount }}</p>
 <p>优惠 {{ $invoice->discount_amount }}（已计入总额，不再减一次） · 预计上游成本 {{ $invoice->upstream_expected_cost ?? '—' }}</p>
 <p>服务：@if($instance)#{{ $instance->id }} {{ $instance->display_name }} · {{ $instance->status->value }}@else 无关联服务@endif</p>
 <p class="inventory-note">支付时间 {{ $invoice->paid_at ?? '—' }} · 账单到期 {{ $invoice->expires_at ?? '—' }}</p>
 <a class="inventory-link" href="/admin/finance">返回账单</a> · <a class="inventory-link" href="/admin/finance/ledger?invoice_id={{ $invoice->id }}">查看关联流水和回调</a>
-@can('tasks.view') · <a class="inventory-link" href="/admin/tasks?invoice_id={{ $invoice->id }}">关联任务</a>@endcan
+@if($invoice->type !== \App\Enums\InvoiceType::WALLET_TOPUP)@can('tasks.view') · <a class="inventory-link" href="/admin/tasks?invoice_id={{ $invoice->id }}">关联任务</a>@endcan @endif
 </section>
 @can('refund-invoice', $invoice)
-@if($invoice->status === \App\Enums\InvoiceStatus::PAID)
+@if($invoice->type === \App\Enums\InvoiceType::WALLET_TOPUP)
+<p class="inventory-box">充值账单只核查到账及对应流水，暂不支持充值退款。</p>
+@elseif($invoice->status === \App\Enums\InvoiceStatus::PAID)
 <section class="inventory-box"><h2>全额退款 {{ $invoice->total_amount }} {{ $invoice->currency }}</h2>
 <p class="inventory-note">先确认服务已终止。若明确豁免，必须单独勾选保留服务；已交付卡密不会回收，退款会记录损失。佣金不足扣回的差额登记应收，仍需人工处理。</p>
 <form method="post" action="/admin/finance/invoices/{{ $invoice->id }}/refund" class="inventory-form">@csrf

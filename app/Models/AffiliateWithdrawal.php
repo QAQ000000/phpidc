@@ -12,6 +12,7 @@ class AffiliateWithdrawal extends Model
 
     protected function casts(): array
     {
-        return ['amount' => 'decimal:2', 'processed_at' => 'datetime'];
+        return ['amount' => 'decimal:2', 'processed_at' => 'datetime', 'started_at' => 'datetime', 'completed_at' => 'datetime',
+            'encrypted_payout_details' => 'encrypted:array', 'encrypted_payout_evidence' => 'encrypted:array', 'operation_requests' => 'encrypted:array'];
     }
 }

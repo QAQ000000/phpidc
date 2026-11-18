@@ -14,6 +14,7 @@ use App\Enums\InvoiceStatus;
 use App\Models\FulfillmentTask;
 use App\Models\Instance;
 use App\Models\Invoice;
+use App\Models\User;
 use App\Services\DriverManager;
 use App\Services\NotificationManager;
 use App\Support\InstanceDueDate;
@@ -203,6 +204,7 @@ class ExecuteServiceTaskAction
     private function commit(FulfillmentTask $candidate, Instance $binding, array $context, string $worker, InstanceInfoResult $snapshot): ProvisionResult
     {
         return DB::transaction(function () use ($candidate, $binding, $context, $worker, $snapshot): ProvisionResult {
+            User::whereKey($binding->user_id)->lockForUpdate()->firstOrFail();
             if ($candidate->invoice_id !== null) {
                 Invoice::whereKey($candidate->invoice_id)->lockForUpdate()->firstOrFail();
             }
@@ -249,7 +251,7 @@ class ExecuteServiceTaskAction
             }
             $changes['active_config'] = $config;
             if ($task->action === 'suspend' && $task->trigger_source === 'cron_overdue') {
-                app(NotificationManager::class)->queue($instance->user_id, 'instance.overdue', ['instance_id' => $instance->id, 'status' => $target->value]);
+                app(NotificationManager::class)->queue($instance->user_id, 'instance.overdue', ['instance_id' => $instance->id, 'status' => $target->value], eventKey: 'fulfillment:'.$task->id.':overdue');
             }
             $instance->update($changes);
             $payload = $task->payload;

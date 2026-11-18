@@ -34,6 +34,6 @@ class CreateServiceFulfillmentAction
             'trigger_source' => 'order_paid', 'idempotency_key' => "{$invoice->id}:{$invoice->type->value}:{$invoice->instance_id}",
             'status' => 'pending', 'available_at' => now(), 'payload' => ['encrypted_operation' => $invoice->line_items['encrypted_operation']]]);
         DB::afterCommit(fn () => ExecuteFulfillmentTaskJob::dispatch($task->id));
-        app(NotificationManager::class)->queue($invoice->user_id, 'invoice.paid', ['invoice_no' => $invoice->invoice_no, 'amount' => $invoice->total_amount, 'currency' => $invoice->currency]);
+        app(NotificationManager::class)->queue($invoice->user_id, 'invoice.paid', ['invoice_no' => $invoice->invoice_no, 'amount' => $invoice->total_amount, 'currency' => $invoice->currency], eventKey: 'invoice:'.$invoice->id.':paid');
     }
 }

@@ -1,13 +1,13 @@
 <x-filament-panels::page>
 @include('filament.inventory-feedback')
-<section class="inventory-box"><p>流水只读，方向由类型决定。应收是退款佣金差额记录，尚未收回；此页不提供自动扣款或余额调整。</p>
+<section class="inventory-box"><p>流水只读，方向由类型决定。退款佣金应收显示本金及有效清偿后的剩余金额；<a class="inventory-link" href="/admin/finance/receivables">登记清偿与冲正</a>。</p>
 <form method="get" class="inventory-form"><label>客户 ID（流水）<input name="user_id" type="number" min="1" value="{{ request('user_id') }}"></label><label>账单 ID<input name="invoice_id" type="number" min="1" value="{{ request('invoice_id') }}"></label>
 <label>流水类型<select name="type"><option value="">全部</option>@foreach($types as $type)<option value="{{ $type->value }}" @selected(request('type') === $type->value)>{{ $type->value }}</option>@endforeach</select></label>
 <label>回调结果<select name="outcome"><option value="">全部</option>@foreach($outcomes as $outcome)<option value="{{ $outcome->value }}" @selected(request('outcome') === $outcome->value)>{{ $outcome->value }}</option>@endforeach</select></label>
 <button class="inventory-button">筛选</button><a class="inventory-link" href="/admin/finance/ledger">重置</a></form></section>
 <section class="inventory-box inventory-scroll"><h2>财务流水</h2><table class="inventory-table"><thead><tr><th>流水 / 客户</th><th>类型 / 金额</th><th>钱包 / 冻结余额</th><th>幂等引用 / 佣金应收</th></tr></thead><tbody>
 @forelse($ledger as $entry)<tr><td>#{{ $entry->id }} · 客户 #{{ $entry->user_id }}<br>@if($entry->invoice_id)<a class="inventory-link" href="/admin/finance/invoice?invoice_id={{ $entry->invoice_id }}">账单 #{{ $entry->invoice_id }}</a>@endif<br><span class="inventory-meta">{{ $entry->created_at }}</span></td><td>{{ $entry->type->value }}<br>{{ $entry->amount }} {{ $entry->meta['currency'] ?? '' }}</td><td>{{ $entry->balance_after ?? '—' }} / {{ $entry->frozen_after ?? '—' }}</td><td>{{ $entry->reference_key }}
-@if($entry->type === \App\Enums\TransactionType::AFFILIATE_CLAWBACK)<p>扣回 {{ $entry->meta['recovered_amount'] ?? '—' }} · 应收 {{ $entry->meta['receivable_amount'] ?? '—' }}</p>@endif
+@if($entry->type === \App\Enums\TransactionType::AFFILIATE_CLAWBACK)@php($projection = $receivables->get($entry->id))<p>扣回 {{ $entry->meta['recovered_amount'] ?? '—' }} · 应收 {{ $projection['principal'] }}（原始） · 剩余 {{ $projection['valid'] ? $projection['remaining'] : '证据异常，须核对' }}</p>@endif
 </td></tr>@empty<tr><td colspan="4">没有匹配的流水。</td></tr>@endforelse
 </tbody></table>{{ $ledger->links() }}</section>
 <section class="inventory-box inventory-scroll"><h2>支付回调（包含未知账单）</h2><p class="inventory-note">客户 ID 筛选仅适用于上方流水。回调不提供原文或重放按钮；金额不足、未知账单和渠道不匹配需人工核查。</p>

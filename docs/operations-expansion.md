@@ -2,6 +2,8 @@
 
 2026-11-17。本轮按人工批准的 [C16–C18](operations-expansion-decisions.md) 实施。开工前已有的工作区变更全部保留，未提交 Git；未迁移业务库、未给真实账号授权、未启用真实外部打款。原 Specs 已清空，本轮新增 Feature 验收，不改旧断言或 Specs 计数。
 
+> 2026-11-18 更新：D01–D05 已增加主动充值、注销匿名化、人工外部提现、应收清偿及通知 outbox，见 [实施验收](remaining-capabilities-implementation-2026-11-18.md)。下文原验收计数为 2026-11-17 历史结果。
+
 ## 已交付入口
 
 | 模块 | 客户入口 | Filament 入口 | 写权限 |
@@ -33,14 +35,14 @@
 
 保留旧 `SendNotificationJob` 构造参数及续费默认行为，支持新模板并在执行时重新核实绑定；兼容历史 `mail` 别名。历史旧续费日志的 `sent` 可能来自日志驱动，不应据此追认真实发送；FIX-012后的新记录统一区分模拟。新记录统一使用 `email`。后台投递列表不展示完整目标和异常原文。
 
-已存在的 `LogMailDriver` 实际支持 SettingService 配置的 SMTP，直接复用；本轮用独立回环 SMTP 验证。真实 Telegram 和 idcsmart SMS 未向真人发送，SMS/KYC 按用户先前决定继续暂停。`sent` 仅表示传输受理，不是送达证明。没有事件 outbox / 远程送达幂等字段，因此崩溃窗口可能漏通知或重复，失败需按日志人工核对；本轮不承诺 exactly-once。资金流水及计佣补偿独立于通知投递结果。
+已存在的 `LogMailDriver` 实际支持 SettingService 配置的 SMTP，直接复用；本轮用独立回环 SMTP 验证。真实 Telegram 和 idcsmart SMS 未向真人发送，SMS/KYC 按用户先前决定继续暂停。`sent` 仅表示传输受理，不是送达证明。D05 已增加本地持久事件与渠道投递，业务提交后补扫恢复；发送意图后未知结果保持 uncertain，不自动重发。供应商未提供通用幂等协议，仍不承诺远端 exactly-once。资金流水及计佣补偿独立于通知投递结果。
 
 ## 部署前提与有意保留范围
 
 1. 先备份并审查待执行迁移；新增 `2026_11_17_000002_add_request_key_to_affiliate_withdrawals.php` 只给提现表增加 nullable unique request_key，历史记录保留 NULL。本轮仅在隔离 SQLite 和独立 MySQL 执行迁移。
 2. 运维按现有部署流程执行迁移、维护队列 worker 和调度器；`affiliate:process` 已登记每分钟执行，含 `withoutOverlapping()`、`onOneServer()`，多机环境需共享支持锁的缓存。没有为真实站点启动新常驻服务。
 3. 使用既有带原因命令分配所需角色，例如 `php artisan admin:role <用户ID> promotion-operator --reason='明确授权原因'`。其他固定角色为 promotion-viewer、affiliate-viewer/operator、support-viewer/agent、notification-viewer/operator、download-viewer/operator；转钱包审核另授 **finance-payout**。既有 finance-operator 仍只有退款权，不自动扩大为提现权。
-4. 工单附件/部门/SLA、外部提现供应商及执行状态、退款应收清偿均未实现。现有迁移没有对应完整协议/字段，本轮不伪造它们。优惠券/佣金不混入其他币种。
+4. 工单附件/部门/SLA 和自动外部代付供应商仍未实现。D03 已交付人工转账/冻结/凭证确认状态，D04 已交付外部已收款的应收清偿/冲正；优惠券/佣金仍仅 CNY。
 5. 下载上传限制 50 MB，保存在私有 downloads 磁盘并计算大小/SHA256。元数据/审计失败会删除本次新上传并重新抛出错误；替换后的旧版本文件保留，不做无审计清理。进程被强制终止仍可能留下未引用私有文件，需人工核对。外链授权后由浏览器跳转，不能阻止获授权的人分享链接；download_count 是接受请求数，不是完成数。
 
 ## 可复现验收
@@ -69,4 +71,4 @@ python scripts/verify-operations-concurrency.py
 
 两个通知Job均最多3次总尝试。仅协议明确未接受的临时拒绝可重放（Telegram ok=false/error_code=429，遵守retry_after；SMTP4xx），退避至少60/300秒，第三次失败进入failed_jobs。超时、丢响应、未核实5xx为结果不确定，不盲目重发收费短信。永久拒绝/未配置不自动重试。每次重试先保存脱敏失败记录；最终失败的安全异常不串联原传输异常。通知Job沿用安全变量/收件人，不包含供应商密钥；失败库及备份仍须受控。
 
-`/admin/notifications`支持用户/状态过滤及安全失败分类，始终不输出收件人或原异常；最终耗尽在`/admin/tasks`核查failed_jobs的UUID。先核对供应商是否接受，再决定人工重试，禁止queue:retry all。发送后崩溃仍可能重复或漏通知；本轮未新增事件outbox或供应商幂等协议，没有向真人发送通知。证据见backend-fix007-017-verification.md。
+`/admin/notifications`支持用户/状态过滤及安全失败分类，始终不输出收件人或原异常；最终耗尽在`/admin/tasks`核查failed_jobs的UUID。先核对供应商是否接受，再决定人工重试，禁止queue:retry all。D05 已补持久事件 outbox；发送意图后的崩溃保留 uncertain 供人工核对，不自动重发。供应商送达幂等协议仍未新增，没有向真人发送通知。证据见backend-fix007-017-verification.md。

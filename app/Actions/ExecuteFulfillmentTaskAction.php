@@ -11,6 +11,7 @@ use App\Jobs\ExecuteFulfillmentTaskJob;
 use App\Models\FulfillmentTask;
 use App\Models\Instance;
 use App\Models\Invoice;
+use App\Models\User;
 use App\Services\NotificationManager;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
@@ -58,6 +59,7 @@ class ExecuteFulfillmentTaskAction
             ? app(ProvisionInstanceAction::class)->execute($candidate->instance()->firstOrFail(), $candidate->payload ?? [], $taskId, $worker)
             : app(ExecuteServiceTaskAction::class)->execute($taskId, $worker);
         DB::transaction(function () use ($candidate, $worker, $result): void {
+            User::whereKey($candidate->user_id)->lockForUpdate()->firstOrFail();
             $instance = Instance::whereKey($candidate->instance_id)->lockForUpdate()->firstOrFail();
             $task = FulfillmentTask::whereKey($candidate->id)->lockForUpdate()->firstOrFail();
             if ($task->status !== FulfillmentTaskStatus::RUNNING || $task->locked_by !== $worker || $task->lease_expires_at->isPast()) {
@@ -66,7 +68,7 @@ class ExecuteFulfillmentTaskAction
             $changes = ['locked_by' => null, 'locked_at' => null, 'lease_expires_at' => null];
             if ($result->success) {
                 if ($task->action === 'provision') {
-                    app(NotificationManager::class)->queue($instance->user_id, 'instance.delivered', ['instance_id' => $instance->id, 'status' => $instance->status->value]);
+                    app(NotificationManager::class)->queue($instance->user_id, 'instance.delivered', ['instance_id' => $instance->id, 'status' => $instance->status->value], eventKey: 'fulfillment:'.$task->id.':delivered');
                 }
                 $changes += ['status' => FulfillmentTaskStatus::SUCCESS, 'executed_at' => now(), 'summary' => $task->action.' completed.'];
             } else {

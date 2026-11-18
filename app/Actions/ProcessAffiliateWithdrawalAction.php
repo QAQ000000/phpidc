@@ -59,7 +59,7 @@ class ProcessAffiliateWithdrawalAction
             $locked->update(['status' => $target, 'processed_by' => $operator->id, 'processed_at' => now()]);
             OperationsAudit::record($operator, 'affiliate.withdrawal_'.$target, AffiliateWithdrawal::class, $locked->id, $reason, $before,
                 ['status' => $target, 'credit' => $user->credit, 'affiliate_balance' => $user->affiliate_balance]);
-            app(NotificationManager::class)->queue($user->id, 'affiliate.withdrawal', ['status' => $target, 'amount' => $locked->amount]);
+            app(NotificationManager::class)->queue($user->id, 'affiliate.withdrawal', ['status' => $target, 'amount' => $locked->amount], eventKey: 'withdrawal:'.$locked->id.':'.$target);
         });
     }
 }

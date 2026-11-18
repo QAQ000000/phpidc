@@ -8,8 +8,9 @@
 {{ $coupons->links() }}
 <h2>最近使用记录</h2>@foreach($usages as $usage)<p><a href="/console/invoices/{{ $usage->invoice_id }}">账单 #{{ $usage->invoice_id }}</a> · 减免 {{ \App\Support\Money::of($usage->discount_amount) }} CNY</p>@endforeach
 @elseif($section === 'affiliate')
-<p>首轮仅单层 CNY 新购计佣，以折后账单总额为基础。默认冻结 7 天，最终以建单快照为准。外部打款暂未开放。</p>
+<p>首轮仅单层 CNY 新购计佣，以折后账单总额为基础。默认冻结 7 天，最终以建单快照为准。可选择转入本站钱包或申请人工外部转账。</p>
 <section><h2>推广链接</h2><a href="{{ $referralUrl }}">{{ url($referralUrl) }}</a><p>仅新注册账户归因；已登录用户不会改变归属。</p></section>
+<p><a href="/console/affiliate/external">申请外部提现 / 查看出款进度</a></p>
 <section><h2>转入本站钱包</h2><p>账面余额 {{ $balance }} · 申请占用 {{ $pending }} · 可申请 {{ $available }} CNY</p>
 @if($hasReceivable)<p class="error">存在退款应收，暂停提现；请联系财务核对原流水，不能用新佣金自动抵销。</p>@else
 <form method="post" action="/console/affiliate/withdraw">@csrf<input type="hidden" name="request_id" value="{{ $requestId }}"><label>金额（两位小数，CNY）<input name="amount" inputmode="decimal" pattern="[0-9]+\.[0-9]{2}" required placeholder="10.00"></label><button>申请转钱包</button></form>
@@ -17,7 +18,7 @@
 </section>
 <h2>佣金记录</h2><div class="table-scroll"><table><thead><tr><th>账单</th><th>金额 / 费率</th><th>状态 / 成熟时间</th></tr></thead><tbody>@forelse($commissions as $commission)<tr><td>#{{ $commission->invoice_id }}</td><td>{{ $commission->amount }} CNY / {{ $commission->rate_snapshot }}%</td><td>{{ $commission->status }} / {{ $commission->available_at }}</td></tr>@empty<tr><td colspan="3">暂无佣金。</td></tr>@endforelse</tbody></table></div>{{ $commissions->links() }}
 <h2>转钱包申请</h2>@foreach($withdrawals as $withdrawal)<section>#{{ $withdrawal->id }} · {{ $withdrawal->amount }} CNY · {{ $withdrawal->destination }} · {{ $withdrawal->status }}<p>申请 {{ $withdrawal->created_at }} / 审核 {{ $withdrawal->processed_at ?? '待审核' }}</p></section>@endforeach{{ $withdrawals->links() }}
-@if($hasReceivable)<h2>退款追回核对</h2>@foreach($receivables as $entry)@if(\App\Support\Money::gt($entry->meta['receivable_amount'] ?? '0.00', '0.00'))<p>流水 #{{ $entry->id }} / 原账单 #{{ $entry->invoice_id }} / 应收 {{ $entry->meta['receivable_amount'] }} CNY</p>@endif
+@if($hasReceivable)<h2>退款追回核对</h2>@foreach($receivables as $entry)@if(!$entry['valid'] || \App\Support\Money::gt($entry['remaining'], '0.00'))<p>流水 #{{ $entry['id'] }} / 原账单 #{{ $entry['invoice_id'] }} / 剩余应收 {{ $entry['valid'] ? $entry['remaining'].' CNY' : '证据异常，请联系财务' }}</p>@endif
 @endforeach
 @endif
 @elseif($section === 'tickets')

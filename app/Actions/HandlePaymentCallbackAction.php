@@ -14,9 +14,11 @@ use App\Models\Invoice;
 use App\Models\PaymentAttempt;
 use App\Models\PaymentCallback;
 use App\Models\User;
+use App\Services\NotificationManager;
 use App\Support\Money;
 use App\Support\RenewalRecovery;
 use App\Support\SettlementCurrency;
+use App\Support\WalletTopupIntent;
 use Illuminate\Database\UniqueConstraintViolationException;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
@@ -56,7 +58,9 @@ class HandlePaymentCallbackAction
                 return $payment->ackBody;
             }
             // Non-locking lookup above only resolves the owner; all decisions use locked rows.
-            $user = User::whereKey($candidate->user_id)->lockForUpdate()->firstOrFail();
+            // D02: financial identity survives anonymization; never resolve by reusable email/phone.
+            $user = User::withTrashed()->whereKey($candidate->user_id)->lockForUpdate()->firstOrFail();
+            $closed = $user->trashed() || $user->anonymized_at !== null;
             $family = $candidate->type === InvoiceType::RENEW ? app(RenewalRecovery::class)->rows($candidate, true) : null;
             $invoice = $family === null ? Invoice::whereKey($candidate->id)->lockForUpdate()->firstOrFail() : $family->firstWhere('id', $candidate->id);
             if ($attempt !== null) {
@@ -68,11 +72,24 @@ class HandlePaymentCallbackAction
             } elseif (! SettlementCurrency::supports($invoice->currency)) {
                 $this->finish($callback, Outcome::REJECTED_UNSUPPORTED_CURRENCY);
             } elseif (in_array($invoice->status, [InvoiceStatus::EXPIRED, InvoiceStatus::CANCELLED], true)) {
-                $this->credit($user, $invoice, $callback, $payment->paidAmount);
-                $this->finish($callback, Outcome::PROCESSED_LATE_CREDIT);
+                if ($this->canCredit($user, $payment->paidAmount)) {
+                    $this->credit($user, $invoice, $callback, $payment->paidAmount);
+                    $this->finish($callback, Outcome::PROCESSED_LATE_CREDIT, $closed ? 'closed_account' : null);
+                } else {
+                    $this->finish($callback, Outcome::REJECTED_INVALID_STATE, 'wallet_capacity');
+                }
             } elseif ($invoice->status === InvoiceStatus::PAID) {
-                $this->credit($user, $invoice, $callback, $payment->paidAmount);
-                $this->finish($callback, Outcome::PROCESSED_OVERPAYMENT);
+                if ($this->canCredit($user, $payment->paidAmount)) {
+                    $this->credit($user, $invoice, $callback, $payment->paidAmount);
+                    $this->finish($callback, Outcome::PROCESSED_OVERPAYMENT, $closed ? 'closed_account' : null);
+                } else {
+                    $this->finish($callback, Outcome::REJECTED_INVALID_STATE, 'wallet_capacity');
+                }
+            } elseif ($closed) {
+                // An Unpaid invoice cannot normally survive approved account closure. Preserve evidence, never deliver.
+                $this->finish($callback, Outcome::REJECTED_INVALID_STATE, 'closed_account');
+            } elseif ($invoice->type === InvoiceType::WALLET_TOPUP && $invoice->status === InvoiceStatus::UNPAID) {
+                $this->settleTopup($user, $invoice, $attempt, $callback, $payment);
             } elseif ($invoice->status !== InvoiceStatus::UNPAID || ! in_array($invoice->type, [InvoiceType::NEW_ORDER, InvoiceType::RENEW, InvoiceType::UPGRADE], true)
                 || ($invoice->type !== InvoiceType::NEW_ORDER && ! isset($invoice->line_items['encrypted_operation']))) {
                 $this->finish($callback, Outcome::REJECTED_INVALID_STATE);
@@ -120,16 +137,65 @@ class HandlePaymentCallbackAction
         $this->ledger($user, $invoice, TransactionType::CREDIT_IN, $amount, $key ?? "credit_in:callback:{$callback->id}");
     }
 
+    private function canCredit(User $user, string $amount): bool
+    {
+        return ! Money::gt(Money::add($user->credit, $amount), WalletTopupIntent::WALLET_LIMIT);
+    }
+
+    private function settleTopup(User $user, Invoice $invoice, ?PaymentAttempt $attempt, PaymentCallback $callback, VerifiedPaymentResult $payment): void
+    {
+        if (! app(WalletTopupIntent::class)->isValid($invoice)) {
+            $this->finish($callback, Outcome::REJECTED_INVALID_STATE, 'invalid_topup_snapshot');
+
+            return;
+        }
+        if (Money::gt($invoice->gateway_amount, $payment->paidAmount)) {
+            $this->finish($callback, Outcome::REJECTED_SHORT_AMOUNT);
+
+            return;
+        }
+        // Validate the entire receipt before the principal or excess is applied.
+        if (! $this->canCredit($user, $payment->paidAmount)) {
+            $this->finish($callback, Outcome::REJECTED_INVALID_STATE, 'wallet_capacity');
+
+            return;
+        }
+        $this->credit($user, $invoice, $callback, $invoice->gateway_amount, "topup:{$invoice->id}");
+        $this->ledger($user, $invoice, TransactionType::PAYMENT, $invoice->gateway_amount, "payment:{$invoice->id}");
+        $excess = Money::sub($payment->paidAmount, $invoice->gateway_amount);
+        if (! Money::isZero($excess)) {
+            $this->credit($user, $invoice, $callback, $excess, "overpaid:{$callback->id}");
+        }
+        $invoice->update(['status' => InvoiceStatus::PAID, 'paid_at' => now(), 'gateway_trade_no' => $payment->gatewayTradeNo]);
+        if ($attempt !== null) {
+            $attempt->update(['status' => 'paid', 'gateway_trade_no' => $payment->gatewayTradeNo, 'paid_at' => now()]);
+        }
+        app(NotificationManager::class)->queue($user->id, 'wallet.topup.credited',
+            ['invoice_no' => $invoice->invoice_no, 'amount' => $invoice->gateway_amount, 'currency' => $invoice->currency],
+            eventKey: 'invoice:'.$invoice->id.':wallet-topup-credited');
+        $this->finish($callback, Money::isZero($excess) ? Outcome::PROCESSED_PAID : Outcome::PROCESSED_OVERPAYMENT);
+    }
+
     private function ledger(User $user, Invoice $invoice, TransactionType $type, string $amount, string $key): void
     {
         FinancialTransaction::create(['user_id' => $user->id, 'invoice_id' => $invoice->id, 'type' => $type, 'amount' => $amount,
             'balance_after' => $user->credit, 'frozen_after' => $user->frozen_credit, 'reference_key' => $key]);
     }
 
-    private function finish(PaymentCallback $callback, Outcome $outcome): void
+    private function finish(PaymentCallback $callback, Outcome $outcome, ?string $reason = null): void
     {
         $callback->update(['outcome' => $outcome]);
-        if ($outcome->requiresAlert()) {
+        if ($outcome->requiresAlert() || $reason !== null) {
+            $reason ??= $outcome->value;
+            $invoice = $callback->invoice_id === null ? null : Invoice::find($callback->invoice_id);
+            // Durable evidence remains queryable even when no operator channel is configured.
+            DB::table('audit_logs')->insert(['actor_type' => 'system', 'action' => 'payment.callback.attention',
+                'subject_type' => PaymentCallback::class, 'subject_id' => $callback->id, 'reason' => $reason,
+                'after' => json_encode(['outcome' => $outcome->value, 'invoice_id' => $callback->invoice_id,
+                    'amount' => $callback->amount, 'reason' => $reason], JSON_THROW_ON_ERROR), 'created_at' => now(), 'updated_at' => now()]);
+            app(NotificationManager::class)->queueOperations('payment.callback.attention',
+                ['invoice_no' => $callback->invoice_no, 'amount' => $callback->amount, 'currency' => $invoice === null ? 'CNY' : $invoice->currency, 'status' => $reason],
+                eventKey: 'callback:'.$callback->id.':attention');
             DB::afterCommit(fn () => Log::warning('Payment callback requires attention.', ['callback_id' => $callback->id, 'outcome' => $outcome->value]));
         }
     }

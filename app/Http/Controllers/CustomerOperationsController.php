@@ -13,12 +13,12 @@ use App\Models\AffiliateWithdrawal;
 use App\Models\Coupon;
 use App\Models\CouponUsage;
 use App\Models\DownloadResource;
-use App\Models\FinancialTransaction;
 use App\Models\Instance;
 use App\Models\Ticket;
 use App\Models\TicketReply;
 use App\Models\User;
 use App\Services\AffiliateFunds;
+use App\Services\AffiliateReceivableBalance;
 use App\Support\Money;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\Request;
@@ -63,8 +63,8 @@ class CustomerOperationsController extends Controller
             'hasReceivable' => $funds->hasReceivable($user->id), 'requestId' => (string) Str::ulid(),
             'referralUrl' => URL::signedRoute('affiliate.referral', ['user' => $user->id], absolute: false),
             'commissions' => AffiliateCommission::where('referrer_id', $user->id)->latest('id')->paginate(20, ['id', 'invoice_id', 'amount', 'rate_snapshot', 'status', 'available_at'], 'commissions_page'),
-            'withdrawals' => AffiliateWithdrawal::where('user_id', $user->id)->latest('id')->paginate(20, ['id', 'amount', 'destination', 'status', 'created_at', 'processed_at'], 'withdrawals_page'),
-            'receivables' => FinancialTransaction::where('user_id', $user->id)->where('type', 'affiliate_clawback')->get(['id', 'invoice_id', 'meta'])]);
+            'withdrawals' => AffiliateWithdrawal::where('user_id', $user->id)->where('destination', 'wallet')->latest('id')->paginate(20, ['id', 'amount', 'destination', 'status', 'created_at', 'processed_at'], 'withdrawals_page'),
+            'receivables' => app(AffiliateReceivableBalance::class)->forUser($user->id)]);
     }
 
     public function withdraw(Request $request, RequestAffiliateWithdrawalAction $action)

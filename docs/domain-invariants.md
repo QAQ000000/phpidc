@@ -299,6 +299,14 @@ Human-approved review decision B (2026-11-18, `backend-review-fix-decisions.md`)
 
 ## 14. PR checklist
 
+**Human-approved D01–D05 (2026-11-18):** the targeted additions in `remaining-capabilities-decisions-2026-11-18.md` govern the following extensions. Wallet top-up invoices are the sole no-product exception to INV-I4: external-only positive CNY amount, independent user/topup_request_id uniqueness, no coupon/commission/fulfillment, and atomic Paid + unique topup credit + durable event in HandlePaymentCallbackAction. CreateWalletTopupInvoiceAction may create only these invoices; generic RefundInvoiceAction must reject them. Historical callbacks resolve the original soft-deleted financial owner, never a newly registered identity.
+
+External affiliate payouts freeze available affiliate funds in affiliate_frozen_balance before manual execution; approval is not payment. Dedicated RequestExternalAffiliateWithdrawalAction and ProcessExternalAffiliateWithdrawalAction are the only new external-payout writers. Only confirmed payment consumes frozen funds; confirmed non-payment releases them; unknown stays frozen. The ordinary wallet is unchanged. New affiliate_freeze/affiliate_unfreeze types express these positive-value movements, and affiliate_payout expresses consumption of frozen external funds. Existing wallet payouts keep their approved semantics.
+
+RecordAffiliateReceivableSettlementAction and ReverseAffiliateReceivableSettlementAction append externally_received debt settlements and complete-entry reversals, with affiliate_receivable_settle/affiliate_receivable_reverse ledger types. Neither touches wallet or affiliate balances. Remaining debt is original clawback receivable minus confirmed settlements plus reversals; original ledger is immutable and outstanding/invalid debt blocks payouts.
+
+All participant users are locked in ascending ID order before financial rows. After the existing financial lock sequence, acquire affiliate withdrawal/receivable records in stable ID order, then notification events and deliveries. Notification recording must never acquire a new earlier user lock from the tail of a financial transaction. Durable business events and delivery rows commit with business state; send intent, leases and uncertain outcomes prevent blind replay. User closure shares the user lock, blocks unresolved obligations and cancels/scrubs unsent notification recipients while retaining audit/financial identity. See the approved module proposals for exact predicates, retained evidence, unique keys, permissions and recovery boundaries.
+
 Every PR touching money, lifecycle, or a driver must answer:
 
 - [ ] INV-I2 identity asserted, and rounded exactly once (M3)?

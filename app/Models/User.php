@@ -46,6 +46,7 @@ class User extends Authenticatable implements FilamentUser
             'credit' => 'decimal:2',
             'frozen_credit' => 'decimal:2',
             'affiliate_balance' => 'decimal:2',
+            'affiliate_frozen_balance' => 'decimal:2',
         ];
     }
 }

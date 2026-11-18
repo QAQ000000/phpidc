@@ -49,6 +49,6 @@ class CreatePurchaseFulfillmentAction
         ]);
         DB::afterCommit(fn () => ExecuteFulfillmentTaskJob::dispatch($task->id));
         AccrueAffiliateCommissionJob::dispatch($invoice->id)->afterCommit();
-        app(NotificationManager::class)->queue($invoice->user_id, 'invoice.paid', ['invoice_no' => $invoice->invoice_no, 'amount' => $invoice->total_amount, 'currency' => $invoice->currency]);
+        app(NotificationManager::class)->queue($invoice->user_id, 'invoice.paid', ['invoice_no' => $invoice->invoice_no, 'amount' => $invoice->total_amount, 'currency' => $invoice->currency], eventKey: 'invoice:'.$invoice->id.':paid');
     }
 }

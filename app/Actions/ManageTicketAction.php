@@ -41,7 +41,10 @@ class ManageTicketAction
         ])->validate();
         $this->validateBodyBytes($body);
         DB::transaction(function () use ($actor, $ticket, $operation, $body, $staff, $reason): void {
-            $actor = User::whereKey($actor->id)->lockForUpdate()->firstOrFail();
+            $users = User::whereKey([$actor->id, $ticket->user_id])->orderBy('id')->lockForUpdate()->get()->keyBy('id');
+            $actor = $users->get($actor->id);
+            abort_unless($actor !== null && $actor->anonymized_at === null && $users->has($ticket->user_id)
+                && $users->get($ticket->user_id)->anonymized_at === null, 403);
             if ($staff) {
                 Gate::forUser($actor)->authorize('support.reply');
             }
@@ -52,10 +55,10 @@ class ManageTicketAction
                 if ($before === 'closed') {
                     throw ValidationException::withMessages(['operation' => '工单已关闭，请先明确重开。']);
                 }
-                TicketReply::create(['ticket_id' => $ticket->id, 'user_id' => $actor->id, 'is_admin' => $staff, 'body' => $body]);
+                $reply = TicketReply::create(['ticket_id' => $ticket->id, 'user_id' => $actor->id, 'is_admin' => $staff, 'body' => $body]);
                 $ticket->update(['status' => $staff ? 'answered' : 'open']);
                 if ($staff) {
-                    app(NotificationManager::class)->queue($ticket->user_id, 'ticket.reply', ['ticket_id' => $ticket->id, 'status' => 'answered']);
+                    app(NotificationManager::class)->queue($ticket->user_id, 'ticket.reply', ['ticket_id' => $ticket->id, 'status' => 'answered'], eventKey: 'ticket-reply:'.$reply->id);
                 }
             } elseif ($operation === 'close') {
                 $ticket->update(['status' => 'closed', 'closed_at' => $ticket->closed_at ?? now()]);
