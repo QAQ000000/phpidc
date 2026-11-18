@@ -4,7 +4,9 @@ declare(strict_types=1);
 
 namespace App\Drivers\Upstream;
 
+use App\Contracts\BoundUpstreamEndpoint;
 use App\Contracts\ConfigurableResource;
+use App\Contracts\ConfigurationInspectable;
 use App\Contracts\FulfillmentDriver;
 use App\Contracts\HasCustomPanelWidgets;
 use App\Contracts\LiveQuotable;
@@ -27,9 +29,14 @@ use App\Support\ProvisioningValidator;
 use DomainException;
 use Illuminate\Support\Carbon;
 
-class ZjmfFinanceDriver implements ConfigurableResource, FulfillmentDriver, HasCustomPanelWidgets, LiveQuotable, PowerControllable, RenewableResource, SyncableCatalog, UpstreamAccount
+class ZjmfFinanceDriver implements BoundUpstreamEndpoint, ConfigurableResource, ConfigurationInspectable, FulfillmentDriver, HasCustomPanelWidgets, LiveQuotable, PowerControllable, RenewableResource, SyncableCatalog, UpstreamAccount
 {
     public function __construct(private readonly ZjmfClient $client, private readonly UpstreamApi $account, private readonly array $panelWidgetTypes = []) {}
+
+    public function endpointIdentity(): array
+    {
+        return ['upstream_api_id' => $this->account->id, 'base_url' => rtrim($this->account->base_url, '/'), 'protocol' => 'classic_zjmf'];
+    }
 
     public function validateParams(Product $product, array $input): array
     {
@@ -44,6 +51,15 @@ class ZjmfFinanceDriver implements ConfigurableResource, FulfillmentDriver, HasC
     public function productConfiguration(Product $product): array
     {
         return (new ZjmfPurchaseProtocol($this->client, $this->account))->configuration($product);
+    }
+
+    public function inspectConfiguration(Instance $instance, Product $product): array
+    {
+        if ($instance->upstream_api_id !== $this->account->id || $product->upstream_api_id !== $this->account->id) {
+            throw new DomainException('Configuration inspection requires the authenticated current account.');
+        }
+
+        return (new ZjmfConfigurationInspectionProtocol($this->client))->inspect($instance, $product);
     }
 
     public function fetchPanelWidgets(Instance $instance): array

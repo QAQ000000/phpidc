@@ -13,7 +13,7 @@ class UpgradeCalculatorAction
 {
     public function execute(Instance $instance, array $target): string
     {
-        if ($instance->active_config['mapping_requires_review'] ?? false) {
+        if (($instance->active_config['mapping_requires_review'] ?? false) || ($instance->active_config['price_requires_review'] ?? false)) {
             throw new DomainException('Review the target product mapping before upgrading a rebound service.');
         }
         $old = collect($instance->active_config['options'] ?? [])->keyBy('local_group_id');

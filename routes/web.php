@@ -11,6 +11,7 @@ use App\Http\Controllers\CustomerAccountClosureController;
 use App\Http\Controllers\CustomerAuthController;
 use App\Http\Controllers\CustomerEntitlementArchiveController;
 use App\Http\Controllers\CustomerIdentityController;
+use App\Http\Controllers\CustomerInstanceMappingPriceController;
 use App\Http\Controllers\CustomerInstancePanelController;
 use App\Http\Controllers\CustomerKycController;
 use App\Http\Controllers\CustomerMachineController;
@@ -18,11 +19,13 @@ use App\Http\Controllers\CustomerOperationsController;
 use App\Http\Controllers\CustomerSalesController;
 use App\Http\Controllers\ExternalAffiliatePayoutController;
 use App\Http\Controllers\InstallController;
+use App\Http\Controllers\InstanceMappingReviewController;
 use App\Http\Controllers\InventoryOperationsController;
 use App\Http\Controllers\MachineOperationReviewController;
 use App\Http\Controllers\NotificationOutboxController;
 use App\Http\Controllers\OperationsAdminController;
 use App\Http\Controllers\PublicContentController;
+use App\Http\Controllers\ReconciliationController;
 use App\Http\Controllers\RenewalRecoveryController;
 use App\Http\Controllers\ServiceBillingController;
 use App\Http\Controllers\WalletClearanceController;
@@ -94,6 +97,9 @@ Route::middleware('auth')->group(function (): void {
     Route::get('/console/instances/{instance}', [CustomerSalesController::class, 'instance']);
     Route::get('/console/instances/{instance}/archive', [CustomerEntitlementArchiveController::class, 'show']);
     Route::post('/console/instances/{instance}/archive', [CustomerEntitlementArchiveController::class, 'store'])->middleware('throttle:entitlement-archive');
+    Route::get('/console/instances/{instance}/mapping-price', [CustomerInstanceMappingPriceController::class, 'show']);
+    Route::post('/console/instances/{instance}/mapping-price/preview', [CustomerInstanceMappingPriceController::class, 'preview'])->middleware('throttle:quote');
+    Route::post('/console/instances/{instance}/mapping-price', [CustomerInstanceMappingPriceController::class, 'store'])->middleware('throttle:mapping-price');
     Route::post('/console/instances/{instance}/panel-login', [CustomerInstancePanelController::class, 'open'])->middleware('throttle:panel-login');
     Route::post('/console/instances/{instance}/telemetry', [CustomerInstancePanelController::class, 'telemetry'])->middleware('throttle:telemetry');
     Route::post('/console/instances/{instance}/power-status', [CustomerInstancePanelController::class, 'powerStatus'])->middleware('throttle:power-status');
@@ -114,6 +120,9 @@ Route::post('/admin/upstream-instances/{instance}/control', [ClassicOperationsCo
 Route::post('/admin/upstream-instances/{instance}/machine-review', [MachineOperationReviewController::class, 'inspect'])->middleware('throttle:machine-review');
 Route::post('/admin/upstream-instances/{instance}/machine-reconcile', [MachineOperationReviewController::class, 'store'])->middleware('throttle:machine-reconcile');
 Route::post('/admin/upstream-instances/{instance}/hot-swap', [ClassicOperationsController::class, 'hotSwap']);
+Route::get('/admin/upstream-instances/{instance}/mapping-review', [InstanceMappingReviewController::class, 'show']);
+Route::post('/admin/upstream-instances/{instance}/mapping-review/check', [InstanceMappingReviewController::class, 'check'])->middleware('throttle:mapping-review');
+Route::post('/admin/upstream-instances/{instance}/mapping-review', [InstanceMappingReviewController::class, 'store'])->middleware('throttle:mapping-review');
 
 // Explicit POST endpoints: authorization is enforced again by the transactional Actions.
 Route::post('/admin/inventory/import', [InventoryOperationsController::class, 'import'])->name('inventory.import');
@@ -127,6 +136,10 @@ Route::post('/admin/external-payouts/{withdrawal}/details', [ExternalAffiliatePa
 Route::post('/admin/wallet-clearances/closed-account', [WalletClearanceController::class, 'closed'])->middleware('throttle:wallet-clearance');
 Route::post('/admin/wallet-clearances/{clearance}', [WalletClearanceController::class, 'process']);
 Route::post('/admin/wallet-clearances/{clearance}/details', [WalletClearanceController::class, 'details']);
+Route::post('/admin/reconciliations/{case}/payment', [ReconciliationController::class, 'payment'])->middleware('throttle:reconciliation');
+Route::post('/admin/reconciliations/{case}/binding', [ReconciliationController::class, 'binding'])->middleware('throttle:reconciliation');
+Route::post('/admin/reconciliations/{case}/reopen', [ReconciliationController::class, 'reopen'])->middleware('throttle:reconciliation');
+Route::post('/admin/reconciliations/{case}/evidence', [ReconciliationController::class, 'evidence']);
 Route::post('/admin/notification-outbox/{delivery}/resolve', [NotificationOutboxController::class, 'resolve']);
 Route::post('/admin/tasks/{task}/retry', [AdminOperationsController::class, 'retry']);
 Route::post('/admin/fulfillment/{task}/retry', [InventoryOperationsController::class, 'retry'])->name('inventory.retry');

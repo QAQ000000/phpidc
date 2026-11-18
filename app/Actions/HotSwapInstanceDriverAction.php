@@ -61,6 +61,7 @@ class HotSwapInstanceDriverAction
             }
         }
         $driver = app(DriverManager::class)->classicAccount($accountId);
+        $targetEndpoint = $driver->endpointIdentity();
         $snapshot = app(CallUpstreamAction::class)->execute(fn () => $driver->syncInfo($target));
         $host = $snapshot->rawResponse['data']['host_data'] ?? [];
         if (! in_array($snapshot->upstreamStatus, ['Active', 'Suspended'], true) || (string) ($host['productid'] ?? '') !== $pid
@@ -86,7 +87,7 @@ class HotSwapInstanceDriverAction
                 throw new DomainException('First terminate the old resource and confirm Deleted; an accepted cancellation is insufficient.');
             }
         }
-        DB::transaction(function () use ($instance, $target, $snapshot, $accountId, $hostId, $pid, $disposition, $reason, $actor, $fingerprint, $bindingPayType, $terminalRebinding, $accounts, $operations): void {
+        DB::transaction(function () use ($instance, $target, $snapshot, $accountId, $hostId, $pid, $disposition, $reason, $actor, $fingerprint, $bindingPayType, $terminalRebinding, $accounts, $operations, $targetEndpoint): void {
             $users = User::whereKey([$instance->user_id, $actor->id])->orderBy('id')->lockForUpdate()->get()->keyBy('id');
             abort_unless($users->has($instance->user_id) && $users->has($actor->id), 403);
             Gate::forUser($users->get($actor->id))->authorize('upstream.hotswap');
@@ -143,12 +144,15 @@ class HotSwapInstanceDriverAction
                 'next_due_at' => $snapshot->nextDueDate === null ? null : InstanceDueDate::parse($snapshot->nextDueDate),
                 'active_config' => $config, 'last_synced_at' => now()]);
             InstanceUpstreamBinding::create(['instance_id' => $locked->id, 'driver_type' => $locked->driver_type, 'upstream_api_id' => $accountId,
-                'upstream_instance_id' => $hostId, 'bound_at' => now()]);
+                'upstream_instance_id' => $hostId, 'bound_at' => now(), 'source_snapshot' => $targetEndpoint + ['upstream_instance_id' => $hostId]]);
             FulfillmentTask::where('instance_id', $locked->id)->whereIn('status', [FulfillmentTaskStatus::PENDING, FulfillmentTaskStatus::RUNNING])->update(['status' => FulfillmentTaskStatus::STALE]);
             $context = ['upstream_api_id' => $accountId, 'upstream_instance_id' => $hostId, 'base_url' => $target->upstreamApi->base_url, 'token_hash' => hash('sha256', $token), 'reason' => $reason];
             $task = FulfillmentTask::create(['user_id' => $locked->user_id, 'instance_id' => $locked->id, 'driver_type' => $locked->driver_type, 'upstream_api_id' => $accountId,
                 'action' => 'register_callback', 'trigger_source' => 'admin_manual', 'status' => 'pending', 'idempotency_key' => 'binding:'.$locked->id.':'.$token,
                 'payload' => ['encrypted_operation' => Crypt::encryptString(json_encode($context, JSON_THROW_ON_ERROR))], 'available_at' => now()]);
+            if ($disposition === 'keep_orphan') {
+                app(RecordBindingOrphanCaseAction::class)->execute($old);
+            }
             DB::table('audit_logs')->insert(['actor_type' => 'user', 'actor_id' => $actor->id, 'action' => 'instance.hot_swap', 'subject_type' => Instance::class,
                 'subject_id' => $locked->id, 'reason' => $reason, 'before' => json_encode($before + ['status' => $instance->status->value]),
                 'after' => json_encode(['upstream_api_id' => $accountId, 'upstream_instance_id' => $hostId, 'old_disposition' => $disposition,

@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace App\Actions;
 
+use App\Data\PaymentPostingResult;
+use App\Enums\PaymentPostingKind;
 use App\Models\FinancialTransaction;
 use App\Models\Invoice;
 use App\Models\PaymentCallback;
@@ -19,6 +21,54 @@ use Illuminate\Support\Facades\DB;
 
 class RecordPaymentAttentionCaseAction
 {
+    /** Called by the financial posting hook, before any notification records are acquired. */
+    public function posted(ReconciliationCase $hint, User $actor, Invoice $invoice, PaymentPostingResult $result, array $data): ReconciliationCase
+    {
+        $case = $this->operationCase($hint, $data);
+        $proof = app(PaymentAttentionCases::class);
+        $sourceId = $result->kind === PaymentPostingKind::WALLET_RECEIPT ? $result->principalCreditTransactionId : $result->excessCreditTransactionId;
+        $case->forceFill(['source_credit_transaction_id' => $sourceId, 'status' => $result->closedOwner ? 'awaiting_clearance' : 'open',
+            'resolved_at' => null, 'revision' => $case->revision + 1])->save();
+        $entry = $this->manualEntry($case, $actor, $data, 'payment_posted', 'payment',
+            ['posting' => $proof->postingSnapshot($result, $invoice)]);
+        if (! $proof->postingEvidenceMatches($case, $entry)) {
+            throw new DomainException('The posted payment result does not match its original financial evidence.');
+        }
+        if (! $result->closedOwner) {
+            $this->resolve($case, $actor, $data, ['resolution' => 'payment_posted', 'posting_entry_id' => $entry->id]);
+        } elseif ($sourceId !== null && Money::isZero($proof->assertSource($case)->amount)) {
+            $this->resolve($case, $actor, $data, ['resolution' => 'wallet_cleared']);
+        }
+
+        return $case;
+    }
+
+    public function confirmExisting(ReconciliationCase $hint, User $actor, array $data): ReconciliationCase
+    {
+        $case = $this->operationCase($hint, $data);
+        $evidence = app(PaymentAttentionCases::class)->existingResolutionEvidence($case);
+        if ($evidence === null) {
+            throw new DomainException('The original posting or full external wallet clearance is not verified.');
+        }
+        $case->increment('revision');
+        $this->manualEntry($case, $actor, $data, 'result_verified', 'payment', $evidence);
+        $this->resolve($case, $actor, $data, $evidence);
+
+        return $case;
+    }
+
+    public function reopen(ReconciliationCase $hint, User $actor, array $data): ReconciliationCase
+    {
+        $case = $this->operationCase($hint, $data);
+        if ($case->status !== 'resolved' || app(PaymentAttentionCases::class)->isResolved($case)) {
+            throw new DomainException('Only a resolved case whose actual evidence no longer verifies may reopen.');
+        }
+        $case->forceFill(['status' => 'open', 'resolved_at' => null, 'revision' => $case->revision + 1])->save();
+        $this->manualEntry($case, $actor, $data, 'reopened', 'reopen');
+
+        return $case;
+    }
+
     /** Called after financial writes, while the original owner is locked. */
     public function execute(PaymentCallback $callback, string $reason): ReconciliationCase
     {
@@ -75,6 +125,28 @@ class RecordPaymentAttentionCaseAction
         return $case;
     }
 
+    /** An expired reservation is its own original wallet source, not a new deposit. */
+    public function releasedCredit(User $owner, FinancialTransaction $release): ?ReconciliationCase
+    {
+        $this->assertTransaction();
+        if ((! $owner->trashed() && $owner->anonymized_at === null) || Money::isZero($release->amount)) {
+            return null;
+        }
+        $existing = ReconciliationCase::where('source_credit_transaction_id', $release->id)->lockForUpdate()->first();
+        if ($existing !== null) {
+            app(PaymentAttentionCases::class)->assertSource($existing);
+
+            return $existing;
+        }
+        $case = ReconciliationCase::create(['user_id' => $owner->id, 'kind' => 'payment_attention', 'source_type' => 'wallet_release',
+            'source_id' => (string) $release->id, 'source_fingerprint' => app(PaymentAttentionCases::class)->creditFingerprint($release),
+            'initial_reason' => 'closed_account', 'status' => 'awaiting_clearance', 'source_credit_transaction_id' => $release->id]);
+        app(PaymentAttentionCases::class)->assertSource($case);
+        $this->append($case, 'created', 'created', null, 'closed_account');
+
+        return $case;
+    }
+
     public function markPaid(WalletClearance $clearance, User $actor, FinancialTransaction $paidEntry): void
     {
         $this->assertTransaction();
@@ -114,6 +186,41 @@ class RecordPaymentAttentionCaseAction
     {
         if (DB::transactionLevel() < 1) {
             throw new DomainException('Payment attention evidence must be recorded in the financial transaction.');
+        }
+    }
+
+    private function operationCase(ReconciliationCase $hint, array $data): ReconciliationCase
+    {
+        $this->assertTransaction();
+        $case = ReconciliationCase::whereKey($hint->id)->lockForUpdate()->firstOrFail();
+        if ($case->kind !== 'payment_attention' || $case->user_id !== $hint->user_id || $case->source_type !== $hint->source_type
+            || $case->source_id !== $hint->source_id || $case->source_fingerprint !== $hint->source_fingerprint
+            || ! in_array($case->initial_reason, ['wallet_capacity', 'closed_account'], true)) {
+            throw new DomainException('The original payment case identity changed.');
+        }
+        app(PaymentAttentionCases::class)->assertRevision($case, $data);
+
+        return $case;
+    }
+
+    private function manualEntry(ReconciliationCase $case, User $actor, array $data, string $action, string $operation, array $evidence = []): ReconciliationEntry
+    {
+        return ReconciliationEntry::create(['case_id' => $case->id, 'sequence' => $case->revision,
+            'request_key' => 'manual:'.$data['request_id'], 'action' => $action, 'actor_id' => $actor->id, 'reason' => $data['reason'],
+            'source_credit_transaction_id' => $case->source_credit_transaction_id,
+            'evidence' => ['version' => 1, 'source_fingerprint' => $case->source_fingerprint,
+                'intent' => app(PaymentAttentionCases::class)->operationIntent($actor, $data, $operation), ...$evidence]]);
+    }
+
+    private function resolve(ReconciliationCase $case, User $actor, array $data, array $evidence): void
+    {
+        $case->forceFill(['status' => 'resolved', 'resolved_at' => now(), 'revision' => $case->revision + 1])->save();
+        ReconciliationEntry::create(['case_id' => $case->id, 'sequence' => $case->revision,
+            'request_key' => 'manual:'.$data['request_id'].':resolved', 'action' => 'resolved', 'actor_id' => $actor->id,
+            'reason' => $data['reason'], 'source_credit_transaction_id' => $case->source_credit_transaction_id,
+            'evidence' => ['version' => 1, 'source_fingerprint' => $case->source_fingerprint, ...$evidence]]);
+        if (! app(PaymentAttentionCases::class)->isResolved($case)) {
+            throw new DomainException('Actual payment evidence cannot authorize this conclusion.');
         }
     }
 }

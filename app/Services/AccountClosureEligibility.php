@@ -11,7 +11,6 @@ use App\Models\AffiliateCommission;
 use App\Models\AffiliateWithdrawal;
 use App\Models\FulfillmentTask;
 use App\Models\Instance;
-use App\Models\InstanceUpstreamBinding;
 use App\Models\Invoice;
 use App\Models\KycVerification;
 use App\Models\PaymentAttempt;
@@ -57,7 +56,7 @@ class AccountClosureEligibility
                 break;
             }
         }
-        if (InstanceUpstreamBinding::whereIn('instance_id', (clone $instances)->select('id'))->where('upstream_disposition', 'kept_orphan')->exists()) {
+        if (app(BindingReconciliationCases::class)->hasUnresolvedForUser($user->id)) {
             $reasons['orphans'] = '存在保留的旧上游资源，请先完成旧资源的终止或移交核对。';
         }
         if (FulfillmentTask::where('user_id', $user->id)->where(function ($query): void {

@@ -28,6 +28,7 @@
 <input type="hidden" name="request_id" value="{{ (string) \Illuminate\Support\Str::ulid() }}">
 <label>操作<select name="action"><option value="renew">续费</option><option value="upgrade">配置升级</option><option value="downgrade">仅降低未来续费价格</option><option value="terminate">申请终止</option></select></label>
 @if($instance->active_config['mapping_requires_review'] ?? false)<p>热切换后的配置映射待核对，升级与续费降价暂不可用。</p>@else
+@if($instance->active_config['price_requires_review'] ?? false)<p>未来价格基线待本人确认，升级与续费降价暂不可用。<a href="/console/instances/{{ $instance->id }}/mapping-price">预览并确认完整配置的新续费价</a></p>@endif
 @include('sales.config-options', ['product' => $instance->product, 'selection' => ['options' => ['configoption' => $instance->active_config['upstream_configoption'] ?? []]], 'serviceChange' => true])
 @endif
 <p>升级会先创建差价账单；降级仅降低未来续费价，本期不退款、远程配置不变。终止以实际删除确认为准。</p>

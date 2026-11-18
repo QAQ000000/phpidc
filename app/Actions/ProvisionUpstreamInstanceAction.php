@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Actions;
 
+use App\Contracts\BoundUpstreamEndpoint;
 use App\Contracts\FulfillmentDriver;
 use App\Data\ProvisionResult;
 use App\Enums\FulfillmentTaskStatus;
@@ -11,6 +12,7 @@ use App\Enums\InstanceStatus;
 use App\Jobs\ReconcileHostSyncJob;
 use App\Models\FulfillmentTask;
 use App\Models\Instance;
+use App\Models\InstanceUpstreamBinding;
 use Illuminate\Support\Facades\Crypt;
 use Illuminate\Support\Facades\DB;
 
@@ -40,11 +42,12 @@ class ProvisionUpstreamInstanceAction
             return ProvisionResult::fail('Encrypted purchase parameters are missing.');
         }
         $params = json_decode(Crypt::decryptString($payload['encrypted_purchase']), true, flags: JSON_THROW_ON_ERROR);
+        $endpoint = $driver instanceof BoundUpstreamEndpoint ? $driver->endpointIdentity() : null;
         $result = app(CallUpstreamAction::class)->execute(fn () => $driver->provision($instance, $params));
         if (! $result->success || $result->upstreamInstanceId === null) {
             return $result;
         }
-        $applied = DB::transaction(function () use ($instance, $result, $taskId, $worker): bool {
+        $applied = DB::transaction(function () use ($instance, $result, $taskId, $worker, $endpoint): bool {
             $locked = Instance::whereKey($instance->id)->lockForUpdate()->firstOrFail();
             if ($locked->driver_type !== $instance->driver_type || $locked->upstream_api_id !== $instance->upstream_api_id
                 || $locked->downstream_token !== $instance->downstream_token || $locked->status !== $instance->status
@@ -53,6 +56,12 @@ class ProvisionUpstreamInstanceAction
             }
             $locked->update(['upstream_instance_id' => $result->upstreamInstanceId, 'status' => InstanceStatus::ACTIVE, 'primary_ip' => $result->primaryIp ?? $locked->primary_ip,
                 'encrypted_credentials' => $result->credentials === [] ? $locked->encrypted_credentials : $result->credentials]);
+            if ($endpoint !== null && $endpoint['upstream_api_id'] === $locked->upstream_api_id
+                && ! InstanceUpstreamBinding::where('instance_id', $locked->id)->whereNull('unbound_at')->exists()) {
+                InstanceUpstreamBinding::create(['instance_id' => $locked->id, 'driver_type' => $locked->driver_type,
+                    'upstream_api_id' => $locked->upstream_api_id, 'upstream_instance_id' => $result->upstreamInstanceId,
+                    'bound_at' => now(), 'source_snapshot' => $endpoint + ['upstream_instance_id' => $result->upstreamInstanceId]]);
+            }
             DB::table('audit_logs')->insert(['actor_type' => 'system', 'action' => 'instance.upstream_provision', 'subject_type' => Instance::class,
                 'subject_id' => $locked->id, 'before' => json_encode(['status' => $instance->status->value]),
                 'after' => json_encode(['status' => InstanceStatus::ACTIVE->value, 'upstream_instance_id' => $result->upstreamInstanceId]),

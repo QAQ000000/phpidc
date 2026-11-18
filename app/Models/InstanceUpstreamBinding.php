@@ -25,6 +25,7 @@ class InstanceUpstreamBinding extends Model
             'driver_type' => DriverType::class,
             'bound_at' => 'datetime',
             'unbound_at' => 'datetime',
+            'source_snapshot' => 'array',
         ];
     }
 

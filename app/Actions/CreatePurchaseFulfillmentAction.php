@@ -14,6 +14,7 @@ use App\Models\FulfillmentTask;
 use App\Models\Instance;
 use App\Models\Invoice;
 use App\Services\NotificationManager;
+use Closure;
 use Illuminate\Support\Facades\Crypt;
 use Illuminate\Support\Facades\DB;
 use LogicException;
@@ -21,7 +22,8 @@ use LogicException;
 class CreatePurchaseFulfillmentAction
 {
     // Called only by the wallet or callback settlement transaction (INV-P2).
-    public function execute(Invoice $invoice): void
+    /** @param (Closure(FulfillmentTask): void)|null $beforeNotification */
+    public function execute(Invoice $invoice, ?Closure $beforeNotification = null): void
     {
         if (DB::transactionLevel() === 0 || $invoice->status !== InvoiceStatus::PAID || $invoice->instance_id !== null) {
             throw new LogicException('New-purchase fulfillment must be created in its Paid settlement transaction.');
@@ -49,6 +51,7 @@ class CreatePurchaseFulfillmentAction
         ]);
         DB::afterCommit(fn () => ExecuteFulfillmentTaskJob::dispatch($task->id));
         AccrueAffiliateCommissionJob::dispatch($invoice->id)->afterCommit();
+        $beforeNotification?->__invoke($task);
         app(NotificationManager::class)->queue($invoice->user_id, 'invoice.paid', ['invoice_no' => $invoice->invoice_no, 'amount' => $invoice->total_amount, 'currency' => $invoice->currency], eventKey: 'invoice:'.$invoice->id.':paid');
     }
 }

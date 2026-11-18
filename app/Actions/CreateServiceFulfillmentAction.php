@@ -12,13 +12,15 @@ use App\Models\Instance;
 use App\Models\Invoice;
 use App\Services\NotificationManager;
 use App\Support\RenewalRecovery;
+use Closure;
 use Illuminate\Support\Facades\Crypt;
 use Illuminate\Support\Facades\DB;
 use LogicException;
 
 class CreateServiceFulfillmentAction
 {
-    public function execute(Invoice $invoice): void
+    /** @param (Closure(FulfillmentTask): void)|null $beforeNotification */
+    public function execute(Invoice $invoice, ?Closure $beforeNotification = null): void
     {
         if (DB::transactionLevel() === 0 || $invoice->status !== InvoiceStatus::PAID || ! in_array($invoice->type, [InvoiceType::RENEW, InvoiceType::UPGRADE], true)
             || $invoice->instance_id === null || ! isset($invoice->line_items['encrypted_operation'])) {
@@ -34,6 +36,7 @@ class CreateServiceFulfillmentAction
             'trigger_source' => 'order_paid', 'idempotency_key' => "{$invoice->id}:{$invoice->type->value}:{$invoice->instance_id}",
             'status' => 'pending', 'available_at' => now(), 'payload' => ['encrypted_operation' => $invoice->line_items['encrypted_operation']]]);
         DB::afterCommit(fn () => ExecuteFulfillmentTaskJob::dispatch($task->id));
+        $beforeNotification?->__invoke($task);
         app(NotificationManager::class)->queue($invoice->user_id, 'invoice.paid', ['invoice_no' => $invoice->invoice_no, 'amount' => $invoice->total_amount, 'currency' => $invoice->currency], eventKey: 'invoice:'.$invoice->id.':paid');
     }
 }

@@ -31,7 +31,7 @@ class DowngradeCalculatorAction
             User::whereKey($instance->user_id)->lockForUpdate()->firstOrFail();
             $unpaid = Invoice::where('instance_id', $instance->id)->where('status', InvoiceStatus::UNPAID)->lockForUpdate()->exists();
             $locked = Instance::whereKey($instance->id)->lockForUpdate()->firstOrFail();
-            if ($unpaid || ($locked->active_config['mapping_requires_review'] ?? false) || isset($locked->active_config['cancellation']) || ! $locked->status->isBillable() || FulfillmentTask::where('instance_id', $locked->id)->whereIn('status', [FulfillmentTaskStatus::PENDING, FulfillmentTaskStatus::RUNNING, FulfillmentTaskStatus::FAILED])->exists()) {
+            if ($unpaid || ($locked->active_config['mapping_requires_review'] ?? false) || ($locked->active_config['price_requires_review'] ?? false) || isset($locked->active_config['cancellation']) || ! $locked->status->isBillable() || FulfillmentTask::where('instance_id', $locked->id)->whereIn('status', [FulfillmentTaskStatus::PENDING, FulfillmentTaskStatus::RUNNING, FulfillmentTaskStatus::FAILED])->exists()) {
                 throw new DomainException('Resolve pending operations before changing renewal prices.');
             }
             $target = app(ResolveProductOptionsAction::class)->execute($locked->product, $locked->billing_cycle->value, $options, false);

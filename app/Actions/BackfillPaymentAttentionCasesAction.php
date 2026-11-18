@@ -16,7 +16,7 @@ class BackfillPaymentAttentionCasesAction
     /** Rebuild source projections only; never credit, deliver, or pay anything. */
     public function execute(): array
     {
-        $callbacks = $refunds = 0;
+        $callbacks = $refunds = $releases = 0;
         foreach (DB::table('audit_logs')->where('action', 'payment.callback.attention')->where('subject_type', PaymentCallback::class)
             ->whereIn('after->reason', ['wallet_capacity', 'closed_account'])->orderBy('id')->lazyById(100) as $audit) {
             $callback = PaymentCallback::find($audit->subject_id);
@@ -44,6 +44,18 @@ class BackfillPaymentAttentionCasesAction
             });
         }
 
-        return ['callbacks' => $callbacks, 'refunds' => $refunds];
+        foreach (FinancialTransaction::where('type', TransactionType::CREDIT_UNFREEZE)->where('reference_key', 'like', 'unfreeze:%')->lazyById(100) as $release) {
+            DB::transaction(function () use ($release, &$releases): void {
+                $owner = User::withTrashed()->whereKey($release->user_id)->lockForUpdate()->firstOrFail();
+                if (! $owner->trashed() && $owner->anonymized_at === null) {
+                    return;
+                }
+                Invoice::whereKey($release->invoice_id)->lockForUpdate()->firstOrFail();
+                app(RecordPaymentAttentionCaseAction::class)->releasedCredit($owner, $release);
+                $releases++;
+            });
+        }
+
+        return ['callbacks' => $callbacks, 'refunds' => $refunds, 'releases' => $releases];
     }
 }
