@@ -12,6 +12,7 @@ use App\Models\Invoice;
 use App\Models\User;
 use App\Support\Money;
 use App\Support\SettlementCurrency;
+use App\Support\WalletCapacity;
 use DomainException;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
@@ -36,6 +37,9 @@ class ExpireUnpaidInvoicesAction
             throw new DomainException('Renewal wallet evidence requires reconciliation before termination.');
         }
         if (! Money::isZero($amount)) {
+            if (! WalletCapacity::canCredit($user, $amount, $amount)) {
+                throw new DomainException('Wallet release exceeds the column limit; reconcile funds before termination.');
+            }
             $user->forceFill(['credit' => Money::add($user->credit, $amount), 'frozen_credit' => Money::sub($user->frozen_credit, $amount)])->save();
             FinancialTransaction::create(['user_id' => $user->id, 'invoice_id' => $invoice->id, 'type' => TransactionType::CREDIT_UNFREEZE,
                 'amount' => $amount, 'balance_after' => $user->credit, 'frozen_after' => $user->frozen_credit, 'reference_key' => "unfreeze:{$invoice->id}"]);
@@ -66,6 +70,11 @@ class ExpireUnpaidInvoicesAction
                         }
                         $amount = $invoice->credit_applied;
                         if (! Money::isZero($amount)) {
+                            if (! WalletCapacity::canCredit($user, $amount, $amount)) {
+                                $this->recordReleaseAttention($invoice);
+
+                                return;
+                            }
                             $user->forceFill(['credit' => Money::add($user->credit, $amount), 'frozen_credit' => Money::sub($user->frozen_credit, $amount)])->save();
                             FinancialTransaction::create(['user_id' => $user->id, 'invoice_id' => $invoice->id, 'type' => TransactionType::CREDIT_UNFREEZE,
                                 'amount' => $amount, 'balance_after' => $user->credit, 'frozen_after' => $user->frozen_credit, 'reference_key' => "unfreeze:{$invoice->id}"]);
@@ -75,5 +84,19 @@ class ExpireUnpaidInvoicesAction
                     });
                 }
             });
+    }
+
+    private function recordReleaseAttention(Invoice $invoice): void
+    {
+        // The user/invoice locks serialize this fact; repeated minute sweeps do not multiply it.
+        if (! DB::table('audit_logs')->where('action', 'invoice.expiry.wallet_capacity')
+            ->where('subject_type', Invoice::class)->where('subject_id', $invoice->id)->exists()) {
+            DB::table('audit_logs')->insert(['actor_type' => 'system', 'action' => 'invoice.expiry.wallet_capacity',
+                'subject_type' => Invoice::class, 'subject_id' => $invoice->id,
+                'reason' => 'Invoice wallet release requires reconciliation before expiry.',
+                'after' => json_encode(['amount' => $invoice->credit_applied, 'reason' => 'wallet_capacity'], JSON_THROW_ON_ERROR),
+                'created_at' => now(), 'updated_at' => now()]);
+            DB::afterCommit(fn () => Log::warning('Invoice wallet release requires reconciliation.', ['invoice_id' => $invoice->id]));
+        }
     }
 }

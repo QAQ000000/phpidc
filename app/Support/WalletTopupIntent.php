@@ -16,7 +16,7 @@ final class WalletTopupIntent
 
     public const MAXIMUM = '10000.00';
 
-    public const WALLET_LIMIT = '9999999999.99';
+    public const WALLET_LIMIT = WalletCapacity::LIMIT;
 
     /** @return array{id: string, request: array{amount: string, currency: string, gateway: string}} */
     public function request(array $input): array

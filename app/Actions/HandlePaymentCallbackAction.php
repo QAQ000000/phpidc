@@ -18,6 +18,7 @@ use App\Services\NotificationManager;
 use App\Support\Money;
 use App\Support\RenewalRecovery;
 use App\Support\SettlementCurrency;
+use App\Support\WalletCapacity;
 use App\Support\WalletTopupIntent;
 use Illuminate\Database\UniqueConstraintViolationException;
 use Illuminate\Support\Facades\DB;
@@ -108,6 +109,13 @@ class HandlePaymentCallbackAction
                 if (! Money::eq(Money::add($invoice->credit_applied, $invoice->gateway_amount), $invoice->total_amount)) {
                     throw new LogicException('Stored invoice amount identity failed.');
                 }
+                $excess = Money::sub($payment->paidAmount, $invoice->gateway_amount);
+                // N05: preflight the complete receipt before settlement or fulfillment.
+                if (! WalletCapacity::canCredit($user, $excess, $invoice->credit_applied)) {
+                    $this->finish($callback, Outcome::REJECTED_INVALID_STATE, 'wallet_capacity');
+
+                    return $payment->ackBody;
+                }
                 $user->forceFill(['frozen_credit' => Money::sub($user->frozen_credit, $invoice->credit_applied)])->save();
                 $this->ledger($user, $invoice, TransactionType::CREDIT_SETTLE, $invoice->credit_applied, "settle:{$invoice->id}");
                 $this->ledger($user, $invoice, TransactionType::PAYMENT, $invoice->gateway_amount, "payment:{$invoice->id}");
@@ -115,7 +123,6 @@ class HandlePaymentCallbackAction
                 if ($attempt !== null) {
                     $attempt->update(['status' => 'paid', 'gateway_trade_no' => $payment->gatewayTradeNo, 'paid_at' => now()]);
                 }
-                $excess = Money::sub($payment->paidAmount, $invoice->gateway_amount);
                 if (! Money::isZero($excess)) {
                     $this->credit($user, $invoice, $callback, $excess, "overpaid:{$callback->id}");
                 }
@@ -139,7 +146,7 @@ class HandlePaymentCallbackAction
 
     private function canCredit(User $user, string $amount): bool
     {
-        return ! Money::gt(Money::add($user->credit, $amount), WalletTopupIntent::WALLET_LIMIT);
+        return WalletCapacity::canCredit($user, $amount);
     }
 
     private function settleTopup(User $user, Invoice $invoice, ?PaymentAttempt $attempt, PaymentCallback $callback, VerifiedPaymentResult $payment): void

@@ -35,7 +35,7 @@ class AccountClosureEligibility
         if ($user->trashed() || $user->anonymized_at !== null) {
             return ['eligible' => false, 'reasons' => ['identity' => '账户已停用，不能再次发起注销。']];
         }
-        foreach (['credit' => '钱包余额', 'frozen_credit' => '冻结钱包', 'affiliate_balance' => '可用佣金', 'affiliate_frozen_balance' => '冻结佣金'] as $field => $label) {
+        foreach (['credit' => '钱包余额', 'frozen_credit' => '冻结钱包', 'wallet_clearance_frozen' => '结清冻结钱包', 'affiliate_balance' => '可用佣金', 'affiliate_frozen_balance' => '冻结佣金'] as $field => $label) {
             if (! Money::isZero($user->{$field})) {
                 $reasons[$field] = $label.'尚未清理，请先完成资金核对；注销不会扣除或没收余额。';
             }

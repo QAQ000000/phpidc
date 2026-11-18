@@ -9,6 +9,8 @@ use App\Models\UserNotificationBinding;
 use App\Services\DriverManager;
 use App\Services\SettingService;
 use App\Support\CustomerEmailLookup;
+use App\Support\RetryableNotificationException;
+use App\Support\UncertainNotificationException;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Password;
 use Illuminate\Support\Facades\URL;
@@ -42,8 +44,8 @@ class CustomerIdentityAction
         if ($pending !== null) {
             [$user, $token] = $pending;
             $url = $this->publicUrl('/reset-password/'.$token.'?'.http_build_query(['email' => $user->email]));
-            $sent = $this->sendMail($user, '重置密码', "请在 60 分钟内打开以下链接重置密码：\n".$url."\n如果不是你发起的请求，请忽略。");
-            DB::transaction(fn () => $this->audit($user, $sent ? 'identity.password_reset_sent' : 'identity.password_reset_delivery_failed'));
+            $delivery = $this->sendMail($user, '重置密码', "请在 60 分钟内打开以下链接重置密码：\n".$url."\n如果不是你发起的请求，请忽略。");
+            DB::transaction(fn () => $this->audit($user, $delivery === 'sent' ? 'identity.password_reset_sent' : 'identity.password_reset_delivery_failed', $delivery));
         }
     }
 
@@ -73,9 +75,12 @@ class CustomerIdentityAction
         }
         $path = URL::temporarySignedRoute('verification.verify', now()->addMinutes(60),
             ['id' => $fresh->id, 'hash' => sha1($fresh->email)], absolute: false);
-        if (! $this->sendMail($fresh, '验证邮箱', "请登录你的账户后，在 60 分钟内打开以下链接验证邮箱：\n".$this->publicUrl($path))) {
-            DB::transaction(fn () => $this->audit($fresh, 'identity.email_verification_delivery_failed'));
-            throw ValidationException::withMessages(['operation' => '邮件发送失败，请稍后重试或联系管理员。']);
+        $delivery = $this->sendMail($fresh, '验证邮箱', "请登录你的账户后，在 60 分钟内打开以下链接验证邮箱：\n".$this->publicUrl($path));
+        if ($delivery !== 'sent') {
+            DB::transaction(fn () => $this->audit($fresh, 'identity.email_verification_delivery_failed', $delivery));
+            throw ValidationException::withMessages(['operation' => $delivery === 'uncertain'
+                ? '邮件发送结果尚未确认，请先检查收件箱；如未收到，请联系管理员核对后再发送。'
+                : '邮件发送失败，请稍后重试或联系管理员。']);
         }
     }
 
@@ -104,16 +109,19 @@ class CustomerIdentityAction
         }
     }
 
-    private function sendMail(User $user, string $subject, string $body): bool
+    /** @return 'sent'|'rejected'|'retryable'|'uncertain' */
+    private function sendMail(User $user, string $subject, string $body): string
     {
         try {
             $sent = app(DriverManager::class)->mail()->send($user->email, $subject, $body);
-        } catch (TransportExceptionInterface) {
-            // Caller records an explicit delivery failure; no verification or reset is performed.
-            return false;
+        } catch (RetryableNotificationException) {
+            return 'retryable';
+        } catch (UncertainNotificationException|TransportExceptionInterface) {
+            // A transport failure may follow acceptance. Preserve the existing token; never replay automatically.
+            return 'uncertain';
         }
 
-        return $sent;
+        return $sent ? 'sent' : 'rejected';
     }
 
     private function publicUrl(string $path): string
@@ -122,10 +130,11 @@ class CustomerIdentityAction
         return rtrim((string) config('app.url'), '/').$path;
     }
 
-    private function audit(User $user, string $event): void
+    private function audit(User $user, string $event, ?string $deliveryStatus = null): void
     {
         DB::table('audit_logs')->insert(['actor_type' => 'user', 'actor_id' => $user->id, 'action' => $event,
             'subject_type' => User::class, 'subject_id' => $user->id, 'reason' => 'Customer account verification',
+            'after' => $deliveryStatus === null ? null : json_encode(['delivery_status' => $deliveryStatus], JSON_THROW_ON_ERROR),
             'created_at' => now(), 'updated_at' => now()]);
     }
 }

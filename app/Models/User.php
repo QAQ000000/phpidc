@@ -45,6 +45,7 @@ class User extends Authenticatable implements FilamentUser
             'password' => 'hashed',
             'credit' => 'decimal:2',
             'frozen_credit' => 'decimal:2',
+            'wallet_clearance_frozen' => 'decimal:2',
             'affiliate_balance' => 'decimal:2',
             'affiliate_frozen_balance' => 'decimal:2',
         ];

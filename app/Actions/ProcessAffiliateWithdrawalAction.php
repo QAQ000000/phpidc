@@ -12,6 +12,7 @@ use App\Services\AffiliateFunds;
 use App\Services\NotificationManager;
 use App\Support\Money;
 use App\Support\OperationsAudit;
+use App\Support\WalletCapacity;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Validation\ValidationException;
@@ -47,7 +48,7 @@ class ProcessAffiliateWithdrawalAction
             $before = ['status' => $locked->status, 'credit' => $user->credit, 'affiliate_balance' => $user->affiliate_balance];
             if ($approve) {
                 if (app(AffiliateFunds::class)->hasReceivable($user->id) || Money::gt($locked->amount, $user->affiliate_balance)
-                    || Money::gt(Money::add($user->credit, $locked->amount), '9999999999.99')) {
+                    || ! WalletCapacity::canCredit($user, $locked->amount)) {
                     throw ValidationException::withMessages(['operation' => '有未清偿应收、余额不足或钱包超限，请人工核对。']);
                 }
                 $user->forceFill(['affiliate_balance' => Money::sub($user->affiliate_balance, $locked->amount),

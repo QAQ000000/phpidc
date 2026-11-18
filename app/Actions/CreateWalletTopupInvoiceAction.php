@@ -11,6 +11,7 @@ use App\Models\User;
 use App\Services\DriverManager;
 use App\Services\SettingService;
 use App\Support\Money;
+use App\Support\WalletCapacity;
 use App\Support\WalletTopupIntent;
 use Illuminate\Support\Arr;
 use Illuminate\Support\Facades\DB;
@@ -49,7 +50,7 @@ class CreateWalletTopupInvoiceAction
                 throw ValidationException::withMessages(['amount' => 'Wallet top-ups are currently disabled.']);
             }
             if (Money::gt(WalletTopupIntent::MINIMUM, $amount) || Money::gt($amount, WalletTopupIntent::MAXIMUM)
-                || Money::gt(Money::add($locked->credit, $amount), WalletTopupIntent::WALLET_LIMIT)) {
+                || ! WalletCapacity::canCredit($locked, $amount)) {
                 throw ValidationException::withMessages(['amount' => 'Top-ups must be CNY 1.00–10000.00 and fit the wallet balance limit.']);
             }
             if (! $this->drivers->payment($request['request']['gateway'])->isEnabled()) {

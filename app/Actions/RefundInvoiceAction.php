@@ -20,6 +20,7 @@ use App\Services\NotificationManager;
 use App\Support\AdminAuditContext;
 use App\Support\Money;
 use App\Support\SettlementCurrency;
+use App\Support\WalletCapacity;
 use DomainException;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Gate;
@@ -102,8 +103,8 @@ class RefundInvoiceAction
             $before = ['status' => $locked->status->value, 'credit' => $buyer->credit, 'frozen_credit' => $buyer->frozen_credit];
             if ($mode === 'refund_wallet') {
                 $credit = Money::add($buyer->credit, $locked->total_amount);
-                if (Money::gt($credit, '9999999999.99')) {
-                    throw new DomainException('Refund exceeds the wallet column limit.');
+                if (! WalletCapacity::canCredit($buyer, $locked->total_amount)) {
+                    throw new DomainException('Refund exceeds the wallet capacity.');
                 }
                 $buyer->forceFill(['credit' => $credit])->save();
             }

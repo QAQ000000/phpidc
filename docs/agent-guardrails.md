@@ -4,6 +4,8 @@
 >
 > Precedence: `CLAUDE.md` > `docs/domain-invariants.md` > this file > the driver specs.
 
+**Current execution authorization (2026-11-18):** the human instructed “建议改完后自动提交，如果需要迁移就迁移，不用停下来”. After each batch passes its required checks, commit that batch automatically and apply necessary migrations to the identified current preview environment with a recoverable backup and runtime verification. Do not ask again merely because an older design-approval note excluded database execution. Keep deployment-local data, credentials, backups, generated caches and unrelated changes out of commits. This does not authorize unrequested real payouts, supplier mutations or notification sends.
+
 ---
 
 ## 1. The five things you must never do
@@ -66,6 +68,8 @@ The migration, the enums, the DTOs and the contracts are the agreed interface. C
 - Need a different DTO field? Propose it. Do not add an optional field and leave the old one dead.
 
 ### 1.4 Never write money logic outside `App\Support\Money`
+
+**Approved architecture remediation N01–N06 (2026-11-18):** after receiving `docs/system-architecture-remediation-plan-2026-11-18.md`, the human instructed “开始分批修复”. This authorizes implementing the six recommended rules in batches, including their limited schemas, capabilities, permissions and normative extensions. First-batch N05 adds independent `users.wallet_clearance_frozen` and checks complete wallet transitions against the combined capacity; historical aggregate excess is never rewritten and may only stay unchanged or decrease through legitimate operations, with every persisted column still in range. Preserve old strict assertions, old migrations and Specs. This is implementation authorization, not permission for arbitrary balance changes, live financial/supplier execution or unreviewed production deployment.
 
 **Approved remaining capabilities D01–D05 (2026-11-18):** the human explicitly selected all recommended decisions in `docs/remaining-capabilities-decisions-2026-11-18.md`: CNY 1–10000 wallet top-ups without top-up refunds; owner-confirmed account-contact anonymization with unresolved-business blockers and released identifiers; manual external affiliate transfers with frozen funds and evidence confirmation; externally received receivable settlements with append-only full-entry reversals; and durable notification events/deliveries with no blind replay after uncertain send intent. This approves the specified incremental schemas, transaction vocabulary, limited Actions, permissions, lock-order and normative clarifications. Preserve old strict assertions and Specs. No arbitrary balance adjustment, automatic external payout protocol, historical ledger rewrite, existing database migration or real financial/notification execution is authorized by this design decision.
 

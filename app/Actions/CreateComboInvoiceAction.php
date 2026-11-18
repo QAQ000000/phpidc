@@ -29,6 +29,7 @@ use App\Support\ProvisioningValidator;
 use App\Support\PurchaseRequest;
 use App\Support\RenewalRecovery;
 use App\Support\SettlementCurrency;
+use App\Support\WalletCapacity;
 use Illuminate\Contracts\Encryption\DecryptException;
 use Illuminate\Support\Facades\Crypt;
 use Illuminate\Support\Facades\DB;
@@ -96,6 +97,7 @@ class CreateComboInvoiceAction
             $total = Money::sub($subtotal, $discount);
             $credit = $useCredit ? Money::min($user->credit, $total) : Money::zero();
             $gatewayAmount = Money::sub($total, $credit);
+            $this->assertWalletAllocation($user, $credit, $gatewayAmount);
             if (! Money::isZero($gatewayAmount) && ! in_array($gateway, ['epay_wechat', 'epay_alipay'], true)) {
                 throw ValidationException::withMessages(['gateway' => 'Select a supported payment gateway.']);
             }
@@ -314,6 +316,7 @@ class CreateComboInvoiceAction
             $total = Money::sub($subtotal, $discount);
             $credit = $useCredit ? Money::min($user->credit, $total) : Money::zero();
             $gatewayAmount = Money::sub($total, $credit);
+            $this->assertWalletAllocation($user, $credit, $gatewayAmount);
             if ($recovery !== null) {
                 foreach (['subtotal' => $subtotal, 'discount' => $discount, 'total' => $total, 'credit' => $credit, 'gateway_amount' => $gatewayAmount] as $field => $amount) {
                     if (! Money::eq($recovery['confirmed'][$field], $amount)) {
@@ -442,6 +445,7 @@ class CreateComboInvoiceAction
             }
             $credit = $useCredit ? Money::min($user->credit, $invoice->total_amount) : Money::zero();
             $gatewayAmount = Money::sub($invoice->total_amount, $credit);
+            $this->assertWalletAllocation($user, $credit, $gatewayAmount);
             if (! Money::eq(Money::add($credit, $gatewayAmount), $invoice->total_amount)) {
                 throw new LogicException('Invoice amount identity failed.');
             }
@@ -468,6 +472,21 @@ class CreateComboInvoiceAction
 
             return $invoice;
         });
+    }
+
+    private function assertWalletAllocation(User $user, string $credit, string $gatewayAmount): void
+    {
+        if (Money::isZero($credit)) {
+            return;
+        }
+        $before = WalletCapacity::snapshot($user);
+        $held = [...$before, 'credit' => Money::sub($before['credit'], $credit),
+            'frozen_credit' => Money::add($before['frozen_credit'], $credit)];
+        $after = Money::isZero($gatewayAmount) ? [...$held, 'frozen_credit' => $before['frozen_credit']] : $held;
+        // Both the intermediate freeze ledger snapshot and the final result are persisted.
+        if (! WalletCapacity::columnsFit($held) || ! WalletCapacity::allows($before, $after)) {
+            throw ValidationException::withMessages(['credit' => '钱包分配超出可存储范围，请先完成资金核对。']);
+        }
     }
 
     private function renewUntil(Instance $instance): string
