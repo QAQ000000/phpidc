@@ -7,6 +7,7 @@ namespace App\Http\Controllers;
 use App\Actions\CreateComboInvoiceAction;
 use App\Actions\DescribeStoreProductAction;
 use App\Actions\DowngradeCalculatorAction;
+use App\Actions\GenerateProductProvisioningDefaultsAction;
 use App\Actions\QuoteLocalProductAction;
 use App\Actions\RequestInstanceOperationAction;
 use App\Actions\ResolveProductOptionsAction;
@@ -46,7 +47,9 @@ class ServiceBillingController extends Controller
         $this->user($request);
         abort_unless(Product::publicCatalog()->whereKey($product->id)->exists(), 404);
 
-        return response()->view('sales.configure', ['product' => $product, 'details' => app(DescribeStoreProductAction::class)->execute($product), 'quote' => null, 'selection' => []])->header('Cache-Control', 'private, no-store');
+        return response()->view('sales.configure', ['product' => $product, 'details' => app(DescribeStoreProductAction::class)->execute($product),
+            'provisioningDefaults' => app(GenerateProductProvisioningDefaultsAction::class)->execute($product),
+            'quote' => null, 'selection' => []])->header('Cache-Control', 'private, no-store');
     }
 
     public function quote(Request $request, Product $product)
@@ -74,6 +77,7 @@ class ServiceBillingController extends Controller
         }
 
         return response()->view('sales.configure', ['product' => $product, 'details' => app(DescribeStoreProductAction::class)->execute($product),
+            'provisioningDefaults' => app(GenerateProductProvisioningDefaultsAction::class)->execute($product),
             'quote' => $quote, 'quoteToken' => $quoteToken, 'selection' => $data, 'purchaseRequestId' => $data['request_id'] ?? null])->header('Cache-Control', 'private, no-store');
     }
 

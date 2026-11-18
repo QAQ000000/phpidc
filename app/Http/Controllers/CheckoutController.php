@@ -7,6 +7,7 @@ namespace App\Http\Controllers;
 use App\Actions\CreateComboInvoiceAction;
 use App\Actions\DescribeStoreProductAction;
 use App\Actions\FindPurchaseRequestAction;
+use App\Actions\GenerateProductProvisioningDefaultsAction;
 use App\Actions\ValidateCheckoutAction;
 use App\Enums\BillingCycle;
 use App\Exceptions\PurchasePriceChanged;
@@ -55,6 +56,7 @@ class CheckoutController extends Controller
 
                 return response()->view('sales.configure', ['product' => $product,
                     'details' => app(DescribeStoreProductAction::class)->execute($product), 'quote' => $changed->quote,
+                    'provisioningDefaults' => app(GenerateProductProvisioningDefaultsAction::class)->execute($product),
                     'quoteToken' => $changed->quoteToken, 'confirmationRequired' => true,
                     'selection' => ['billing_cycle' => $cycle->value, 'options' => ['configoption' => $data['options']['configoption'] ?? []]],
                     'checkoutInput' => array_intersect_key($data, array_flip(['hostname', 'coupon_code', 'use_credit', 'gateway'])),
