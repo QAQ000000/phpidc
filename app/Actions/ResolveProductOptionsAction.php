@@ -5,7 +5,9 @@ declare(strict_types=1);
 namespace App\Actions;
 
 use App\Models\Product;
+use App\Support\ClassicOptionLinkage;
 use App\Support\Money;
+use DomainException;
 use Illuminate\Validation\ValidationException;
 
 class ResolveProductOptionsAction
@@ -17,6 +19,15 @@ class ResolveProductOptionsAction
             return $options;
         }
         $selected = $options['configoption'] ?? [];
+        if (! is_array($selected)) {
+            $this->invalid('Configuration options must be a map of selections.');
+        }
+        try {
+            $linkage = ClassicOptionLinkage::fromGroups($groups->where('sync_source', 'upstream'))->resolve($selected);
+        } catch (DomainException $exception) {
+            $this->invalid($exception->getMessage());
+        }
+        $inactiveGroupIds = [];
         $mapped = [];
         $pairs = [];
         foreach ($groups as $group) {
@@ -24,6 +35,12 @@ class ResolveProductOptionsAction
                 continue;
             }
             $key = $group->upstream_group_id;
+            if ((int) ($group->upstream_meta['option_type'] ?? 0) === 20
+                && ! in_array((int) $key, $linkage['active_group_ids'], true)) {
+                $inactiveGroupIds[] = (int) $key;
+
+                continue;
+            }
             $value = $selected[$key] ?? null;
             if ($value === null || filter_var($value, FILTER_VALIDATE_INT) === false) {
                 $this->invalid('Select every configuration option.');
@@ -66,7 +83,7 @@ class ResolveProductOptionsAction
         }
         $quantityGroupIds = $groups->filter(fn ($group) => in_array($group->type, ['quantity', 'slider'], true))
             ->map(fn ($group) => (int) $group->upstream_group_id)->all();
-        $this->dependencies($product->provisioning_rules['classic_catalog']['dependencies'] ?? [], $mapped, $quantityGroupIds);
+        $this->dependencies($product->provisioning_rules['classic_catalog']['dependencies'] ?? [], $mapped, $quantityGroupIds, $inactiveGroupIds);
         if (! $validateCustomFields) {
             return ['configoption' => $mapped, 'customfield' => [], 'pairs' => $pairs];
         }
@@ -88,7 +105,7 @@ class ResolveProductOptionsAction
         return ['configoption' => $mapped, 'customfield' => $custom, 'pairs' => $pairs];
     }
 
-    public function dependencies(array $rules, array $values, array $quantityGroupIds = []): void
+    public function dependencies(array $rules, array $values, array $quantityGroupIds = [], array $inactiveGroupIds = []): void
     {
         $conditions = [];
         foreach ($rules as $rule) {
@@ -103,6 +120,11 @@ class ResolveProductOptionsAction
             $condition = $conditions[$rule['relation_id']] ?? null;
             if ($condition === null) {
                 $this->invalid('Unreadable configuration dependency.');
+            }
+            // An absent type20 branch is not a selectable dependency target, even for sneq.
+            if (in_array((int) $condition['config_id'], $inactiveGroupIds, true)
+                || in_array((int) $rule['config_id'], $inactiveGroupIds, true)) {
+                continue;
             }
             if ($this->matches($condition, $values, $quantityGroupIds) && ! $this->matches($rule, $values, $quantityGroupIds)) {
                 $this->invalid('Selected configuration violates a linked option rule.');

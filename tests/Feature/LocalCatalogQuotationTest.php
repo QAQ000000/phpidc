@@ -144,7 +144,7 @@ it('does not silently estimate an unknown type or an incomplete earlier tier', f
     $resolved = app(ResolveProductOptionsAction::class)->execute($product, 'monthly', ['configoption' => [50 => 7]], false);
     if ($change === 'type') {
         $meta = $group->upstream_meta;
-        $meta['option_type'] = 20;
+        $meta['option_type'] = 21;
         $group->update(['upstream_meta' => $meta]);
     } else {
         $group->items()->where('upstream_sub_id', 501)->update(['local_prices' => json_encode([])]);

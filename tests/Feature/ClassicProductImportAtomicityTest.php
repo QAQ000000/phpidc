@@ -73,7 +73,7 @@ it('publishes a complete import with one remote configuration read outside its w
 it('rolls back new imports through every entry point when full configuration is unsupported', function (string $entry): void {
     $account = UpstreamApi::factory()->create();
     $levels = [];
-    fakeAtomicClassicCatalog(atomicClassicCatalog(20), $levels);
+    fakeAtomicClassicCatalog(atomicClassicCatalog(21), $levels);
 
     if ($entry === 'http') {
         $actor = User::factory()->create();
@@ -106,7 +106,7 @@ it('keeps the complete old product and visibility when a reimport fails', functi
     $items = DB::table('product_option_items')->get()->toArray();
     $fields = DB::table('product_custom_fields')->get()->toArray();
     $auditCount = DB::table('audit_logs')->count();
-    $catalog = atomicClassicCatalog(20);
+    $catalog = atomicClassicCatalog(21);
     $catalog['products']['location_version'] = 8;
     $state->catalog = $catalog;
 

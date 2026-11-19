@@ -21,7 +21,7 @@ class ConfigureDowngradeBoundsAction
         DB::transaction(function () use ($group, $allow, $minimum, $itemIds, $actor, $reason): void {
             $locked = ProductOptionGroup::whereKey($group->id)->lockForUpdate()->firstOrFail();
             $itemIds = array_values(array_unique(array_map('intval', $itemIds)));
-            if ($allow && ($locked->is_hidden || $locked->sync_source !== 'upstream' || in_array($locked->upstream_meta['option_type'] ?? null, [15, 16, 17, 18, 19], true))) {
+            if ($allow && ($locked->is_hidden || $locked->sync_source !== 'upstream' || in_array((int) ($locked->upstream_meta['option_type'] ?? 0), [15, 16, 17, 18, 19, 20], true))) {
                 throw new DomainException('Only visible supported upstream options can permit a billing downgrade.');
             }
             if ($allow && in_array($locked->type, ['quantity', 'slider'], true)) {

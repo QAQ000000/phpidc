@@ -116,7 +116,7 @@ class InstanceMappingEvidence
             $fact = $actual->get($id);
             $type = (int) $option['option_type'];
             if ($group === null || $fact === null || (int) ($group->upstream_meta['option_type'] ?? 0) !== $type
-                || $fact['option_type'] !== $type || in_array($type, [15, 16, 17, 18, 19], true) || ! empty($option['qty_stage'])) {
+                || $fact['option_type'] !== $type || in_array($type, [15, 16, 17, 18, 19, 20], true) || ! empty($option['qty_stage'])) {
                 $this->invalid('存在缺失映射、配置类型差异或不能证明的阶梯价格。');
             }
             $quantity = in_array($type, [4, 7, 9, 11, 14], true);

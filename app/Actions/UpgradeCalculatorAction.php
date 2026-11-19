@@ -16,6 +16,7 @@ class UpgradeCalculatorAction
         if (($instance->active_config['mapping_requires_review'] ?? false) || ($instance->active_config['price_requires_review'] ?? false)) {
             throw new DomainException('Review the target product mapping before upgrading a rebound service.');
         }
+        $this->assertSupportedConfigurations($instance, $target);
         $old = collect($instance->active_config['options'] ?? [])->keyBy('local_group_id');
         $billed = collect($instance->active_config['billing_adjustment']['options'] ?? $instance->active_config['options'] ?? [])->keyBy('local_group_id');
         $recurring = $instance->recurring_amount;
@@ -61,5 +62,17 @@ class UpgradeCalculatorAction
         }
 
         return $recurring;
+    }
+
+    public function assertSupportedConfigurations(Instance $instance, array $target = []): void
+    {
+        $groupIds = array_column($target['pairs'] ?? [], 'local_group_id');
+        $groupIds = array_merge($groupIds, array_column($instance->active_config['options'] ?? [], 'local_group_id'));
+        $groupIds = array_merge($groupIds, array_column($instance->active_config['billing_adjustment']['options'] ?? [], 'local_group_id'));
+        if (ProductOptionGroup::where(fn ($query) => $query->where('product_id', $instance->product_id)->where('is_hidden', false))
+            ->orWhereIn('id', $groupIds)->get()
+            ->contains(fn (ProductOptionGroup $group): bool => (int) ($group->upstream_meta['option_type'] ?? 0) === 20)) {
+            throw new DomainException('Hierarchical configurations do not support verified configuration upgrades.');
+        }
     }
 }

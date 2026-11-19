@@ -9,8 +9,10 @@ use App\Enums\BillingCycle;
 use App\Models\Product;
 use App\Models\ProductOptionGroup;
 use App\Models\ProductOptionItem;
+use App\Support\ClassicOptionLinkage;
 use App\Support\ClassicPurchaseAdmission;
 use App\Support\Money;
+use DomainException;
 use Illuminate\Validation\ValidationException;
 
 class QuoteLocalProductAction
@@ -26,6 +28,17 @@ class QuoteLocalProductAction
         [$costPeriod, $costSetup] = $this->cost($product->upstream_base_prices ?? [], $cycle, 'billing_cycle');
         $groups = $product->optionGroups()->where('is_hidden', false)->where('sync_source', 'upstream')
             ->with(['items' => fn ($query) => $query->where('is_hidden', false)->orderBy('sort_order')->orderBy('id')])->get();
+        $selected = $resolvedOptions['configoption'] ?? [];
+        if (! is_array($selected)) {
+            $this->invalid('options', 'Configuration options must be a map of selections.');
+        }
+        try {
+            $linkage = ClassicOptionLinkage::fromGroups($groups)->resolve($selected);
+        } catch (DomainException $exception) {
+            $this->invalid('options', $exception->getMessage());
+        }
+        $groups = $groups->filter(fn ($group) => (int) ($group->upstream_meta['option_type'] ?? 0) !== 20
+            || in_array((int) $group->upstream_group_id, $linkage['active_group_ids'], true));
         $pairs = collect($resolvedOptions['pairs'] ?? []);
         if ($pairs->count() !== $groups->count() || $pairs->unique('local_group_id')->count() !== $pairs->count()
             || count($resolvedOptions['configoption'] ?? []) !== $groups->count()) {
@@ -35,9 +48,10 @@ class QuoteLocalProductAction
             $pair = $pairs->firstWhere('local_group_id', $group->id);
             $item = $group->items->firstWhere('id', $pair['local_item_id'] ?? null);
             $type = (int) ($group->upstream_meta['option_type'] ?? 0);
-            if ($pair === null || $item === null || $type < 1 || $type > 19
+            if ($pair === null || $item === null || $type < 1 || $type > 20
                 || (int) ($pair['upstream_group_id'] ?? 0) !== (int) $group->upstream_group_id
-                || (int) ($pair['upstream_sub_id'] ?? 0) !== (int) $item->upstream_sub_id) {
+                || (int) ($pair['upstream_sub_id'] ?? 0) !== (int) $item->upstream_sub_id
+                || ($type === 20 && (int) $selected[$group->upstream_group_id] !== (int) $item->upstream_sub_id)) {
                 $this->invalid('options', 'The selected configuration has no complete local pricing snapshot.');
             }
             $quantityType = in_array($type, [4, 7, 9, 11, 14, 15, 16, 17, 18, 19], true);
@@ -48,7 +62,7 @@ class QuoteLocalProductAction
             if ($quantity === 0) {
                 continue;
             }
-            if ($type >= 15) {
+            if ($type >= 15 && $type <= 19) {
                 [$optionPeriod, $optionSetup, $optionCostPeriod, $optionCostSetup] = $this->tiered($group, $item, $cycle, $quantity);
             } else {
                 [$optionPeriod, $optionSetup] = $this->price($item->local_prices ?? [], $cycle, 'options');

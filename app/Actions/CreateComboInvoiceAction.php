@@ -235,6 +235,9 @@ class CreateComboInvoiceAction
             }
         }
         $instance = $instance->fresh();
+        if ($type === InvoiceType::UPGRADE) {
+            app(UpgradeCalculatorAction::class)->assertSupportedConfigurations($instance);
+        }
         $driver = $this->drivers->fulfillment($instance->driver_type, $instance->upstream_api_id);
         if (! $driver instanceof RenewableResource || ! $instance->billing_cycle->isRenewable() || ! $instance->status->isBillable()) {
             throw ValidationException::withMessages(['instance' => 'A live renewable instance is required.']);

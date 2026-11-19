@@ -34,6 +34,13 @@ class DowngradeCalculatorAction
             if ($unpaid || ($locked->active_config['mapping_requires_review'] ?? false) || ($locked->active_config['price_requires_review'] ?? false) || isset($locked->active_config['cancellation']) || ! $locked->status->isBillable() || FulfillmentTask::where('instance_id', $locked->id)->whereIn('status', [FulfillmentTaskStatus::PENDING, FulfillmentTaskStatus::RUNNING, FulfillmentTaskStatus::FAILED])->exists()) {
                 throw new DomainException('Resolve pending operations before changing renewal prices.');
             }
+            $groupIds = array_column($locked->active_config['options'] ?? [], 'local_group_id');
+            $groupIds = array_merge($groupIds, array_column($locked->active_config['billing_adjustment']['options'] ?? [], 'local_group_id'));
+            if (ProductOptionGroup::where(fn ($query) => $query->where('product_id', $locked->product_id)->where('is_hidden', false))
+                ->orWhereIn('id', $groupIds)->get()
+                ->contains(fn (ProductOptionGroup $group): bool => (int) ($group->upstream_meta['option_type'] ?? 0) === 20)) {
+                throw new DomainException('Hierarchical configurations do not support verified configuration downgrades.');
+            }
             $target = app(ResolveProductOptionsAction::class)->execute($locked->product, $locked->billing_cycle->value, $options, false);
             $old = collect($locked->active_config['billing_adjustment']['options'] ?? $locked->active_config['options'] ?? [])->keyBy('local_group_id');
             $price = $locked->recurring_amount;

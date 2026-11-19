@@ -14,6 +14,7 @@ use App\Models\ProductOptionGroup;
 use App\Models\ProductOptionItem;
 use App\Models\User;
 use App\Services\DriverManager;
+use App\Support\ClassicOptionLinkage;
 use App\Support\Money;
 use DomainException;
 use Illuminate\Support\Facades\DB;
@@ -58,6 +59,8 @@ class SyncClassicCatalogAction
             if ($prices === []) {
                 throw new DomainException('Catalog contains no matching-currency prices.');
             }
+            $options = array_merge([], ...array_map(fn (array $container): array => $container['options'] ?? [], $snapshot->optionGroups));
+            ClassicOptionLinkage::fromOptions($options);
             $rules = $locked->provisioning_rules ?? [];
             $rules['classic_catalog'] = ['version' => $snapshot->version, 'dependencies' => $snapshot->dependencies,
                 'password' => $snapshot->product['password'] ?? null, 'host' => $snapshot->product['host'] ?? null,
@@ -76,7 +79,7 @@ class SyncClassicCatalogAction
                 foreach ($container['options'] ?? [] as $option) {
                     $id = (int) ($option['id'] ?? 0);
                     $type = (int) ($option['option_type'] ?? 0);
-                    if ($id < 1 || $type < 1 || $type > 19) {
+                    if ($id < 1 || $type < 1 || $type > 20) {
                         throw new DomainException('Unsupported upstream option identifier or type.');
                     }
                     $existing = ProductOptionGroup::where('product_id', $locked->id)->where('upstream_group_id', $id)->first();
@@ -92,7 +95,9 @@ class SyncClassicCatalogAction
                             'is_upgradeable' => (bool) ($option['upgrade'] ?? false), 'sync_source' => 'upstream',
                             'is_hidden' => false, 'sort_order' => (int) ($option['order'] ?? 0),
                             'upstream_meta' => ['option_type' => $type, 'container_id' => $container['id'] ?? null, 'qty_stage' => $option['qty_stage'] ?? null,
-                                'subs' => array_map(fn (array $sub) => array_intersect_key($sub, array_flip(['id', 'qty_minimum', 'qty_maximum', 'qty', 'sort_order'])), $option['sub'] ?? [])]]);
+                                'subs' => array_map(fn (array $sub) => array_intersect_key($sub, array_flip(['id', 'qty_minimum', 'qty_maximum', 'qty', 'sort_order',
+                                    'linkage_pid', 'linkage_top_pid', 'linkage_level'])), $option['sub'] ?? [])]
+                                + array_intersect_key($option, array_flip(['linkage_pid', 'linkage_top_pid', 'linkage_level']))]);
                     $ids[] = $group->id;
                     $subs = [];
                     foreach ($option['sub'] ?? [] as $sub) {
