@@ -6,8 +6,7 @@ use App\Actions\CancelUserNotificationsAction;
 use App\Actions\ExpandOperationsNotificationsAction;
 use App\Actions\RecordNotificationEventAction;
 use App\Exceptions\NotificationExpansionFailed;
-use App\Jobs\SendEventNotificationJob;
-use App\Jobs\SendNotificationJob;
+use App\Jobs\SendNotificationDeliveryJob;
 use App\Models\NotificationDelivery;
 use App\Models\NotificationEvent;
 use App\Models\User;
@@ -59,7 +58,7 @@ it('bounds inline user expansion and resumes every original binding without foll
     $event = NotificationEvent::sole();
     expect(NotificationDelivery::count())->toBe(100)->and($event->expanded_at)->toBeNull()
         ->and($event->recipient_binding_cursor)->toBeGreaterThan(0);
-    Queue::assertPushed(SendEventNotificationJob::class, 100);
+    Queue::assertPushed(SendNotificationDeliveryJob::class, 100);
     $late = UserNotificationBinding::create(['user_id' => $user->id, 'channel' => 'telegram', 'target' => 'late-binding', 'verified_at' => now()]);
     $expand = app(ExpandOperationsNotificationsAction::class);
     expect($expand->expandOne($event->id, 100))->toBe(100);
@@ -73,7 +72,7 @@ it('bounds inline user expansion and resumes every original binding without foll
         expect($sql)->toMatch('/limit (100|[1-9][0-9]?)$/');
     }
     expect($reads->queries)->toHaveCount(4);
-    Queue::assertPushed(SendEventNotificationJob::class, 306);
+    Queue::assertPushed(SendNotificationDeliveryJob::class, 306);
     Http::assertNothingSent();
 });
 
@@ -150,7 +149,7 @@ it('rolls an interrupted page back together with its durable cursor and wakeups'
     Queue::assertNothingPushed();
     expect($expand->expandOne($event->id, 100))->toBe(100);
     expect(NotificationDelivery::count())->toBe(200);
-    Queue::assertPushed(SendEventNotificationJob::class, 100);
+    Queue::assertPushed(SendNotificationDeliveryJob::class, 100);
 });
 
 it('keeps a no-recipient operation visibly awaiting and discovers a later operator above the old bound', function (): void {
@@ -185,7 +184,7 @@ it('retains the invoice identity when a renewal fanout resumes and preserves exp
     expect(app(ExpandOperationsNotificationsAction::class)->expandOne($event->id, 100))->toBe(2);
     expect(NotificationDelivery::where('job_kind', 'renewal')->count())->toBe(102);
     expect(NotificationDelivery::where('notification_event_id', $event->id)->orderByDesc('id')->firstOrFail()->encrypted_payload['invoice_id'])->toBe(9876);
-    Queue::assertPushed(SendNotificationJob::class, 102);
+    Queue::assertPushed(SendNotificationDeliveryJob::class, 102);
     Queue::fake();
     $explicit = $record->execute($user->id, 'ticket.reply', [], 'legacy-message:offline:single', recipient: [
         'channel' => 'telegram', 'target' => 'explicit-original-target', 'binding_id' => null, 'fallback' => false,

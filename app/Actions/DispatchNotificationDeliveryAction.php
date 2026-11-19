@@ -4,10 +4,8 @@ declare(strict_types=1);
 
 namespace App\Actions;
 
-use App\Jobs\SendEventNotificationJob;
-use App\Jobs\SendNotificationJob;
+use App\Jobs\SendNotificationDeliveryJob;
 use App\Models\NotificationDelivery;
-use App\Models\NotificationEvent;
 use Illuminate\Support\Facades\Bus;
 use Illuminate\Support\Facades\Log;
 
@@ -16,14 +14,10 @@ class DispatchNotificationDeliveryAction
     public function execute(int $id): void
     {
         $delivery = NotificationDelivery::findOrFail($id);
-        if (! in_array($delivery->status, ['pending', 'retry_wait'], true) || $delivery->encrypted_payload === null) {
+        if (! in_array($delivery->status, ['pending', 'retry_wait'], true) || $delivery->getRawOriginal('encrypted_payload') === null) {
             return;
         }
-        $payload = $delivery->encrypted_payload;
-        $event = NotificationEvent::findOrFail($delivery->notification_event_id);
-        $job = $delivery->job_kind === 'renewal'
-            ? new SendNotificationJob($payload['invoice_id'], $delivery->channel, $payload['target'], $delivery->is_fallback, $id)
-            : new SendEventNotificationJob($delivery->user_id, $event->event_type, $delivery->channel, $payload['target'], $payload['variables'], $delivery->binding_id, $id);
+        $job = new SendNotificationDeliveryJob($id);
         try {
             // Keep network delivery asynchronous even when a local installation uses the sync default.
             if (config('queue.default') === 'sync') {

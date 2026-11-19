@@ -9,13 +9,13 @@ use App\Actions\CreateComboInvoiceAction;
 use App\Actions\DispatchStalePendingTasksAction;
 use App\Actions\DowngradeCalculatorAction;
 use App\Actions\ExecuteFulfillmentTaskAction;
+use App\Actions\ExecuteNotificationDeliveryAction;
 use App\Actions\HandlePaymentCallbackAction;
 use App\Actions\HotSwapInstanceDriverAction;
 use App\Actions\ProcessInstanceLifecycleAction;
 use App\Actions\RequestInstanceOperationAction;
 use App\Actions\ResolveProductOptionsAction;
 use App\Actions\RetryFulfillmentTaskAction;
-use App\Actions\SendLifecycleNotificationAction;
 use App\Actions\SyncClassicCatalogAction;
 use App\Data\VerifiedPaymentResult;
 use App\Enums\BillingCycle;
@@ -23,7 +23,7 @@ use App\Enums\DriverType;
 use App\Enums\FulfillmentTaskStatus;
 use App\Enums\InstanceStatus;
 use App\Enums\InvoiceStatus;
-use App\Jobs\SendNotificationJob;
+use App\Jobs\SendNotificationDeliveryJob;
 use App\Models\FulfillmentTask;
 use App\Models\Instance;
 use App\Models\Invoice;
@@ -525,10 +525,10 @@ it('keeps notification channel failures independent and records account email fa
         ['user_id' => $user->id, 'channel' => 'email', 'target' => 'unverified@example.test', 'verified_at' => null],
     ]);
     $invoice = app(CreateComboInvoiceAction::class)->renewal($user, $instance);
-    $queued = Queue::pushed(SendNotificationJob::class);
+    $queued = Queue::pushed(SendNotificationDeliveryJob::class);
     expect($queued)->toHaveCount(3);
     foreach ($queued as $job) {
-        $job->handle(app(SendLifecycleNotificationAction::class));
+        $job->handle(app(ExecuteNotificationDeliveryAction::class));
     }
     $this->assertDatabaseHas('notification_logs', ['channel' => 'telegram', 'status' => 'failed']);
     $this->assertDatabaseHas('notification_logs', ['channel' => 'sms', 'status' => 'simulated']);

@@ -12,7 +12,7 @@ use App\Enums\FulfillmentTaskStatus as Status;
 use App\Enums\InstanceStatus;
 use App\Enums\InvoiceStatus;
 use App\Jobs\ExecuteFulfillmentTaskJob;
-use App\Jobs\SendEventNotificationJob;
+use App\Jobs\SendNotificationDeliveryJob;
 use App\Models\FulfillmentTask;
 use App\Models\RedemptionCode;
 use App\Services\DriverManager;
@@ -129,7 +129,7 @@ it('permits success on the last allowed claim and never claims it again', functi
     expect($task->fresh()->status)->toBe(Status::SUCCESS)->and($task->fresh()->attempts)->toBe(5)
         ->and($task->instance->fresh()->status)->toBe(InstanceStatus::ACTIVE);
     Queue::assertNotPushed(ExecuteFulfillmentTaskJob::class);
-    Queue::assertPushed(SendEventNotificationJob::class, 1);
+    Queue::assertPushed(SendNotificationDeliveryJob::class, 1);
 });
 
 it('dispatches a retry only after the enclosing transaction commits', function (): void {

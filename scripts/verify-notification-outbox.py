@@ -26,7 +26,8 @@ env = dict(os.environ, APP_ENV='testing', APP_DEBUG='false',
            LARAVEL_STORAGE_PATH=str(storage), VIEW_COMPILED_PATH=str(storage / 'framework/views'),
            DB_CONNECTION='mysql', DB_URL='', DB_HOST='localhost', DB_PORT='3306',
            DB_SOCKET=str(socket_dir / 'mysqld.sock'), DB_DATABASE='notification_outbox_only',
-           DB_USERNAME='root', DB_PASSWORD='', CACHE_STORE='array', SESSION_DRIVER='array',
+           DB_USERNAME='root', DB_PASSWORD='', CACHE_STORE='array', MAINTENANCE_CACHE_STORE='array',
+           RECEIVABLE_CHECK_CACHE_STORE='array', SESSION_DRIVER='array',
            QUEUE_CONNECTION='database', LOG_CHANNEL='single', BCRYPT_ROUNDS='4',
            OUTBOX_REPO=str(repo), OUTBOX_ROOT=str(root))
 container = 'laravel13idc-outbox-' + uuid.uuid4().hex[:12]
@@ -84,6 +85,11 @@ $payloads = DB::table('jobs')->pluck('payload');
 foreach ($payloads as $payload) {
     requireOutbox(!str_contains($payload,'offline-') && !str_contains($payload,'@example.test')
         && !str_contains($payload,'OFFLINE-FAKE-TOKEN') && !str_contains($payload,'OUTBOX-'), 'New queue payload leaked private snapshot');
+    $command = json_decode($payload,true,flags:JSON_THROW_ON_ERROR)['data']['command'];
+    $job = unserialize($command);
+    requireOutbox($job instanceof App\Jobs\SendNotificationDeliveryJob && is_int($job->deliveryId), 'New notification did not use the ID-only job');
+    requireOutbox(array_intersect(['userId','event','channel','target','variables','bindingId','invoiceId','fallback'],array_keys(get_object_vars($job)))===[],
+        'New notification job retained private business fields');
 }
 DB::table('jobs')->delete();
 file_put_contents(__DIR__.'/fixtures.json',json_encode($fixtures,JSON_THROW_ON_ERROR));
@@ -124,12 +130,18 @@ if ($mode==='record') {
         usleep(100000);
     });
 } elseif ($mode==='close_first') {
-    DB::transaction(function () use ($fixture,$kind): void {
-        $user = User::whereKey($fixture['user'])->lockForUpdate()->firstOrFail();
-        file_put_contents(__DIR__.'/'.$kind.'.locked','ready');
-        barrier($kind.'.release');
-        app(CloseCustomerAccountAction::class)->execute($user,'Isolated-outbox-only',true);
+    // Pause after the actual closure Action acquires its user lock; full verification stays outside that transaction.
+    $locked = false;
+    DB::listen(function (QueryExecuted $query) use ($kind,&$locked): void {
+        if (! $locked && str_contains($query->sql,'`users`') && str_contains(strtolower($query->sql),'for update')) {
+            requireOutbox(DB::transactionLevel()>0, 'Closure barrier did not hold the financial user lock');
+            $locked = true;
+            file_put_contents(__DIR__.'/'.$kind.'.locked','ready');
+            barrier($kind.'.release');
+        }
     });
+    app(CloseCustomerAccountAction::class)->execute(User::findOrFail($fixture['user']),'Isolated-outbox-only',true);
+    requireOutbox($locked,'Closure never reached its real financial user lock');
 } elseif ($mode==='close') {
     app(CloseCustomerAccountAction::class)->execute(User::findOrFail($fixture['user']),'Isolated-outbox-only',true);
 } elseif ($mode==='queue') {

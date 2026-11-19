@@ -11,6 +11,7 @@ use App\Actions\ResolveNotificationDeliveryAction;
 use App\Actions\SendEventNotificationAction;
 use App\Actions\SendLifecycleNotificationAction;
 use App\Jobs\SendEventNotificationJob;
+use App\Jobs\SendNotificationDeliveryJob;
 use App\Jobs\SendNotificationJob;
 use App\Models\NotificationDelivery;
 use App\Models\NotificationEvent;
@@ -65,10 +66,10 @@ it('commits unique event channel snapshots without leaking secrets into serializ
     app(NotificationManager::class)->queue($user->id, 'invoice.paid', ['currency' => 'CNY', 'amount' => '10.00', 'invoice_no' => 'INV-OUTBOX'], 'invoice:125:paid');
     $this->assertDatabaseCount('notification_events', 1);
     $this->assertDatabaseCount('notification_deliveries', 2);
-    Queue::assertPushed(SendEventNotificationJob::class, 2);
+    Queue::assertPushed(SendNotificationDeliveryJob::class, 2);
     $raw = DB::table('notification_deliveries')->where('id', $delivery->id)->value('encrypted_payload');
     expect($raw)->not->toContain('private-chat-target', 'MUST-NOT-PERSIST', 'OFFLINE-ONLY-TOKEN');
-    foreach (Queue::pushed(SendEventNotificationJob::class) as $job) {
+    foreach (Queue::pushed(SendNotificationDeliveryJob::class) as $job) {
         $serialized = serialize($job);
         expect($serialized)->not->toContain('private-notification', 'private-chat-target', 'OFFLINE-ONLY-TOKEN', 'INV-OUTBOX');
         $restored = unserialize($serialized);
@@ -94,7 +95,7 @@ it('keeps a committed pending delivery recoverable when its wakeup was lost', fu
     Queue::fake();
     NotificationDelivery::query()->update(['last_dispatched_at' => null]);
     app(DispatchPendingNotificationsAction::class)->execute();
-    Queue::assertPushed(SendEventNotificationJob::class, 2);
+    Queue::assertPushed(SendNotificationDeliveryJob::class, 2);
     Http::fake(['*' => Http::response(['ok' => true])]);
     $action = app(ExecuteNotificationDeliveryAction::class);
     $action->execute($delivery->id);

@@ -9,6 +9,7 @@ use App\Actions\ClaimCouponAction;
 use App\Actions\ConfigureIdentityAction;
 use App\Actions\CreateComboInvoiceAction;
 use App\Actions\CreateLocalCardProductAction;
+use App\Actions\ExecuteNotificationDeliveryAction;
 use App\Actions\ManageTicketAction;
 use App\Actions\MatureAffiliateCommissionsAction;
 use App\Actions\ProcessAffiliateWithdrawalAction;
@@ -16,7 +17,6 @@ use App\Actions\RefundInvoiceAction;
 use App\Actions\RequestAffiliateWithdrawalAction;
 use App\Actions\SaveDownloadResourceAction;
 use App\Actions\SaveOperationsConfigurationAction;
-use App\Actions\SendEventNotificationAction;
 use App\Actions\SendLifecycleNotificationAction;
 use App\Contracts\BotDriverInterface;
 use App\Contracts\FulfillmentDriver;
@@ -32,7 +32,7 @@ use App\Filament\Pages\DownloadOperations;
 use App\Filament\Pages\NotificationOperations;
 use App\Filament\Pages\PromotionCoupons;
 use App\Filament\Pages\SupportTickets;
-use App\Jobs\SendEventNotificationJob;
+use App\Jobs\SendNotificationDeliveryJob;
 use App\Jobs\SendNotificationJob;
 use App\Models\AffiliateCommission;
 use App\Models\AffiliateRule;
@@ -42,6 +42,7 @@ use App\Models\DownloadResource;
 use App\Models\FinancialTransaction;
 use App\Models\Instance;
 use App\Models\Invoice;
+use App\Models\NotificationDelivery;
 use App\Models\NotificationTemplate;
 use App\Models\Product;
 use App\Models\Ticket;
@@ -309,11 +310,11 @@ it('fans out safe notification variables and independently logs a failed channel
     UserNotificationBinding::create(['user_id' => $user->id, 'channel' => 'telegram', 'target' => '123', 'verified_at' => now()]);
     UserNotificationBinding::create(['user_id' => $user->id, 'channel' => 'email', 'target' => 'unverified@example.test']);
     app(NotificationManager::class)->queue($user->id, 'invoice.paid', ['amount' => '10.00', 'password' => 'DO-NOT-SEND']);
-    $jobs = Queue::pushed(SendEventNotificationJob::class);
+    $jobs = Queue::pushed(SendNotificationDeliveryJob::class);
     expect($jobs)->toHaveCount(2);
     foreach ($jobs as $job) {
-        expect($job->variables)->not->toHaveKey('password');
-        $job->handle(app(SendEventNotificationAction::class));
+        expect(NotificationDelivery::findOrFail($job->deliveryId)->encrypted_payload['variables'])->not->toHaveKey('password');
+        $job->handle(app(ExecuteNotificationDeliveryAction::class));
     }
     $this->assertDatabaseHas('notification_logs', ['channel' => 'telegram', 'status' => 'failed']);
     $this->assertDatabaseHas('notification_logs', ['channel' => 'email', 'target' => $user->email, 'status' => 'simulated']);
@@ -326,8 +327,8 @@ it('honors disabled templates and revalidates subscriptions before sending queue
     NotificationTemplate::create(['event_key' => 'ticket.reply', 'channel' => 'email', 'body_markdown' => 'Notice', 'is_enabled' => false]);
     app(NotificationManager::class)->queue($user->id, 'ticket.reply', ['ticket_id' => 5]);
     $binding->update(['verified_at' => null]);
-    foreach (Queue::pushed(SendEventNotificationJob::class) as $job) {
-        $job->handle(app(SendEventNotificationAction::class));
+    foreach (Queue::pushed(SendNotificationDeliveryJob::class) as $job) {
+        $job->handle(app(ExecuteNotificationDeliveryAction::class));
     }
     $this->assertDatabaseHas('notification_logs', ['channel' => 'telegram', 'status' => 'skipped']);
     $this->assertDatabaseHas('notification_logs', ['channel' => 'email', 'status' => 'disabled']);
@@ -489,8 +490,8 @@ it('maps audited SMS variables and records a sanitized thrown channel failure wi
     $manager->shouldReceive('sms')->andReturn($sms);
     app()->instance(DriverManager::class, $manager);
     app(NotificationManager::class)->queue($user->id, 'invoice.paid', ['invoice_no' => 'INV-SAFE', 'amount' => '10.00']);
-    foreach (Queue::pushed(SendEventNotificationJob::class) as $job) {
-        $job->handle(app(SendEventNotificationAction::class));
+    foreach (Queue::pushed(SendNotificationDeliveryJob::class) as $job) {
+        $job->handle(app(ExecuteNotificationDeliveryAction::class));
     }
     $this->assertDatabaseHas('notification_logs', ['channel' => 'sms', 'status' => 'sent']);
     $failed = DB::table('notification_logs')->where('channel', 'telegram')->first();
