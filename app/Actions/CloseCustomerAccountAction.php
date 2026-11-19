@@ -63,8 +63,11 @@ class CloseCustomerAccountAction
         if ($current->trashed() && $current->anonymized_at !== null) {
             return $operation(null);
         }
+        if ($current->trashed() || $current->anonymized_at !== null || ! Hash::check($currentPassword, $current->getAuthPassword())) {
+            throw ValidationException::withMessages(['current_password' => '当前密码错误或账户已停用。']);
+        }
 
         return app(ReceivableAdmission::class)->run($user, 'account-close', $requestId ?? 'account-close-'.$user->id,
-            ['confirmed' => $confirmed, 'current_password' => $currentPassword], $operation);
+            ['confirmed' => $confirmed], $operation);
     }
 }
