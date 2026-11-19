@@ -18,10 +18,13 @@
 <input type="hidden" name="action" value="renew"><input type="hidden" name="request_id" value="{{ old('request_id', (string) \Illuminate\Support\Str::ulid()) }}">
 <input type="hidden" name="reason" value="确认自动续费账单付款方式"><input type="hidden" name="confirm" value="1">
 <label><input type="checkbox" name="use_credit" value="1" @checked(old('use_credit'))> 使用可用钱包余额</label>
-<label>剩余金额支付方式 <select name="gateway"><option value="epay_wechat" @selected(old('gateway') === 'epay_wechat')>微信</option><option value="epay_alipay" @selected(old('gateway') === 'epay_alipay')>支付宝</option></select></label>
+<label>剩余金额支付方式 <select name="gateway">@include('sales.payment-options', ['selectedGateway' => old('gateway')])</select></label>
 <button>确认付款方式</button></form></section>
 @else
-@if($invoice->expires_at === null || $invoice->expires_at->isFuture())<form method="post" action="/console/invoices/{{ $invoice->id }}/pay">@csrf<button>继续支付</button></form>@else<p>支付有效期已过，请等待状态更新或联系管理员。</p>@endif
+@if($invoice->expires_at === null || $invoice->expires_at->isFuture())
+@if(app(\App\Support\PaymentChannels::class)->enabled($invoice->gateway ?? ''))<form method="post" action="/console/invoices/{{ $invoice->id }}/pay">@csrf<button>继续支付</button></form>
+@else<p>此账单的支付渠道已暂停，请联系管理员。</p>@endif
+@else<p>支付有效期已过，请等待状态更新或联系管理员。</p>@endif
 @endif
 @endif
 @if($linkedInstance)<section><h2>关联服务</h2><p>{{ $linkedInstance->display_name }} · {{ \App\Support\CustomerLabels::INSTANCE_STATUSES[$linkedInstance->status->value] }}</p><a href="/console/instances/{{ $linkedInstance->id }}">查看交付 / 领取卡密</a></section>

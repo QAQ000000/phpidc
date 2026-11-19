@@ -11,6 +11,7 @@ use App\Models\User;
 use App\Services\DriverManager;
 use App\Services\SettingService;
 use App\Support\Money;
+use App\Support\PaymentChannels;
 use App\Support\RenewalRecovery;
 use App\Support\SettlementCurrency;
 use Illuminate\Support\Facades\Crypt;
@@ -47,6 +48,9 @@ final class QuoteRenewalRecoveryAction
         $gatewayAmount = Money::sub($total, $credit);
         if (! Money::isZero($gatewayAmount) && ! in_array($gateway, ['epay_wechat', 'epay_alipay'], true)) {
             $recovery->reject('Select a supported payment gateway.', 'gateway');
+        }
+        if (! Money::isZero($gatewayAmount)) {
+            app(PaymentChannels::class)->assertEnabled($gateway);
         }
         $data = ['version' => 1, 'user_id' => $user->id, 'parent_id' => $parent->id, 'root_id' => $root->id,
             'payment_window_minutes' => max(1, app(SettingService::class)->getInt('billing.invoice_expiry_minutes', 30)),

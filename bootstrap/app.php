@@ -30,7 +30,7 @@ return Application::configure(basePath: dirname(__DIR__))
         $exceptions->dontFlash(['codes', 'api_secret', 'options', 'current_password', 'code', 'state', 'token', 'id_number', 'real_name',
             'install_token', 'admin_password', 'admin_password_confirmation', 'db_password', 'quote_token', 'proof',
             'payee_name', 'payee_account', 'bank_name', 'evidence', 'external_reference', 'correction_reference',
-            'review_token', 'recipient', 'acceptance_reference', 'historical_endpoint_evidence']);
+            'review_token', 'recipient', 'acceptance_reference', 'historical_endpoint_evidence', 'settings', 'epay_key']);
         $exceptions->shouldRenderJsonWhen(
             fn (Request $request) => $request->is('api/*') || $request->expectsJson(),
         );

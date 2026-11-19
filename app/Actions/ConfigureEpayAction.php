@@ -5,25 +5,49 @@ declare(strict_types=1);
 namespace App\Actions;
 
 use App\Models\PaymentAttempt;
+use App\Models\User;
 use App\Services\SettingService;
+use App\Support\AdminAuditContext;
 use App\Support\EpayProfiles;
 use DomainException;
+use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Facades\Crypt;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Str;
 
 class ConfigureEpayAction
 {
-    public function execute(string $url, string $pid, string $key, string $reason): void
+    /** @param array<string, mixed>|null $channels Raw channel input, restricted to boolean flags below. */
+    public function execute(string $url, string $pid, string $key, string $reason, ?User $actor = null, ?array $channels = null): void
     {
+        $preserveKey = $actor !== null && trim($key) === '';
         if (! filter_var($url, FILTER_VALIDATE_URL) || ! in_array(parse_url($url, PHP_URL_SCHEME), ['https', 'http'], true)
-            || trim($pid) === '' || trim($key) === '' || trim($reason) === '') {
+            || trim($pid) === '' || (! $preserveKey && trim($key) === '') || trim($reason) === '') {
             throw new DomainException('A gateway URL, merchant ID, key and operator reason are required.');
         }
-        DB::transaction(function () use ($url, $pid, $key, $reason): void {
+        if ($channels !== null && (array_diff(array_keys($channels), EpayProfiles::GATEWAYS) !== []
+            || array_filter($channels, fn ($enabled): bool => ! is_bool($enabled)) !== [])) {
+            throw new DomainException('Choose supported payment channels with boolean enablement.');
+        }
+        DB::transaction(function () use ($url, $pid, $key, $reason, $actor, $channels, $preserveKey): void {
             $this->lockConfiguration();
+            if ($actor !== null) {
+                $operator = User::whereKey($actor->id)->whereNull('anonymized_at')->lockForUpdate()->first();
+                if ($operator === null) {
+                    throw new AuthorizationException('The operator account is no longer active.');
+                }
+                Gate::forUser($operator)->authorize('settings.view');
+                Gate::forUser($operator)->authorize('settings.payment.manage');
+            }
             $previous = $this->captureCurrentProfile();
+            if ($preserveKey) {
+                $key = $previous['key'] ?? app(EpayProfiles::class)->credentials()['key'];
+                if (trim($key) === '') {
+                    throw new DomainException('A merchant key is required for the first payment configuration.');
+                }
+            }
             $credentials = ['api_url' => rtrim($url, '/'), 'pid' => $pid, 'key' => $key];
             $changed = $previous === null || array_diff_assoc($credentials, $previous) !== [];
             if ($changed && $previous === null && $this->legacyAttempts()->exists()) {
@@ -40,17 +64,33 @@ class ConfigureEpayAction
                 });
             }
             $profile = $changed ? $this->createProfile($credentials) : $previous;
+            $keys = [];
             foreach (['epay_api_url' => $credentials['api_url'], 'epay_pid' => $pid, 'epay_key' => $key,
                 EpayProfiles::CURRENT_KEY => $profile['id']] as $name => $value) {
+                if ($name === 'epay_key' && $preserveKey) {
+                    continue;
+                }
                 DB::table('system_settings')->updateOrInsert(['group' => 'payment', 'key' => $name], [
                     'value' => $name === 'epay_key' ? Crypt::encryptString($value) : $value,
                     'is_encrypted' => $name === 'epay_key', 'created_at' => now(), 'updated_at' => now(),
                 ]);
+                if ($name !== EpayProfiles::CURRENT_KEY) {
+                    $keys[] = 'payment.'.$name;
+                }
                 DB::afterCommit(fn () => app(SettingService::class)->forget('payment.'.$name));
             }
-            DB::table('audit_logs')->insert(['actor_type' => 'system', 'action' => 'payment.epay_configure', 'reason' => $reason,
-                'after' => json_encode(['api_url' => $credentials['api_url'], 'pid' => $pid, 'key' => '[REDACTED]',
-                    'profile_id' => $profile['id']], JSON_THROW_ON_ERROR), 'created_at' => now(), 'updated_at' => now()]);
+            foreach ($channels ?? [] as $gateway => $enabled) {
+                $name = $gateway.'_enabled';
+                DB::table('system_settings')->updateOrInsert(['group' => 'payment', 'key' => $name], [
+                    'value' => $enabled ? '1' : '0', 'is_encrypted' => false, 'created_at' => now(), 'updated_at' => now(),
+                ]);
+                $keys[] = 'payment.'.$name;
+                DB::afterCommit(fn () => app(SettingService::class)->forget('payment.'.$name));
+            }
+            DB::table('audit_logs')->insert(['actor_type' => $actor === null ? 'system' : 'user', 'actor_id' => $actor?->id,
+                'action' => 'payment.epay_configure', 'subject_type' => 'system_settings', 'reason' => $reason,
+                'after' => json_encode(['keys' => $keys, 'profile_id' => $profile['id']], JSON_THROW_ON_ERROR),
+                ...AdminAuditContext::fields($actor !== null), 'created_at' => now(), 'updated_at' => now()]);
         });
     }
 

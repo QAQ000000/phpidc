@@ -28,7 +28,7 @@
 @else<p>主机名与开通密码已按产品规则自动生成，提交时会重新核验。</p>@endif
 @if($confirmationRequired ?? false)<p>{{ $generated['password'] !== null ? '开通密码已重新生成，请检查并补充自定义字段，再确认新价格。' : '请填写开通密码与自定义字段，再确认新价格。' }}</p>@endif
 <label><input name="use_credit" type="checkbox" value="1" @checked($checkoutInput['use_credit'] ?? false)>使用钱包余额（余额足够时立即结算）</label>
-<label>其余金额支付方式<select name="gateway"><option value="epay_wechat" @selected(($checkoutInput['gateway'] ?? 'epay_wechat') === 'epay_wechat')>微信</option><option value="epay_alipay" @selected(($checkoutInput['gateway'] ?? '') === 'epay_alipay')>支付宝</option></select></label>
+<label>其余金额支付方式<select name="gateway">@include('sales.payment-options', ['selectedGateway' => $checkoutInput['gateway'] ?? null])</select></label>
 <button type="submit" data-checkout-trigger @disabled($requiresLinkage)>{{ ($confirmationRequired ?? false) ? '确认新价格并创建账单' : '核价并创建账单' }}</button>
 </form>
 <script type="application/json" id="classic-dependencies">{!! json_encode($product->provisioning_rules['classic_catalog']['dependencies'] ?? [], JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT) !!}</script>

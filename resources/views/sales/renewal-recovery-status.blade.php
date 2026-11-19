@@ -8,7 +8,7 @@
 <input type="hidden" name="request_id" value="{{ \Illuminate\Support\Str::ulid() }}">
 <label>优惠券<input name="coupon_code" maxlength="64"></label>
 <label><input type="checkbox" name="use_credit" value="1">本次使用钱包余额</label>
-<label>外部支付方式<select name="gateway"><option value="epay_wechat">微信支付</option><option value="epay_alipay">支付宝</option></select></label>
+<label>外部支付方式<select name="gateway">@include('sales.payment-options')</select></label>
 <button>重新核价并恢复续费</button></form>
 @else<p>恢复提示：{{ $recoveryInfo['reason'] }}</p>@endif
 </section>

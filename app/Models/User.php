@@ -26,7 +26,7 @@ class User extends Authenticatable implements FilamentUser
     {
         return $panel->getId() === 'admin' && ! $this->trashed() && collect([
             'promotion.view', 'affiliate.view', 'support.view', 'notification.view', 'download.view',
-            'inventory.view', 'upstream.view', 'cms.view', 'finance.view', 'tasks.view', 'audit.view', 'access.view',
+            'inventory.view', 'upstream.view', 'cms.view', 'finance.view', 'tasks.view', 'audit.view', 'access.view', 'settings.view',
         ])->contains(fn (string $permission): bool => $this->can($permission));
     }
 

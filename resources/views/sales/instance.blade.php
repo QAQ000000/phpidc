@@ -37,7 +37,7 @@
 @endif
 @if(in_array($action, ['renew', 'upgrade'], true))
 <label><input name="use_credit" type="checkbox" value="1">使用钱包（足够时立即结算）</label>
-<label>其余金额支付方式<select name="gateway"><option value="epay_wechat">微信</option><option value="epay_alipay">支付宝</option></select></label>
+<label>其余金额支付方式<select name="gateway">@include('sales.payment-options')</select></label>
 @if($action === 'upgrade')<p>升级会先创建差价账单。</p>@endif
 <label><input name="confirm" type="checkbox" value="1" required>确认{{ $label }}及本次钱包支付授权</label>
 @else

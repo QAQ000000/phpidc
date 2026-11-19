@@ -11,6 +11,7 @@ use App\Models\User;
 use App\Services\DriverManager;
 use App\Services\SettingService;
 use App\Support\Money;
+use App\Support\PaymentChannels;
 use App\Support\WalletCapacity;
 use App\Support\WalletTopupIntent;
 use Illuminate\Support\Arr;
@@ -53,6 +54,7 @@ class CreateWalletTopupInvoiceAction
                 || ! WalletCapacity::canCredit($locked, $amount)) {
                 throw ValidationException::withMessages(['amount' => 'Top-ups must be CNY 1.00–10000.00 and fit the wallet balance limit.']);
             }
+            app(PaymentChannels::class)->assertEnabled($request['request']['gateway']);
             if (! $this->drivers->payment($request['request']['gateway'])->isEnabled()) {
                 throw ValidationException::withMessages(['gateway' => 'Payment gateway is not configured.']);
             }

@@ -26,6 +26,7 @@ use App\Services\SettingService;
 use App\Support\ClassicPurchaseAdmission;
 use App\Support\MachineOperation;
 use App\Support\Money;
+use App\Support\PaymentChannels;
 use App\Support\ProvisioningValidator;
 use App\Support\PurchaseQuoteConfirmation;
 use App\Support\PurchaseRequest;
@@ -110,6 +111,9 @@ class CreateComboInvoiceAction
             $this->assertWalletAllocation($user, $credit, $gatewayAmount);
             if (! Money::isZero($gatewayAmount) && ! in_array($gateway, ['epay_wechat', 'epay_alipay'], true)) {
                 throw ValidationException::withMessages(['gateway' => 'Select a supported payment gateway.']);
+            }
+            if (! Money::isZero($gatewayAmount)) {
+                app(PaymentChannels::class)->assertEnabled($gateway);
             }
             if (! Money::eq(Money::add($credit, $gatewayAmount), $total)) {
                 throw new LogicException('Invoice amount identity failed.');
@@ -355,6 +359,9 @@ class CreateComboInvoiceAction
             if (! Money::isZero($gatewayAmount) && ! in_array($gateway, ['epay_wechat', 'epay_alipay'], true)) {
                 throw ValidationException::withMessages(['gateway' => 'Select a payment gateway.']);
             }
+            if (! $automatic && ! Money::isZero($gatewayAmount)) {
+                app(PaymentChannels::class)->assertEnabled($gateway);
+            }
             if (! Money::eq(Money::add($credit, $gatewayAmount), $total)) {
                 throw new LogicException('Invoice amount identity failed.');
             }
@@ -489,6 +496,9 @@ class CreateComboInvoiceAction
             }
             if (! Money::isZero($gatewayAmount) && ! in_array($gateway, ['epay_wechat', 'epay_alipay'], true)) {
                 throw ValidationException::withMessages(['gateway' => 'Select a supported payment gateway.']);
+            }
+            if (! Money::isZero($gatewayAmount)) {
+                app(PaymentChannels::class)->assertEnabled($gateway);
             }
             $items['request_id'] = $requestId;
             $items['automatic_renewal'] = ['selection_pending' => false, 'selection' => ['use_credit' => $useCredit, 'gateway' => $gateway, 'coupon_code' => $couponCode]];

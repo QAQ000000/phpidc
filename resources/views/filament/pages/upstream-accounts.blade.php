@@ -1,5 +1,6 @@
 <x-filament-panels::page>
 @include('filament.inventory-feedback')
+<h2>经典 ZJMF 商品与连接</h2>
 @foreach($accounts as $account)<section class="inventory-box"><h2>{{ $account->name }} #{{ $account->id }}</h2><p>{{ $account->base_url }} · {{ $account->is_active ? '启用' : '停用' }}</p>
 <form class="inventory-form" action="/admin/upstreams/catalog" method="post">@csrf<input type="hidden" name="account_id" value="{{ $account->id }}"><button class="inventory-button">读取上游商品目录</button></form>
 @can('upstream.configure')<details><summary>编辑此连接</summary>@include('filament.upstream-connection-form', ['account' => $account])</details>@endcan
@@ -19,4 +20,10 @@
 <details><summary>添加备注（选填）</summary><label>备注<input name="reason" maxlength="1000"></label></details><button class="inventory-button">保存降价边界</button></form></details>@endcan
 </li>@endforeach</ul></section>@endforeach
 {{ $products->links() }}
+<h2>Sub2API 远程余额兑换码连接</h2>
+@foreach($sub2Accounts as $account)<section class="inventory-box"><h3>{{ $account->name }} #{{ $account->id }}</h3><p>{{ $account->base_url }} · {{ $account->is_active ? '启用' : '停用' }}</p>
+@can('upstream.configure')<details><summary>编辑 Sub2API 连接</summary>@include('filament.sub2api-connection-form', ['account' => $account])</details>@endcan
+</section>@endforeach
+@can('upstream.configure')<details class="inventory-box"><summary>新增 Sub2API 连接</summary><p>接入支持余额兑换码的 Sub2API 站点，管理员密钥仅加密保存。</p>
+@include('filament.sub2api-connection-form', ['account' => null])</details>@endcan
 </x-filament-panels::page>

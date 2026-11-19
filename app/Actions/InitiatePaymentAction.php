@@ -13,6 +13,7 @@ use App\Models\User;
 use App\Services\DriverManager;
 use App\Support\EpayProfiles;
 use App\Support\Money;
+use App\Support\PaymentChannels;
 use App\Support\RenewalRecovery;
 use App\Support\SettlementCurrency;
 use App\Support\WalletTopupIntent;
@@ -31,6 +32,7 @@ class InitiatePaymentAction
         [$attempt, $gateway] = DB::transaction(function () use ($invoice, $actor): array {
             $configuration = app(ConfigureEpayAction::class);
             $configuration->lockConfiguration();
+            app(PaymentChannels::class)->assertEnabled($invoice->gateway ?? '');
             $profile = $configuration->captureCurrentProfile();
             $gateway = $this->drivers->payment($invoice->gateway ?? '', $profile);
             if ($profile === null || ! $gateway->isEnabled()) {

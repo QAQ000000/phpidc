@@ -14,7 +14,7 @@
 @include('sales.purchase-request')
 @if(($product->provisioning_rules['hostname_mode'] ?? '') === 'custom')<label>主机名 <input name="hostname" required></label>@endif
 @if(isset($product->provisioning_rules['password_min_len']) || isset($product->provisioning_rules['password_max_len']) || isset($product->provisioning_rules['password_regex']))<label>开通密码 <input name="password" type="password" required></label>@endif
-<label><input name="use_credit" type="checkbox" value="1" checked>使用钱包余额</label><label>支付渠道 <select name="gateway"><option value="epay_wechat">微信</option><option value="epay_alipay">支付宝</option></select></label><button>创建订单</button></form></section>
+<label><input name="use_credit" type="checkbox" value="1" checked>使用钱包余额</label><label>支付渠道 <select name="gateway">@include('sales.payment-options')</select></label><button>创建订单</button></form></section>
 @endif
 @if($product->driver_type === \App\Enums\DriverType::ZJMF_API)
 <section><h3>{{ $product->name }}</h3><p>创建订单时获取实时价格，请先查看账单再付款。</p>

@@ -29,6 +29,8 @@ use App\Http\Controllers\ReceivableCheckController;
 use App\Http\Controllers\ReconciliationController;
 use App\Http\Controllers\RenewalRecoveryController;
 use App\Http\Controllers\ServiceBillingController;
+use App\Http\Controllers\Sub2ApiSettingsController;
+use App\Http\Controllers\SystemSettingsController;
 use App\Http\Controllers\WalletClearanceController;
 use App\Http\Controllers\WalletTopupController;
 use App\Http\Controllers\WalletTopupSettingsController;
@@ -118,6 +120,10 @@ Route::middleware('auth')->group(function (): void {
 });
 Route::middleware('auth')->group(function (): void {
     Route::post('/admin/upstreams/configure', [ClassicOperationsController::class, 'configure']);
+    Route::post('/admin/upstreams/sub2api/configure', [Sub2ApiSettingsController::class, 'store']);
+    Route::post('/admin/settings/identity/{section}', [SystemSettingsController::class, 'identity']);
+    Route::post('/admin/settings/payment', [SystemSettingsController::class, 'payment']);
+    Route::post('/admin/settings/test/{channel}', [SystemSettingsController::class, 'test'])->middleware('throttle:settings-test');
     Route::post('/admin/upstreams/catalog', [ClassicOperationsController::class, 'catalog']);
     Route::post('/admin/upstreams/import', [ClassicOperationsController::class, 'import']);
     Route::post('/admin/upstream-options/{group}/bounds', [ClassicOperationsController::class, 'bounds']);
