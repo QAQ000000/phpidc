@@ -17,9 +17,11 @@ use App\Models\User;
 use App\Services\CustomerPortalQueries;
 use Illuminate\Contracts\View\View;
 use Illuminate\Http\JsonResponse;
+use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Response;
 use Illuminate\Validation\Rule;
+use Illuminate\Validation\ValidationException;
 
 class CustomerSalesController extends Controller
 {
@@ -85,9 +87,18 @@ class CustomerSalesController extends Controller
             'canControlMachine' => app(ReadInstanceControlsAction::class)->available($this->user($request), $instance)])->header('Cache-Control', 'private, no-store');
     }
 
-    public function pay(Request $request, Invoice $invoice, InitiatePaymentAction $pay): JsonResponse|View
+    public function pay(Request $request, Invoice $invoice, InitiatePaymentAction $pay): JsonResponse|RedirectResponse|View
     {
-        $result = $pay->execute($invoice, $this->user($request));
+        try {
+            $result = $pay->execute($invoice, $this->user($request));
+        } catch (ValidationException $exception) {
+            if ($request->expectsJson()) {
+                throw $exception;
+            }
+
+            // No-referrer pages cannot rely on a session URL last visited by a browser probe.
+            return redirect('/console/invoices/'.$invoice->id)->withErrors($exception->errors());
+        }
         if ($request->expectsJson()) {
             return response()->json(['success' => $result->success, 'payment_url' => $result->paymentUrl,
                 'qr_code_url' => $result->qrCodeUrl, 'out_trade_no' => $result->outTradeNo, 'error' => $result->errorMessage], $result->success ? 200 : 502);

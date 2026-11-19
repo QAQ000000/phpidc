@@ -34,7 +34,7 @@ class InitiatePaymentAction
             $profile = $configuration->captureCurrentProfile();
             $gateway = $this->drivers->payment($invoice->gateway ?? '', $profile);
             if ($profile === null || ! $gateway->isEnabled()) {
-                throw ValidationException::withMessages(['gateway' => 'Payment gateway is not configured.']);
+                throw ValidationException::withMessages(['gateway' => '支付渠道尚未配置，请联系管理员配置后再继续支付。']);
             }
             $user = User::whereKey($actor->id)->whereNull('anonymized_at')->lockForUpdate()->first();
             if ($user === null) {
@@ -54,7 +54,7 @@ class InitiatePaymentAction
             SettlementCurrency::assertSupported($locked->currency);
             if ($locked->user_id !== $actor->id || $locked->gateway !== $gateway->getIdentifier() || $locked->status !== InvoiceStatus::UNPAID
                 || ($locked->expires_at !== null && $locked->expires_at->isPast()) || Money::isZero($locked->gateway_amount)) {
-                throw ValidationException::withMessages(['invoice' => 'Invoice cannot be paid.']);
+                throw ValidationException::withMessages(['invoice' => '当前账单不可支付，请核对账单状态、支付有效期和待付金额。']);
             }
 
             $attempt = PaymentAttempt::create(['invoice_id' => $locked->id, 'gateway' => $locked->gateway,
