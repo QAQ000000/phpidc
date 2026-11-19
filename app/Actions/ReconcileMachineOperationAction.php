@@ -67,9 +67,12 @@ final class ReconcileMachineOperationAction
             }
         }
         $release = ($input['decision'] ?? null) === 'release';
+        if (! $release && ($input['reason'] ?? '') === '') {
+            $input['reason'] = '核对后保持原机器操作未决';
+        }
         $data = validator($input, ['resolution_id' => ['required', 'ulid'], 'operation_request_id' => ['required', 'ulid'],
             'proof' => ['required', 'string'], 'decision' => ['required', Rule::in(['hold', 'release'])],
-            'reason' => ['required', 'string', 'max:1000'], 'confirm' => ['accepted'],
+            'reason' => ['required', 'string', 'max:1000'], 'confirm' => [$release ? 'accepted' : 'sometimes'],
             'source' => [Rule::requiredIf($release), 'nullable', Rule::in(['supplier_panel', 'supplier_ticket'])],
             'conclusion' => [Rule::requiredIf($release), 'nullable', Rule::in(['completed', 'failed', 'not_executed'])],
             'evidence_ref' => [Rule::requiredIf($release), 'nullable', 'string', 'max:255'],

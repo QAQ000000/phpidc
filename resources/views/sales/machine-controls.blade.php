@@ -31,8 +31,10 @@
 @elseif($command === 'vnc')
 <p>本站加载控制台页面，浏览器直接连接远端 WSS；控制台流量不经过本站中转。</p>
 @endif
-<label>操作原因<input name="reason" maxlength="1000" required></label>
-<label><input type="checkbox" name="confirm" value="1" required>确认{{ $labels[$command] }}</label>
+@if(!in_array($command, ['on', 'vnc'], true))
+<details><summary>添加备注（选填）</summary><label>备注<input name="reason" maxlength="1000"></label></details>
+@if(!in_array($command, ['reinstall', 'rescueSystem'], true))<label><input type="checkbox" name="confirm" value="1" required>确认{{ $labels[$command] }}并中断业务</label>@endif
+@endif
 <button type="submit" @if($command === 'reinstall' && empty($controls['systems'])) disabled @endif>{{ $labels[$command] }}</button>
 </form></section>
 @endforeach

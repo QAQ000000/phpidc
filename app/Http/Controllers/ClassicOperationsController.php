@@ -50,12 +50,20 @@ class ClassicOperationsController extends Controller
         }
     }
 
+    private function reason(array $data, string $fallback): string
+    {
+        $reason = trim($data['reason'] ?? '');
+
+        return $reason === '' ? $fallback : $reason;
+    }
+
     public function configure(Request $request)
     {
         $actor = $this->actor($request, 'upstream.configure');
-        $data = $request->validate(['name' => ['required', 'string', 'max:255'], 'url' => ['required', 'url', 'max:255'], 'username' => ['required', 'string', 'max:255'],
-            'api_secret' => ['required', 'string', 'max:4096'], 'reason' => ['required', 'string', 'max:1000'], 'raw_jwt' => ['sometimes', 'boolean'], 'credit_limit' => ['sometimes', 'boolean']]);
-        $this->run(fn () => app(ConfigureClassicUpstreamAction::class)->execute($data['name'], $data['url'], $data['username'], $data['api_secret'], $data['reason'], $request->boolean('raw_jwt'), $request->boolean('credit_limit'), $actor));
+        $data = $request->validate(['account_id' => ['nullable', 'integer', 'min:1'], 'name' => ['required', 'string', 'max:255'], 'url' => ['required', 'url', 'max:255'], 'username' => ['required', 'string', 'max:255'],
+            'api_secret' => [Rule::requiredIf(! $request->filled('account_id')), 'nullable', 'string', 'max:4096'], 'reason' => ['nullable', 'string', 'max:1000'], 'raw_jwt' => ['sometimes', 'boolean'], 'credit_limit' => ['sometimes', 'boolean']]);
+        $reason = $this->reason($data, $request->filled('account_id') ? '编辑上游连接配置' : '新增上游连接');
+        $this->run(fn () => app(ConfigureClassicUpstreamAction::class)->execute($data['name'], $data['url'], $data['username'], $data['api_secret'] ?? '', $reason, isset($data['raw_jwt']) ? $request->boolean('raw_jwt') : null, isset($data['credit_limit']) ? $request->boolean('credit_limit') : null, $actor, isset($data['account_id']) ? (int) $data['account_id'] : null));
 
         return redirect('/admin/upstreams')->with('inventory_status', '连接已保存；密钥不会回显。');
     }
@@ -73,9 +81,10 @@ class ClassicOperationsController extends Controller
     {
         $actor = $this->actor($request, 'upstream.import');
         $data = $request->validate(['account_id' => ['required', 'integer'], 'pid' => ['required', 'integer', 'min:1'], 'cycle' => ['required', Rule::enum(BillingCycle::class)],
-            'currency' => ['required', 'regex:/^[A-Z]{3}$/D'], 'markup' => ['required', 'regex:/^\d+(\.\d{1,2})?$/D'], 'reason' => ['required', 'string', 'max:1000']]);
-        $product = $this->run(fn () => app(ImportClassicProductAction::class)->execute($data['account_id'], (string) $data['pid'], BillingCycle::from($data['cycle']), $data['currency'], $data['markup'], $data['reason'], $actor));
-        $this->run(fn () => app(SyncClassicCatalogAction::class)->execute($product, $data['reason'], $actor));
+            'currency' => ['required', 'regex:/^[A-Z]{3}$/D'], 'markup' => ['required', 'regex:/^\d+(\.\d{1,2})?$/D'], 'reason' => ['nullable', 'string', 'max:1000']]);
+        $reason = $this->reason($data, '导入上游商品与完整配置');
+        $product = $this->run(fn () => app(ImportClassicProductAction::class)->execute($data['account_id'], (string) $data['pid'], BillingCycle::from($data['cycle']), $data['currency'], $data['markup'], $reason, $actor));
+        $this->run(fn () => app(SyncClassicCatalogAction::class)->execute($product, $reason, $actor));
 
         return redirect('/admin/upstreams')->with('inventory_status', '商品与配置已导入。');
     }
@@ -83,8 +92,8 @@ class ClassicOperationsController extends Controller
     public function sync(Request $request, Product $product)
     {
         $actor = $this->actor($request, 'upstream.import');
-        $data = $request->validate(['reason' => ['required', 'string', 'max:1000']]);
-        $this->run(fn () => app(SyncClassicCatalogAction::class)->execute($product, $data['reason'], $actor));
+        $data = $request->validate(['reason' => ['nullable', 'string', 'max:1000']]);
+        $this->run(fn () => app(SyncClassicCatalogAction::class)->execute($product, $this->reason($data, '手动同步商品配置与价格'), $actor));
 
         return redirect('/admin/upstreams')->with('inventory_status', '商品配置已同步。');
     }
@@ -92,8 +101,11 @@ class ClassicOperationsController extends Controller
     public function control(Request $request, Instance $instance)
     {
         $actor = $this->actor($request, 'upstream.lifecycle');
-        $data = $request->validate(['action' => ['required', Rule::in(['suspend', 'unsuspend', 'terminate'])], 'reason' => ['required', 'string', 'max:1000'], 'request_id' => ['required', 'ulid'], 'confirm' => ['accepted']]);
-        $this->run(fn () => app(RequestInstanceOperationAction::class)->execute($instance, $data['action'], $data['reason'], $data['request_id'], $actor));
+        $data = $request->validate(['action' => ['required', Rule::in(['suspend', 'unsuspend', 'terminate'])], 'reason' => ['nullable', 'string', 'max:1000'], 'request_id' => ['required', 'ulid'], 'confirm' => ['accepted']]);
+        $reason = $this->reason($data, match ($data['action']) {
+            'suspend' => '管理员暂停服务', 'unsuspend' => '管理员恢复服务', default => '管理员确认终止服务',
+        });
+        $this->run(fn () => app(RequestInstanceOperationAction::class)->execute($instance, $data['action'], $reason, $data['request_id'], $actor));
 
         return redirect('/admin/upstream-instances')->with('inventory_status', '操作已入队，等待上游确认。');
     }
@@ -101,8 +113,8 @@ class ClassicOperationsController extends Controller
     public function bounds(Request $request, ProductOptionGroup $group)
     {
         $actor = $this->actor($request, 'upstream.import');
-        $data = $request->validate(['allow' => ['sometimes', 'boolean'], 'minimum' => ['nullable', 'integer', 'min:0'], 'items' => ['sometimes', 'array'], 'items.*' => ['integer', 'min:1'], 'reason' => ['required', 'string', 'max:1000']]);
-        $this->run(fn () => app(ConfigureDowngradeBoundsAction::class)->execute($group, $request->boolean('allow'), isset($data['minimum']) ? (int) $data['minimum'] : null, $data['items'] ?? [], $actor, $data['reason']));
+        $data = $request->validate(['allow' => ['sometimes', 'boolean'], 'minimum' => ['nullable', 'integer', 'min:0'], 'items' => ['sometimes', 'array'], 'items.*' => ['integer', 'min:1'], 'reason' => ['nullable', 'string', 'max:1000']]);
+        $this->run(fn () => app(ConfigureDowngradeBoundsAction::class)->execute($group, $request->boolean('allow'), isset($data['minimum']) ? (int) $data['minimum'] : null, $data['items'] ?? [], $actor, $this->reason($data, '调整未来续费降价边界')));
 
         return redirect('/admin/upstreams')->with('inventory_status', '未来续费降价边界已保存并审计。');
     }
@@ -120,9 +132,9 @@ class ClassicOperationsController extends Controller
     public function hotSwap(Request $request, Instance $instance)
     {
         $actor = $this->actor($request, 'upstream.hotswap');
-        $data = $request->validate(['account_id' => ['required', 'integer'], 'host_id' => ['required', 'integer', 'min:1'], 'pid' => ['required', 'integer', 'min:1'],
+        $data = $request->validate(['account_id' => ['required', 'integer'], 'host_id' => ['required', 'integer', 'min:1'], 'pid' => ['nullable', 'integer', 'min:1'],
             'disposition' => ['required', Rule::in(['terminate', 'keep_orphan'])], 'reason' => ['required', 'string', 'max:255'], 'confirm' => ['accepted']]);
-        $this->run(fn () => app(HotSwapInstanceDriverAction::class)->execute($instance, $data['account_id'], (string) $data['host_id'], (string) $data['pid'], $data['disposition'], $data['reason'], $actor, true));
+        $this->run(fn () => app(HotSwapInstanceDriverAction::class)->execute($instance, $data['account_id'], (string) $data['host_id'], isset($data['pid']) ? (string) $data['pid'] : null, $data['disposition'], $data['reason'], $actor, true));
 
         return redirect('/admin/upstream-instances')->with('inventory_status', '绑定已切换；请核对目标配置，旧资源处置已记录。');
     }

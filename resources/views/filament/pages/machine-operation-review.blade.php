@@ -15,7 +15,7 @@
 <p>请求提交后五分钟内或请求仍在执行时不能处理。这里只查询，不重放原命令。</p>
 <form method="post" action="/admin/upstream-instances/{{ $instance->id }}/machine-review" class="inventory-form">@csrf
 <input type="hidden" name="operation_request_id" value="{{ $operation['request_id'] }}">
-<label>核对原因<input name="reason" required maxlength="1000"></label><button class="inventory-button">查询上游现状并核对</button>
+<button class="inventory-button">查询上游现状并核对</button>
 </form>
 @endif
 @endcan

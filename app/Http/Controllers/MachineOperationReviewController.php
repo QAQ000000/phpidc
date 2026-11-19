@@ -25,8 +25,9 @@ final class MachineOperationReviewController extends Controller
     public function inspect(Request $request, Instance $instance, ReconcileMachineOperationAction $review)
     {
         $actor = $this->actor($request);
-        $data = $request->validate(['operation_request_id' => ['required', 'ulid'], 'reason' => ['required', 'string', 'max:1000']]);
-        $result = $review->inspect($instance, $actor, $data['operation_request_id'], $data['reason']);
+        $data = $request->validate(['operation_request_id' => ['required', 'ulid'], 'reason' => ['nullable', 'string', 'max:1000']]);
+        $reason = trim($data['reason'] ?? '');
+        $result = $review->inspect($instance, $actor, $data['operation_request_id'], $reason === '' ? '查询原机器操作状态' : $reason);
 
         return response()->view('filament.machine-operation-confirmation', ['instance' => $instance->refresh(),
             'operation' => app(MachineOperation::class)->summary($instance), 'review' => $result, 'resolutionId' => (string) Str::ulid()])

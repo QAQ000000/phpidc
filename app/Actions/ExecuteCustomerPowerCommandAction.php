@@ -24,12 +24,23 @@ class ExecuteCustomerPowerCommandAction
     public function execute(User $user, Instance $instance, ProvisionCommand $command, array $input): ProvisionResult
     {
         abort_unless($instance->user_id === $user->id, 403);
-        $data = validator($input, ['request_id' => ['required', 'ulid'], 'reason' => ['required', 'string', 'max:1000'],
-            'confirm' => ['accepted'], 'backup_confirm' => [$command->isDestructive() ? 'accepted' : 'sometimes']])->validate();
-        if (trim($data['reason']) === '' || ! in_array($command, [ProvisionCommand::POWER_ON, ProvisionCommand::POWER_OFF,
+        $direct = in_array($command, [ProvisionCommand::POWER_ON, ProvisionCommand::VNC], true);
+        $data = validator($input, ['request_id' => ['required', 'ulid'], 'reason' => ['nullable', 'string', 'max:1000'],
+            'confirm' => [$direct || $command->isDestructive() ? 'sometimes' : 'accepted'],
+            'backup_confirm' => [$command->isDestructive() ? 'accepted' : 'sometimes']])->validate();
+        if (! in_array($command, [ProvisionCommand::POWER_ON, ProvisionCommand::POWER_OFF,
             ProvisionCommand::REBOOT, ProvisionCommand::HARD_OFF, ProvisionCommand::HARD_REBOOT,
             ProvisionCommand::REINSTALL, ProvisionCommand::RESCUE_SYSTEM, ProvisionCommand::VNC], true)) {
-            throw ValidationException::withMessages(['command' => '请选择允许的机器操作并填写原因。']);
+            throw ValidationException::withMessages(['command' => '请选择允许的机器操作。']);
+        }
+        $data['reason'] = trim($data['reason'] ?? '');
+        if ($data['reason'] === '') {
+            $data['reason'] = match ($command) {
+                ProvisionCommand::POWER_ON => '客户开机', ProvisionCommand::POWER_OFF => '客户确认关机',
+                ProvisionCommand::REBOOT => '客户确认重启', ProvisionCommand::HARD_OFF => '客户确认硬关机',
+                ProvisionCommand::HARD_REBOOT => '客户确认硬重启', ProvisionCommand::REINSTALL => '客户确认备份并重装系统',
+                ProvisionCommand::RESCUE_SYSTEM => '客户确认备份并进入救援系统', default => '客户打开 VNC 控制台',
+            };
         }
         $lock = Cache::lock('customer-machine-control:'.$instance->id, 120);
         if (! $lock->get()) {

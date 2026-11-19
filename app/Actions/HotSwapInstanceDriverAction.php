@@ -27,10 +27,10 @@ use Illuminate\Support\Facades\Log;
 
 class HotSwapInstanceDriverAction
 {
-    public function execute(Instance $instance, int $accountId, string $hostId, string $pid, string $disposition, string $reason, User $actor, bool $confirmed): void
+    public function execute(Instance $instance, int $accountId, string $hostId, ?string $pid, string $disposition, string $reason, User $actor, bool $confirmed): void
     {
         Gate::forUser($actor)->authorize('upstream.hotswap');
-        if (! $confirmed || trim($reason) === '' || ! in_array($disposition, ['terminate', 'keep_orphan'], true) || ! ctype_digit($hostId) || (int) $hostId < 1 || ! ctype_digit($pid) || (int) $pid < 1) {
+        if (! $confirmed || trim($reason) === '' || ! in_array($disposition, ['terminate', 'keep_orphan'], true) || ! ctype_digit($hostId) || (int) $hostId < 1 || ($pid !== null && (! ctype_digit($pid) || (int) $pid < 1))) {
             throw new DomainException('Explicit confirmation, target IDs, old-resource disposition and reason are required.');
         }
         $instance = $instance->fresh(['upstreamApi']);
@@ -64,6 +64,7 @@ class HotSwapInstanceDriverAction
         $targetEndpoint = $driver->endpointIdentity();
         $snapshot = app(CallUpstreamAction::class)->execute(fn () => $driver->syncInfo($target));
         $host = $snapshot->rawResponse['data']['host_data'] ?? [];
+        $pid ??= (string) ($host['productid'] ?? '');
         if (! in_array($snapshot->upstreamStatus, ['Active', 'Suspended'], true) || (string) ($host['productid'] ?? '') !== $pid
             || ($host['billingcycle'] ?? null) !== $instance->billing_cycle->value || ($host['currency_code'] ?? $snapshot->rawResponse['data']['currency']['code'] ?? null) !== $instance->currency) {
             throw new DomainException('Target host product, cycle, currency and live state must be authenticated and verified.');

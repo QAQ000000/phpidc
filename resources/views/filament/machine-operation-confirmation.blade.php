@@ -9,7 +9,10 @@
 <p>本次核对凭证有效至 {{ \Illuminate\Support\Carbon::createFromTimestamp($review['expires'])->timezone(config('app.timezone'))->toDateTimeString() }}；超时后请重新查询。</p>
 <form method="post" action="/admin/upstream-instances/{{ $instance->id }}/machine-reconcile">@csrf
 <input type="hidden" name="resolution_id" value="{{ $resolutionId }}"><input type="hidden" name="operation_request_id" value="{{ $operation['request_id'] }}"><input type="hidden" name="proof" value="{{ $review['proof'] }}">
-<label>处理方式<select name="decision" required><option value="hold">保持未决，保存本次核对记录</option><option value="release">已独立核实任务终结，允许新请求</option></select></label>
+<input type="hidden" name="decision" value="hold"><button>保持未决，保存本次核对记录</button></form>
+<details><summary>已核实任务终结，解除后续操作阻断</summary>
+<form method="post" action="/admin/upstream-instances/{{ $instance->id }}/machine-reconcile">@csrf
+<input type="hidden" name="resolution_id" value="{{ $resolutionId }}"><input type="hidden" name="operation_request_id" value="{{ $operation['request_id'] }}"><input type="hidden" name="proof" value="{{ $review['proof'] }}"><input type="hidden" name="decision" value="release">
 <label>人工核对来源<select name="source"><option value="">尚无证据</option><option value="supplier_panel">上游任务面板</option><option value="supplier_ticket">供应商工单确认</option></select></label>
 <label>上游明确结论<select name="conclusion"><option value="">尚未确认</option><option value="completed">任务已完成</option><option value="failed">任务失败且已终结</option><option value="not_executed">确认未执行且已撤销/无排队任务</option></select></label>
 <label>上游任务或工单编号<input name="evidence_ref" maxlength="255"></label>
@@ -20,6 +23,6 @@
 @if(!$operation['binding_recorded'])<label><input name="legacy_binding_confirm" type="checkbox" value="1">已独立核对历史原请求确实属于上述当前主机；不是根据当前电源状态推断归属</label>@endif
 <label>处理原因<input name="reason" required maxlength="1000"></label>
 <label><input type="checkbox" name="confirm" value="1" required>确认所填证据；只恢复新请求权限，不重放原命令，不将原结果改为系统验证成功</label>
-<button>保存人工核对结果</button></form>
+<button>保存人工核对结果并解除阻断</button></form></details>
 <p><a href="/admin/machine-operation-review?instance_id={{ $instance->id }}">返回操作审计；凭证超期请重新查询</a></p>
 @endsection

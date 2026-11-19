@@ -86,14 +86,18 @@ class ServiceBillingController extends Controller
         $user = $this->user($request);
         abort_unless($instance->user_id === $user->id, 403);
         $data = $request->validate(['action' => ['required', Rule::in(['renew', 'upgrade', 'downgrade', 'terminate'])], 'options' => ['sometimes', 'array'], 'request_id' => ['required', 'ulid'],
-            'coupon_code' => ['nullable', 'string', 'max:64'], 'use_credit' => ['sometimes', 'boolean'], 'gateway' => ['nullable', Rule::in(['epay_wechat', 'epay_alipay'])], 'reason' => ['required', 'string', 'max:1000'], 'confirm' => ['accepted']]);
+            'coupon_code' => ['nullable', 'string', 'max:64'], 'use_credit' => ['sometimes', 'boolean'], 'gateway' => ['nullable', Rule::in(['epay_wechat', 'epay_alipay'])], 'reason' => ['nullable', 'string', 'max:1000'], 'confirm' => ['accepted']]);
+        $reason = trim($data['reason'] ?? '');
+        if ($reason === '') {
+            $reason = $data['action'] === 'terminate' ? '客户确认终止服务' : '客户调整未来续费价格';
+        }
         if ($data['action'] === 'terminate') {
-            $this->run(fn () => app(RequestInstanceOperationAction::class)->execute($instance, 'terminate', $data['reason'], $data['request_id'], $user, 'client_action'));
+            $this->run(fn () => app(RequestInstanceOperationAction::class)->execute($instance, 'terminate', $reason, $data['request_id'], $user, 'client_action'));
 
             return redirect('/console/instances/'.$instance->id)->with('status', '撤销申请已入队；等待上游确认删除。');
         }
         if ($data['action'] === 'downgrade') {
-            $this->run(fn () => app(DowngradeCalculatorAction::class)->execute($instance, $data['options'] ?? [], $user, $data['reason']));
+            $this->run(fn () => app(DowngradeCalculatorAction::class)->execute($instance, $data['options'] ?? [], $user, $reason));
 
             return redirect('/console/instances/'.$instance->id)->with('status', '未来续费价格已调整；本期不退款，远程配置不变。');
         }

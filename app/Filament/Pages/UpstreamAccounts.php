@@ -25,7 +25,9 @@ class UpstreamAccounts extends Page
 
     protected function getViewData(): array
     {
-        return ['accounts' => UpstreamApi::where('driver', DriverType::ZJMF_API)->get(['id', 'name', 'username', 'base_url', 'is_active', 'auth_header_mode']),
+        return ['accounts' => UpstreamApi::where('driver', DriverType::ZJMF_API)->get(['id', 'name', 'username', 'base_url', 'is_active', 'auth_header_mode', 'config'])
+            ->map(fn (UpstreamApi $account): object => (object) ($account->only(['id', 'name', 'username', 'base_url', 'is_active', 'auth_header_mode'])
+                + ['allow_credit_limit' => (bool) ($account->config['allow_credit_limit'] ?? false)])),
             'products' => Product::where('driver_type', DriverType::ZJMF_API)->with(['optionGroups.items'])->paginate(20)];
     }
 }

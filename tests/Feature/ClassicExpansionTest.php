@@ -641,3 +641,46 @@ it('loads explicit Livewire assets in the admin panel without injecting scripts 
     $this->actingAs($viewer)->get('/admin/upstreams')->assertOk()->assertSee('/livewire-', false);
     $this->get('/help')->assertOk()->assertDontSee('<script', false);
 });
+
+it('renews or upgrades through the customer form without requiring an unused reason', function (string $action): void {
+    [$user, $product, $instance] = expandedClassic();
+    app(SyncClassicCatalogAction::class)->execute($product, 'Isolated service change setup');
+    $options = app(ResolveProductOptionsAction::class)->execute($product->fresh(), 'monthly', expandedOptions());
+    $instance->update(['active_config' => $instance->active_config + ['options' => $options['pairs']]]);
+    if ($action === 'upgrade') {
+        $config = $instance->active_config;
+        $config['options'] = $options['pairs'];
+        $config['upstream_configoption'] = [50 => 501];
+        $instance->update(['active_config' => $config]);
+    }
+    $this->actingAs($user)->post('/console/instances/'.$instance->id.'/operations', ['action' => $action,
+        'request_id' => (string) Str::ulid(), 'confirm' => 1, 'gateway' => 'epay_wechat', 'options' => ['configoption' => [50 => 502]]])
+        ->assertRedirect('/console/invoices/'.Invoice::sole()->id)->assertSessionHasNoErrors();
+    expect(Invoice::sole()->status)->toBe(InvoiceStatus::UNPAID)->and($user->fresh()->credit)->toBe('100.00');
+    $this->assertDatabaseCount('financial_transactions', 0);
+    $this->assertDatabaseCount('fulfillment_tasks', 0);
+})->with(['renew', 'upgrade']);
+
+it('syncs a catalog from the admin button without a typed reason and preserves the original instance', function (): void {
+    [$user, $product, $instance] = expandedClassic();
+    $operator = User::factory()->create();
+    app(AssignUpstreamRoleAction::class)->execute($operator, 'upstream-operator', 'Isolated import authority');
+    $before = $instance->refresh()->getRawOriginal();
+    $this->actingAs($operator)->post('/admin/upstreams/'.$product->id.'/sync')->assertRedirect('/admin/upstreams')->assertSessionHasNoErrors();
+    expect($instance->fresh()->getRawOriginal())->toBe($before)->and($user->fresh()->credit)->toBe('100.00');
+    $this->assertDatabaseHas('audit_logs', ['action' => 'upstream.catalog_sync', 'actor_id' => $operator->id, 'reason' => '手动同步商品配置与价格']);
+});
+
+it('derives the target product from the authenticated host when changing its binding without a typed product ID', function (): void {
+    [$user, $product, $instance] = expandedClassic();
+    $actor = User::factory()->create();
+    app(AssignUpstreamRoleAction::class)->execute($actor, 'upstream-migrator', 'Isolated binding authority');
+    $target = UpstreamApi::factory()->create();
+    $this->actingAs($actor)->post('/admin/upstream-instances/'.$instance->id.'/hot-swap', ['account_id' => $target->id,
+        'host_id' => 199, 'disposition' => 'keep_orphan', 'reason' => 'Verified target host', 'confirm' => 1])
+        ->assertRedirect('/admin/upstream-instances')->assertSessionHasNoErrors();
+    expect($instance->fresh()->active_config['upstream_pid'])->toBe('17')->and($instance->fresh()->upstream_instance_id)->toBe('199')
+        ->and($instance->fresh()->upstream_api_id)->toBe($target->id)->and($product->fresh()->upstream_api_id)->not->toBe($target->id)
+        ->and($user->fresh()->credit)->toBe('100.00');
+    $this->assertDatabaseCount('financial_transactions', 0);
+});

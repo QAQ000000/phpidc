@@ -24,18 +24,31 @@
 @if($renewalRecoveryInfo)
 @include('sales.renewal-recovery-status', ['recoveryInfo' => $renewalRecoveryInfo, 'invoice' => $renewalRecoveryInfo['current']])
 @endif
-<form method="post" action="/console/instances/{{ $instance->id }}/operations">@csrf<label>优惠券码（先在客户中心领取；仅新购/续费）<input name="coupon_code" maxlength="64"></label>
-<input type="hidden" name="request_id" value="{{ (string) \Illuminate\Support\Str::ulid() }}">
-<label>操作<select name="action"><option value="renew">续费</option><option value="upgrade">配置升级</option><option value="downgrade">仅降低未来续费价格</option><option value="terminate">申请终止</option></select></label>
+@foreach(['renew' => '续费', 'upgrade' => '配置升级', 'downgrade' => '仅降低未来续费价格', 'terminate' => '申请终止'] as $action => $label)
+@if($action !== 'renew')<details><summary>{{ $label }}</summary>@endif
+<form method="post" action="/console/instances/{{ $instance->id }}/operations">@csrf
+<input type="hidden" name="request_id" value="{{ (string) \Illuminate\Support\Str::ulid() }}"><input type="hidden" name="action" value="{{ $action }}">
+@if($action === 'renew')<label>优惠券码（先在客户中心领取）<input name="coupon_code" maxlength="64"></label>@endif
+@if(in_array($action, ['upgrade', 'downgrade'], true))
 @if($instance->active_config['mapping_requires_review'] ?? false)<p>热切换后的配置映射待核对，升级与续费降价暂不可用。</p>@else
 @if($instance->active_config['price_requires_review'] ?? false)<p>未来价格基线待本人确认，升级与续费降价暂不可用。<a href="/console/instances/{{ $instance->id }}/mapping-price">预览并确认完整配置的新续费价</a></p>@endif
 @include('sales.config-options', ['product' => $instance->product, 'selection' => ['options' => ['configoption' => $instance->active_config['upstream_configoption'] ?? []]], 'serviceChange' => true])
 @endif
-<p>升级会先创建差价账单；降级仅降低未来续费价，本期不退款、远程配置不变。终止以实际删除确认为准。</p>
+@endif
+@if(in_array($action, ['renew', 'upgrade'], true))
 <label><input name="use_credit" type="checkbox" value="1">使用钱包（足够时立即结算）</label>
 <label>其余金额支付方式<select name="gateway"><option value="epay_wechat">微信</option><option value="epay_alipay">支付宝</option></select></label>
-<label>原因<input name="reason" required></label><label><input name="confirm" type="checkbox" value="1" required>确认所选操作；终止可能永久删除数据</label><button>核价并提交</button>
+@if($action === 'upgrade')<p>升级会先创建差价账单。</p>@endif
+<label><input name="confirm" type="checkbox" value="1" required>确认{{ $label }}及本次钱包支付授权</label>
+@else
+@if($action === 'downgrade')<p>仅降低未来续费价，本期不退款、远程配置不变。</p>@else<p>终止可能永久删除数据，以实际删除确认为准。</p>@endif
+<details><summary>添加备注（选填）</summary><label>备注<input name="reason" maxlength="1000"></label></details>
+<label><input name="confirm" type="checkbox" value="1" required>确认{{ $label }}{{ $action === 'terminate' ? '，并知悉可能永久删除数据' : '' }}</label>
+@endif
+<button>{{ $action === 'terminate' ? '确认申请终止' : ($action === 'downgrade' ? '确认调整未来价格' : '核价并'.$label) }}</button>
 </form>
+@if($action !== 'renew')</details>@endif
+@endforeach
 @endif
 @if($instance->status === \App\Enums\InstanceStatus::ACTIVE && isset($instance->encrypted_credentials['card_key']))<p>卡密：<code>{{ $instance->encrypted_credentials['card_key'] }}</code></p>
 @if(isset($instance->encrypted_credentials['face_value']))<p>兑换面额：{{ $instance->encrypted_credentials['face_value'] }} 单位</p>@endif

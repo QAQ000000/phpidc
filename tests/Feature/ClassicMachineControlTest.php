@@ -165,12 +165,12 @@ it('rejects invalid OS pairings or unsupported reinstall fields before submittin
     [['os_group' => 'Ubuntu', 'os' => 1173028, 'format_data_disk' => 1]],
 ]);
 
-it('requires confirmation reason and destructive backup confirmation before any HTTP', function (array $extra): void {
+it('requires the command-specific interruption or destructive backup confirmation before any HTTP', function (ProvisionCommand $command, array $extra): void {
     $instance = machineControlInstance();
     fakeMachineControl();
-    expect(fn () => app(ExecuteCustomerPowerCommandAction::class)->execute($instance->user, $instance, ProvisionCommand::REINSTALL, machineControlInput($extra)))->toThrow(ValidationException::class);
+    expect(fn () => app(ExecuteCustomerPowerCommandAction::class)->execute($instance->user, $instance, $command, machineControlInput($extra)))->toThrow(ValidationException::class);
     Http::assertNothingSent();
-})->with([[['confirm' => 0]], [['reason' => '  ']], [['backup_confirm' => 0]]]);
+})->with([[ProvisionCommand::REBOOT, ['confirm' => 0]], [ProvisionCommand::REINSTALL, ['backup_confirm' => 0]], [ProvisionCommand::RESCUE_SYSTEM, ['backup_confirm' => 0]]]);
 
 it('uses the classic rescue wire spelling and redacts the temporary password', function (): void {
     $instance = machineControlInstance();
@@ -280,3 +280,57 @@ it('refuses unsupported console redirects and insecure or malformed socket addre
     'https://supplier.test/dcim/novnc?url=invalid',
     'javascript:alert(1)',
 ]);
+
+it('opens VNC or powers on with only the stable request and an automatic audit description', function (ProvisionCommand $command, string $reason): void {
+    $instance = machineControlInstance();
+    $wallet = $instance->user->credit;
+    fakeMachineControl();
+    $requestId = (string) Str::ulid();
+    $result = app(ExecuteCustomerPowerCommandAction::class)->execute($instance->user, $instance, $command, ['request_id' => $requestId]);
+    expect($result->success)->toBeTrue()->and($instance->user->fresh()->credit)->toBe($wallet);
+    $this->assertDatabaseHas('audit_logs', ['action' => 'instance.machine.request.'.$requestId, 'actor_id' => $instance->user_id, 'reason' => $reason]);
+    $this->assertDatabaseCount('financial_transactions', 0);
+    $this->assertDatabaseCount('invoices', 0);
+    expect(fn () => app(ExecuteCustomerPowerCommandAction::class)->execute($instance->user, $instance->fresh(), $command, ['request_id' => $requestId]))->toThrow(ValidationException::class);
+    Http::assertSentCount(3);
+})->with([[ProvisionCommand::POWER_ON, '客户开机'], [ProvisionCommand::VNC, '客户打开 VNC 控制台']]);
+
+it('uses only the backup confirmation for destructive machine commands while retaining their current input validation', function (ProvisionCommand $command, array $parameters): void {
+    $instance = machineControlInstance();
+    fakeMachineControl();
+    $requestId = (string) Str::ulid();
+    $result = app(ExecuteCustomerPowerCommandAction::class)->execute($instance->user, $instance, $command,
+        ['request_id' => $requestId, 'backup_confirm' => 1] + $parameters);
+    expect($result->success)->toBeTrue();
+    $this->assertDatabaseHas('audit_logs', ['action' => 'instance.machine.request.'.$requestId,
+        'reason' => $command === ProvisionCommand::REINSTALL ? '客户确认备份并重装系统' : '客户确认备份并进入救援系统']);
+    $this->assertDatabaseCount('financial_transactions', 0);
+})->with([[ProvisionCommand::REINSTALL, ['os_group' => 'Ubuntu', 'os' => 1173028]],
+    [ProvisionCommand::RESCUE_SYSTEM, ['system' => 2, 'temp_pass' => 'PrivateRescue1!']]]);
+
+it('preserves an optional zero remark on a confirmed interruption instead of substituting the default', function (): void {
+    $instance = machineControlInstance();
+    fakeMachineControl();
+    $requestId = (string) Str::ulid();
+    $result = app(ExecuteCustomerPowerCommandAction::class)->execute($instance->user, $instance, ProvisionCommand::REBOOT,
+        ['request_id' => $requestId, 'confirm' => 1, 'reason' => ' 0 ']);
+    expect($result->success)->toBeTrue();
+    $this->assertDatabaseHas('audit_logs', ['action' => 'instance.machine.request.'.$requestId, 'reason' => '0']);
+});
+
+it('renders direct VNC and power-on buttons and a single command-specific confirmation for each interruption', function (): void {
+    $instance = machineControlInstance();
+    fakeMachineControl();
+    $response = $this->actingAs($instance->user)->post('/console/instances/'.$instance->id.'/machine')->assertOk();
+    $dom = new DOMDocument;
+    @$dom->loadHTML('<?xml encoding="UTF-8">'.$response->getContent());
+    $xpath = new DOMXPath($dom);
+    foreach (['on', 'vnc', 'off', 'reboot', 'reinstall', 'rescueSystem'] as $command) {
+        $form = $xpath->query('//form[input[@name="command" and @value="'.$command.'"]]')->item(0);
+        expect($form)->not->toBeNull();
+        expect($xpath->query('.//input[@name="reason" and @required]', $form)->length)->toBe(0);
+        expect($xpath->query('.//input[@type="checkbox" and @required]', $form)->length)->toBe(in_array($command, ['on', 'vnc'], true) ? 0 : 1);
+        expect($xpath->query('.//input[@name="request_id"]', $form)->length)->toBe(1);
+        expect($xpath->query('.//input[@name="_token"]', $form)->length)->toBe(1);
+    }
+});

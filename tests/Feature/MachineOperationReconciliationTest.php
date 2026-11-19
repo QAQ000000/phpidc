@@ -524,3 +524,31 @@ it('prevents an original request paused at the header read from posting after ma
     expect($instance->fresh()->active_config['cloud_operation']['status'])->toBe('requested')
         ->and(app(MachineOperation::class)->blocked($instance->fresh()))->toBeFalse();
 });
+
+it('queries a pending machine operation without a manually supplied reason and records the inspection', function (): void {
+    $instance = reconciliationInstance();
+    $actor = reconciliationOperator();
+    reconciliationFake();
+    $this->actingAs($actor)->post('/admin/upstream-instances/'.$instance->id.'/machine-review', [
+        'operation_request_id' => $instance->active_config['cloud_operation']['request_id'],
+    ])->assertOk()->assertSee('保持未决')->assertSee('解除后续操作阻断');
+    $audit = DB::table('audit_logs')->where('action', 'like', 'instance.machine.review.%')->sole();
+    expect($audit->reason)->toBe('查询原机器操作状态')->and($audit->actor_id)->toBe($actor->id)
+        ->and(app(MachineOperation::class)->blocked($instance->fresh()))->toBeTrue();
+});
+
+it('keeps an unresolved machine operation blocked when saving an inspection without release evidence or a typed reason', function (): void {
+    $instance = reconciliationInstance();
+    $actor = reconciliationOperator();
+    reconciliationFake();
+    $release = reconciliationInput($instance, $actor);
+    $input = array_intersect_key($release, array_flip(['resolution_id', 'operation_request_id', 'proof'])) + ['decision' => 'hold'];
+    $result = app(ReconcileMachineOperationAction::class)->execute($instance, $actor, $input);
+    expect($result['released'])->toBeFalse()->and(app(MachineOperation::class)->blocked($instance->fresh()))->toBeTrue();
+    $audit = DB::table('audit_logs')->where('action', 'like', 'instance.machine.reconcile.%')->sole();
+    expect($audit->reason)->toBe('核对后保持原机器操作未决');
+    $this->assertDatabaseCount('financial_transactions', 0);
+    Http::assertNotSent(fn ($request) => $request->method() === 'POST'
+        && parse_url($request->url(), PHP_URL_PATH) !== '/zjmf_api_login'
+        && ! (parse_url($request->url(), PHP_URL_PATH) === '/provision/default' && $request['func'] === 'status'));
+});
