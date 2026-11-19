@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Actions;
 
 use App\Contracts\SyncableCatalog;
+use App\Data\CatalogSnapshotResult;
 use App\Data\SyncCatalogResult;
 use App\Enums\BillingCycle;
 use App\Models\Product;
@@ -34,6 +35,19 @@ class SyncClassicCatalogAction
         }
         $snapshot = app(CallUpstreamAction::class)->execute(fn () => $driver->syncProductConfig($product));
 
+        return $this->applySnapshot($product, $snapshot, $reason, $actor);
+    }
+
+    /** Persist an already-read snapshot so imports can commit the complete product atomically. */
+    public function applySnapshot(Product $product, CatalogSnapshotResult $snapshot, string $reason, ?User $actor = null): SyncCatalogResult
+    {
+        if ($actor !== null) {
+            Gate::forUser($actor)->authorize('upstream.import');
+        }
+        if (trim($reason) === '') {
+            throw new DomainException('A catalog sync reason is required.');
+        }
+
         return DB::transaction(function () use ($product, $snapshot, $reason, $actor): SyncCatalogResult {
             $locked = Product::whereKey($product->id)->lockForUpdate()->firstOrFail();
             if ($locked->driver_type !== $product->driver_type || $locked->upstream_api_id !== $product->upstream_api_id
@@ -48,6 +62,11 @@ class SyncClassicCatalogAction
             $rules['classic_catalog'] = ['version' => $snapshot->version, 'dependencies' => $snapshot->dependencies,
                 'password' => $snapshot->product['password'] ?? null, 'host' => $snapshot->product['host'] ?? null,
                 'pay_type' => $snapshot->product['pay_type'] ?? null];
+            $publisher = $snapshot->product['p_uid'] ?? null;
+            if ((is_int($publisher) || is_string($publisher))
+                && filter_var($publisher, FILTER_VALIDATE_INT, ['options' => ['min_range' => 0]]) !== false) {
+                $rules['classic_catalog']['product_publisher_uid'] = (int) $publisher;
+            }
             $locked->update(['upstream_version' => $snapshot->version, 'upstream_base_prices' => $prices,
                 'local_prices' => $this->marked($prices, $locked->markup_percent), 'provisioning_rules' => $rules,
                 'stock_control' => (bool) ($snapshot->product['stock_control'] ?? false), 'qty' => (int) ($snapshot->product['qty'] ?? 0)]);

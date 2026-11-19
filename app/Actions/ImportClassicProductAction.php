@@ -32,22 +32,20 @@ class ImportClassicProductAction
         }
         $driver = app(DriverManager::class)->classicAccount($accountId);
         $probe = new Product(['upstream_pid' => $pid]);
-        $configuration = app(CallUpstreamAction::class)->execute(fn () => $driver->productConfiguration($probe));
-        $row = collect($configuration['product_pricings'] ?? [])->firstWhere('code', $currency);
+        $snapshot = app(CallUpstreamAction::class)->execute(fn () => $driver->syncProductConfig($probe));
+        $row = collect($snapshot->prices)->firstWhere('code', $currency);
         $value = $cycle === BillingCycle::FREE ? '0.00' : ($row[$cycle->priceKey()] ?? null);
         if ($value === null || str_starts_with((string) $value, '-')) {
             throw new DomainException('No enabled price exists for the selected cycle and currency.');
         }
-        $cost = Money::of($value);
+        Money::of($value);
         $setup = $cycle->setupFeeKey() === null ? Money::zero() : ($row[$cycle->setupFeeKey()] ?? null);
         if ($setup === null) {
             throw new DomainException('The selected cycle has no explicit setup fee.');
         }
-        $setup = Money::of($setup);
-        $price = Money::add($cost, Money::percentOf($cost, $markup));
-        $setupPrice = Money::add($setup, Money::percentOf($setup, $markup));
+        Money::of($setup);
 
-        return DB::transaction(function () use ($accountId, $pid, $cycle, $currency, $markup, $reason, $configuration, $cost, $price, $setup, $setupPrice, $actor): Product {
+        return DB::transaction(function () use ($accountId, $pid, $cycle, $currency, $markup, $reason, $snapshot, $actor): Product {
             $product = Product::where('upstream_api_id', $accountId)->where('upstream_pid', $pid)->lockForUpdate()->first();
             if ($product !== null && ($product->driver_type !== DriverType::ZJMF_API || $product->currency !== $currency)) {
                 throw new DomainException('Existing mapping has a different driver or currency.');
@@ -57,17 +55,13 @@ class ImportClassicProductAction
                 $product = new Product(['category_id' => $category->id, 'slug' => 'cloud-'.Str::ulid(),
                     'driver_type' => DriverType::ZJMF_API, 'upstream_api_id' => $accountId, 'upstream_pid' => $pid, 'currency' => $currency]);
             }
-            $prices = $product->upstream_base_prices ?? [];
-            $prices[$cycle->value] = ['price' => $cost, 'setup_fee' => $setup, 'enabled' => true];
-            $local = $product->local_prices ?? [];
-            $local[$cycle->value] = ['price' => $price, 'setup_fee' => $setupPrice, 'enabled' => true];
-            $product->fill(['name' => $configuration['products']['name'] ?? 'Cloud '.$pid, 'markup_percent' => $markup,
-                'upstream_base_prices' => $prices, 'local_prices' => $local])->save();
+            $product->fill(['name' => $snapshot->product['name'] ?? 'Cloud '.$pid, 'markup_percent' => $markup])->save();
+            app(SyncClassicCatalogAction::class)->applySnapshot($product, $snapshot, $reason, $actor);
             DB::table('audit_logs')->insert(['actor_type' => $actor ? 'user' : 'system', 'actor_id' => $actor?->id, 'action' => 'upstream.classic_product_import', 'subject_type' => Product::class,
                 'subject_id' => $product->id, 'reason' => $reason, 'after' => json_encode(['upstream_pid' => $pid, 'cycle' => $cycle->value,
                     'currency' => $currency, 'markup_percent' => $markup]), 'created_at' => now(), 'updated_at' => now()]);
 
-            return $product;
+            return $product->refresh();
         });
     }
 }

@@ -83,8 +83,7 @@ class ClassicOperationsController extends Controller
         $data = $request->validate(['account_id' => ['required', 'integer'], 'pid' => ['required', 'integer', 'min:1'], 'cycle' => ['required', Rule::enum(BillingCycle::class)],
             'currency' => ['required', 'regex:/^[A-Z]{3}$/D'], 'markup' => ['required', 'regex:/^\d+(\.\d{1,2})?$/D'], 'reason' => ['nullable', 'string', 'max:1000']]);
         $reason = $this->reason($data, '导入上游商品与完整配置');
-        $product = $this->run(fn () => app(ImportClassicProductAction::class)->execute($data['account_id'], (string) $data['pid'], BillingCycle::from($data['cycle']), $data['currency'], $data['markup'], $reason, $actor));
-        $this->run(fn () => app(SyncClassicCatalogAction::class)->execute($product, $reason, $actor));
+        $this->run(fn () => app(ImportClassicProductAction::class)->execute($data['account_id'], (string) $data['pid'], BillingCycle::from($data['cycle']), $data['currency'], $data['markup'], $reason, $actor));
 
         return redirect('/admin/upstreams')->with('inventory_status', '商品与配置已导入。');
     }
