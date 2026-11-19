@@ -44,13 +44,30 @@ class PublicContentController extends Controller
         $item = Product::publicCatalog()->with('category')->where('slug', $product)->whereHas('category', fn (Builder $query) => $query->where('slug', $category))->firstOrFail();
         $details = $describe->execute($item);
         if ($request->attributes->get('markdown')) {
-            $body = '# '.$item->name."\n\n".$item->description."\n\n".($details['live'] ? '价格在创建账单时实时确认。' : '一次性卡密产品，库存以实际交付为准。')."\n\n";
+            $body = '# '.$item->name."\n\n".$item->description."\n\n".($details['live']
+                ? '以下为最近同步的商品基础价，配置费用以完整报价为准；价格在创建账单时实时确认。'
+                : '一次性卡密产品，库存以实际交付为准。')."\n\n";
             foreach ($details['cycles'] as $cycle) {
                 $body .= '- '.$cycle['label'].': '.($cycle['price'] ?? '待报价').' '.$item->currency
                     .($cycle['setup_fee'] === null ? '' : '，开通费 '.$cycle['setup_fee'].' '.$item->currency)."\n";
             }
 
-            return $this->markdown($body."\n[查看产品与购买](".$this->canonical($item->publicPath()).")\n", $item->publicPath());
+            if ($details['stock'] !== null) {
+                $body .= "\n".($details['live'] ? '最近同步库存：'.$details['stock'] : '当前可用卡密：'.$details['stock'].' 张')."\n";
+            }
+            $unavailable = $details['purchase_unavailable'];
+            if ($unavailable === null && $details['cycles'] === []) {
+                $unavailable = '暂无可购买的计费周期。';
+            }
+            if ($unavailable === null && $details['stock'] === 0) {
+                $unavailable = $details['live'] ? '最近同步显示售罄，请稍后再来。' : '暂时售罄，请稍后再来。';
+            }
+            if ($unavailable !== null) {
+                $body .= "\n".$unavailable."\n";
+            }
+            $linkLabel = $unavailable === null ? '查看产品与购买' : '查看产品详情';
+
+            return $this->markdown($body."\n[".$linkLabel.']('.$this->canonical($item->publicPath()).")\n", $item->publicPath());
         }
 
         return $this->page('product', ['product' => $item] + $details, $item->publicPath(), $item->name, $this->renderer->summary($item->description ?? ''))

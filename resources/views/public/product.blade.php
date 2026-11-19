@@ -3,9 +3,9 @@
 <div class="breadcrumb"><a href="/store">产品商城</a> / <a href="/store/{{ $product->category->slug }}">{{ $product->category->name }}</a> / {{ $product->name }}</div>
 <div class="detail"><article><div class="eyebrow">{{ $product->category->name }}</div><h1>{{ $product->name }}</h1><p class="lead">{{ $live ? '云服务 · 按所选周期计费' : '数字卡密 · 一次购买，一次交付' }}</p>
 <div class="prose description">{{ $product->description }}</div><p><a href="{{ $product->publicPath() }}.md">以 Markdown 阅读</a></p><p class="muted">需要了解使用方法？访问<a href="/help">帮助中心</a>。</p></article>
-<aside class="panel" aria-label="价格与购买"><h2>{{ $live ? '计费与参考价格' : '价格与库存' }}</h2>
+<aside class="panel" aria-label="价格与购买"><h2>{{ $live ? '商品基础价与参考价格' : '价格与库存' }}</h2>
 @foreach($cycles as $cycle)<div class="price-row"><span>{{ $cycle['label'] }}</span><div class="price">{{ $cycle['price'] ?? '待报价' }} {{ $product->currency }}</div>@if($cycle['setup_fee'] !== null)<small>开通费 {{ $cycle['setup_fee'] }} {{ $product->currency }}</small>@endif</div>@endforeach
-@if($live)<p class="muted">以上为最近同步的参考价格，创建账单时获取实时价格和库存，请核对账单后再付款。</p>@if($stock !== null)<p>最近同步库存：{{ $stock }}</p>@endif
+@if($live)<p class="muted">以上为最近同步的商品基础价，配置费用以完整报价为准。创建账单时获取实时价格和库存，请核对账单后再付款。</p>@if($stock !== null)<p>最近同步库存：{{ $stock }}</p>@endif
 @elseif($stock === null)<p>付款后自动生成兑换码</p><p class="muted">兑换面额见商品说明，领取后请登录对应服务站点兑换。异常交付请联系管理员核对。</p>@else<p>当前可用卡密：{{ $stock }} 张</p><p class="muted">卡密在付款后分配，库存可能发生变化。交付后仅本人可在客户中心查看。</p>@endif
 @if($product->require_kyc)<p>购买此产品需要完成实名认证。</p>@endif
 @if($product->require_phone)<p>购买此产品需要绑定手机号。</p>@endif
