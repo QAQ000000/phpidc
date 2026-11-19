@@ -21,8 +21,9 @@
 | 2026-11-19 架构清理第二批 B2-01 | 支付案件原来源快照、零佣金完成时间，注销/维护读取业务事实；保留审计输出 | 完整门禁 1715 passed / 14374 assertions、PHPStan 0、Pint PASS；真实旧 schema、离线 MySQL 8.0.35 增量升级/重跑及审计独立性通过 | 备份后执行 `000016`–`000017`，共 23 条；57 张持久表 734 条原行原列保持，原 jobs=1 未消费，前后台登录/健康 200；见 [实施与升级记录](architecture-second-batch-2026-11-19.md) |
 | 2026-11-19 架构清理第三批 B3-01～03 | 应收完整证明最多复用 600 秒且不续期、停用账户任务边界、两条历史外键 RESTRICT | 完整门禁 1773 passed / 14699 assertions、PHPStan 0、Pint PASS；两库真实升级/重跑、1 万根/10 万证据的复用与版本竞争/原请求恢复通过 | 备份后执行 `000018`，共 24 条；57 张持久表、734 条原行原列、索引/其他约束/序列及 jobs=1 保持，登录/健康 200；见 [实施与升级记录](architecture-third-batch-2026-11-19.md) |
 | 2026-11-19 架构清理第四批 B4 | 当前通知仅投递 ID、维护派发归属领域 Action、9 份历史文档归档并保留旧入口/锚点；修复领域锁争用返回类型错误 | 完整门禁 1801 passed / 14895 assertions、PHPStan 0、Pint PASS；隔离真实 MySQL 通知 worker/竞争与 MySQL/Redis 领域派发通过 | 无 schema 变更，仍为 24 条迁移；57 张持久表734条原行哈希及 jobs=1 保持，健康/前后台登录200，见 [实施记录](architecture-fourth-batch-2026-11-19.md) |
+| 2026-11-19 架构清理第五批 B5 隔离运行验收 | 新增同环境实际 HTTPS/Nginx/FPM/www、MySQL8/Redis、HTTP交易及常驻队列/调度验收脚本；业务实现与schema未改 | 1801 passed /14895 assertions、PHPStan0、Pint PASS；经典三单、重复回调、worker/Redis AOF恢复、五封本地SMTP、实际维护/领域队列、巡检/watchdog及进程清理通过 | 原预览仍24迁移、57表734行及jobs=1保持；真实外部收款/上游/送达与最终生产启用待配置，见 [验收与待办](architecture-fifth-batch-2026-11-19.md) |
 
-W2、W3 的阶段数字各自只证明当时提交；当前完整门禁及流程收敛结果见 [架构清理第四批](architecture-fourth-batch-2026-11-19.md)，应收容量及最近 schema 升级结果见 [架构清理第三批](architecture-third-batch-2026-11-19.md)。[W4 记录](system-architecture-batch4-2026-11-19.md) 与 [W5 收口](system-architecture-batch5-2026-11-19.md)保留其阶段验收。现有卡密/经典 ZJMF 的历史真实购买与只读机器数据验收也只覆盖其原记录，不扩展为本次付费续费、退款、清退、热切换或机器控制授权。
+W2、W3 的阶段数字各自只证明当时提交；当前完整门禁及隔离运行结果见 [架构清理第五批](architecture-fifth-batch-2026-11-19.md)，流程收敛见 [第四批](architecture-fourth-batch-2026-11-19.md)，应收容量及最近 schema 升级结果见 [架构清理第三批](architecture-third-batch-2026-11-19.md)。[W4 记录](system-architecture-batch4-2026-11-19.md) 与 [W5 收口](system-architecture-batch5-2026-11-19.md)保留其阶段验收。现有卡密/经典 ZJMF 的历史真实购买与只读机器数据验收也只覆盖其原记录，不扩展为本次付费续费、退款、清退、热切换或机器控制授权。
 
 此前机器与核价性能批次没有 schema 变更，彼时预览为 21 条迁移；当前已由 B2/B3 升至 24 条，业务队列/scheduler 未启动。报价保持实时货币、库存与价格核验，创建账单仍重新校验。当前预览已替换单进程服务，监控默认逐项加载，历史中间失败样本和当前验收范围见 [2026-11-19 性能记录](classic-resource-and-quote-performance-2026-11-19.md)。
 
@@ -30,6 +31,7 @@ W2、W3 的阶段数字各自只证明当时提交；当前完整门禁及流程
 
 - 当前原预览已完成 B4（无 schema 变更），仍为 B3 升级后的 **24 条迁移**；本次维护检查点的 57 张持久表、734 条原行原列、索引/其他约束/序列及原环境/密钥/封印保持，原 jobs=1 未消费，依据 [B3 升级记录](architecture-third-batch-2026-11-19.md)及 [B4 只读核对](architecture-fourth-batch-2026-11-19.md)。[B2-01 升级记录](architecture-second-batch-2026-11-19.md)保留其阶段证据。[W4 升级记录](system-architecture-preview-w4-deployment-2026-11-19.md)保留其当时数据范围。预览使用 SQLite，不能当作生产 MySQL 容量结论。
 - 本批 `2026_11_19_000013`（用户应收版本及持久失效标志）、`000014`（通知四游标）、`000015`（operational_events）执行完成，deployment-check 通过；客户/后台 11 页只读验收通过。该检查不证明未启用的消费者和监控已经运行。
+- B5 的独立生产模式环境已验证实际 HTTPS/FPM、MySQL/Redis、交易/常驻队列/调度及本地 SMTP；实例在验收后全部清理。原预览支付与邮件未配置，真实外部通道、生产服务与运营送达仍待最终环境验收，见 [B5 结果及缺项](architecture-fifth-batch-2026-11-19.md)。
 - 前台/后台页面可访问与业务自动运转是不同验收。当前没有启用本项目业务 worker/scheduler、maintenance/receivable-check 消费者或真实告警；不发送通知、不执行真实外付/供应商变更来“补齐”状态。
 - 生产启用仍需 MySQL 8、Redis 可靠性、HTTPS/FPM、实际运行账户、备份/恢复、常驻进程与定时器、真实邮件/OAuth、计划启用的供应商协议验收。**真实值班人、监控接收方和故障送达出口尚未配置，不能标为运营上线。** 独立检测写 journal 不等于有人收到告警。
 - PVE 和其他未实现支付渠道保持未交付；短信/实名按既有用户决定保持关闭。已有界面、驱动接口或数据表不能替代实际实现和验收。

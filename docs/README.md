@@ -16,7 +16,7 @@
 | 商品、库存与卡密销售 | [库存管理](inventory-admin.md)、[本地卡密销售](local-card-sales.md)、[Sub2API](sub2api-remote.md) |
 | 经典上游、机器与商品配置 | [经典 ZJMF 集成](classic-zjmf-integration.md)、[机器操作](classic-zjmf-machine-controls.md)、[老版源码考证总册](zjmf-上游API对接总册.md) |
 | 前台内容、栏目与历史地址 | [CMS 与商城](cms-storefront.md) |
-| 核对当前架构清理结果 | [第四批实施记录](architecture-fourth-batch-2026-11-19.md) |
+| 核对当前架构清理结果 | [第五批隔离运行验收与待办](architecture-fifth-batch-2026-11-19.md) |
 | 追溯已完成阶段的实施和验收 | [历史记录索引](archive/README.md) |
 
 代码变更前的必读范围和优先级仍遵循工程章程与 Agent 工作规则；本页只负责导航，不替代规范或更改业务约定。
@@ -29,7 +29,7 @@
 - 模块扩展：[经典上游决定](classic-zjmf-expansion-decisions.md)、[运营扩展决定](operations-expansion-decisions.md)、[CMS/身份决定](cms-identity-decisions.md)、[退款决定](refund-decisions.md)。
 - D01–D05：[能力决定](remaining-capabilities-decisions-2026-11-18.md)，以及 [钱包充值](wallet-topup-proposal-2026-11-18.md)、[匿名化与应收](account-anonymization-receivables-proposal-2026-11-18.md)、[外部佣金提现](external-affiliate-payout-proposal-2026-11-18.md)、[通知 outbox](notification-outbox-proposal-2026-11-18.md)。
 - 全项目修复：[N01–N06 / W0–W5 方案](system-architecture-remediation-plan-2026-11-18.md)。
-- 后续架构清理：[B2-01 方案](architecture-second-batch-plan-2026-11-19.md)、[B3-01～03 方案](architecture-third-batch-plan-2026-11-19.md)、[B4 流程与文档收敛方案](architecture-fourth-batch-plan-2026-11-19.md)。
+- 后续架构清理：[B2-01 方案](architecture-second-batch-plan-2026-11-19.md)、[B3-01～03 方案](architecture-third-batch-plan-2026-11-19.md)、[B4 流程与文档收敛方案](architecture-fourth-batch-plan-2026-11-19.md)、[B5 运行验收方案](architecture-fifth-batch-plan-2026-11-19.md)。
 
 ## 历史记录的使用
 

@@ -1,6 +1,6 @@
 # 安装、升级、恢复与密钥操作
 
-本手册对应仓库 `VERSION` 的候选代码；实际发布状态以 [release-status.md](release-status.md) 为准。生产安装还须完成文末验收；隔离脚本成功不等于已上线。当前原预览已完成架构清理 B4，仍为 B3 的 `000018`、共 24 条迁移；B4 无 schema 变更，业务 worker/scheduler 与真实告警未启用，见 [最新实施记录](architecture-fourth-batch-2026-11-19.md)及 [B3 升级记录](architecture-third-batch-2026-11-19.md)。[W4 升级记录](system-architecture-preview-w4-deployment-2026-11-19.md)保留阶段证据。
+本手册对应仓库 `VERSION` 的候选代码；实际发布状态以 [release-status.md](release-status.md) 为准。生产安装还须完成文末验收；隔离脚本成功不等于已上线。当前原预览已完成架构清理 B4，仍为 B3 的 `000018`、共 24 条迁移；B4 无 schema 变更，业务 worker/scheduler 与真实告警未启用，见 [B4 实施记录](architecture-fourth-batch-2026-11-19.md)及 [B3 升级记录](architecture-third-batch-2026-11-19.md)。B5 已完成独立 HTTPS/FPM、MySQL/Redis 与常驻队列/调度的隔离链路验收，未改变原预览运行模式，见 [B5 验收及待办](architecture-fifth-batch-2026-11-19.md)。[W4 升级记录](system-architecture-preview-w4-deployment-2026-11-19.md)保留阶段证据。
 
 ## 1. 环境与发布目录
 
@@ -148,6 +148,8 @@ php artisan app:reencrypt-secrets --new-key-file=/secure/cloudcms-next.key --rea
 命令支持章程提到的 `--old-key` 作为兼容输入，但默认取当前配置，推荐省略以免泄漏到进程列表；其值必须等于当前 APP_KEY。维护模式不代替真正停止其他写入进程。
 
 ## 8. 交付验收
+
+可重复运行 `python3 scripts/verify-production-runtime.py`，在专用空 MySQL 8/Redis、独立 HTTPS Nginx/PHP-FPM/www、常驻队列/调度及本地 Epay/ZJMF/SMTP 接收端下核对交易与恢复。脚本需要 root 编排、Python 3.10/3.11、本机 PHP84/Nginx/OpenSSL/www 和缓存镜像；不使用仓库 `.env`、不安装全局服务、finally 清理实际子进程和自建容器，私有证据留在日志输出的目录。该脚本通过代表隔离运行链路可用；真实公网收款、供应商开通、外部邮件、systemd/timer、值班监控与异机恢复仍须本节逐项验收，见 [B5 范围](architecture-fifth-batch-2026-11-19.md)。
 
 开发/CI（只用隔离数据）：
 
