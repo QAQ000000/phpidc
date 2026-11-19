@@ -38,7 +38,8 @@ class GenerateProductProvisioningDefaultsAction
         $remote = $this->snapshot($rules, 'host');
         $rule = $this->remoteRule($remote, '主机名');
         $localPrefix = $rules['hostname_prefix'] ?? '';
-        $prefix = $remote === null ? ($localPrefix !== '' ? $localPrefix : 'ser') : (($remote['show'] ?? false) ? ($remote['prefix'] ?? '') : 'ser');
+        $defaultPrefix = array_key_exists('classic_catalog', $rules) ? 'S' : 'ser';
+        $prefix = $remote === null ? ($localPrefix !== '' ? $localPrefix : $defaultPrefix) : (($remote['show'] ?? false) ? ($remote['prefix'] ?? '') : 'ser');
         if (! is_string($prefix) || ! is_string($localPrefix)) {
             throw new DomainException('主机名前缀配置不可读，请手动填写或联系管理员。');
         }
@@ -102,6 +103,10 @@ class GenerateProductProvisioningDefaultsAction
             return null;
         }
         $snapshot = is_array($rules['classic_catalog']) ? ($rules['classic_catalog'][$field] ?? null) : null;
+        // Classic generateHostName() supplies a default when no custom host rule is configured.
+        if ($field === 'host' && $snapshot === '') {
+            return null;
+        }
         $snapshot = is_string($snapshot) ? json_decode($snapshot, true) : $snapshot;
         if (! is_array($snapshot) || ! array_key_exists('show', $snapshot)
             || ! in_array($snapshot['show'], [true, false, 0, 1, '0', '1'], true)) {

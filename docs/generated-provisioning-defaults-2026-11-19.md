@@ -26,3 +26,20 @@ DECISIONS: 使用本地规则快照生成并保留最终实时校验；异常规
 CONCERNS: 同步快照可能过期，最终规则仍以下单实时核验为准。
 GATES: Pest 1527 passed / 12604 assertions；PHPStan 0；Pint PASS；PHP语法、Node行为、真实预览页面及数据保持核对PASS。
 SPEC CASES: 0。
+
+## 全量目录后的空主机名规则兼容
+
+全量导入后，商品 #304（上游 PID915）及另外 71 款商品的 `classic_catalog.host` 为明确的空字符串。参考源码 `app/common.php:4571–4575` 的 `generateHostName()` 在无定制规则时生成 `S` 加 12 位字母/数字；此前本地生成器把这一合法形式误判为未同步。上一轮详情/配置页 HTTP 200 只证明页面可渲染，没有覆盖这类字段值。
+
+生成器现在识别已同步的空字符串并采用上述默认格式，本地前缀和正则仍参与生成。缺键、null、非空损坏 JSON 继续显示明确错误，密码生成和提交时的实时校验保持原语义。没有 schema 或数据迁移。
+
+322 款实际配置的无 I/O 生成检查由 **250 成功 / 72 失败**恢复为 **322 成功 / 0 失败**。原预览逐页核对 72 款受影响商品的两个字段均非空，主机名全部匹配默认格式；另抽验 4 款旧规则商品，3 款字段正常，1 款按现有库存规则显示售罄。#304 的主机名为 13 字符、密码为 12 字符。10 张用户/订单/资金/实例/履约/通知表的前后指纹保持；验收没有创建真实订单或执行供应商动作，记录不保存生成的密码。
+
+新增回归先复现空规则、局部约束和表单留空，再验证配置页与 HTML 报价页均预填；补充 null/损坏规则仍拒绝的边界。定向 **37 passed / 477 assertions**，完整 **1992 passed / 17063 assertions**，PHPStan **0 errors**，Pint **PASS**。完整测试使用 PHP 8.4、CLI `memory_limit=1024M`；私有证据位于 `/root/.local/state/laravel13idc/hostname-defaults-20261119-fqhja_ka/`。
+
+IMPLEMENTED: 同步空主机名规则兼容；72 款实际页面与全部 322 款生成结果核验。
+NOT DONE: 真实购买和供应商写操作未执行。
+DECISIONS: 按参考源码解释明确的空字符串；保留本地约束及异常配置提示。
+CONCERNS: 生成使用同步快照，最终下单仍实时核验。
+GATES: Pest 1992 passed / 17063 assertions；PHPStan 0；Pint PASS；实际页面及数据保持核对 PASS。
+SPEC CASES: 0。

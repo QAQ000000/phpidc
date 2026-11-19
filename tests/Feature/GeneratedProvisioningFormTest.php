@@ -149,6 +149,29 @@ it('prefills independent rule-compliant credentials without upstream reads or fi
     generatedProvisioningFormNoFinancialWrites($user);
 });
 
+it('prefills classic defaults on configuration and HTML estimates when the upstream hostname rule is empty', function (): void {
+    [$user, $product] = generatedProvisioningFormFixture();
+    $rules = $product->provisioning_rules;
+    unset($rules['hostname_mode'], $rules['hostname_regex']);
+    $rules['classic_catalog']['host'] = '';
+    $product->update(['provisioning_rules' => $rules]);
+    $this->actingAs($user);
+
+    $configured = $this->get('/console/products/'.$product->id.'/configure')->assertOk();
+    $estimated = $this->post('/console/products/'.$product->id.'/quote', [
+        'billing_cycle' => 'monthly', 'options' => ['configoption' => [50 => 501]],
+    ])->assertOk();
+
+    foreach ([$configured, $estimated] as $response) {
+        expect(generatedProvisioningFormValue($response->getContent(), 'hostname'))->toMatch('/^S[A-Za-z0-9]{12}$/')
+            ->and(strlen(generatedProvisioningFormValue($response->getContent(), 'password')))->toBe(14)
+            ->and($response->headers->get('Cache-Control'))->toContain('private', 'no-store');
+        $response->assertDontSee('上游开通规则尚未同步或不可读');
+    }
+    Http::assertNothingSent();
+    generatedProvisioningFormNoFinancialWrites($user);
+});
+
 it('regenerates HTML quote defaults while retaining the purchase key and pricing selection', function (): void {
     [$user, $product] = generatedProvisioningFormFixture();
     $requestId = (string) Str::ulid();

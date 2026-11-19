@@ -52,6 +52,39 @@ it('generates the classic preview product hostname and password from JSON snapsh
     Http::assertNothingSent();
 });
 
+it('generates the upstream default for an explicitly empty classic hostname rule without changing the snapshot', function (): void {
+    $rules = generatedProvisioningRules();
+    $rules['classic_catalog']['host'] = '';
+    $product = new Product(['provisioning_rules' => $rules]);
+    $original = $product->getAttributes();
+    $defaults = app(GenerateProductProvisioningDefaultsAction::class)->execute($product);
+
+    expect($defaults['errors'])->toBe([])->and($defaults['hostname'])->toMatch('/^S[A-Za-z0-9]{12}$/')
+        ->and(strlen($defaults['password']))->toBe(12)->and($product->getAttributes())->toBe($original);
+    Http::assertNothingSent();
+});
+
+it('honors local hostname constraints when the classic hostname rule is explicitly empty', function (): void {
+    $rules = generatedProvisioningRules(['hostname_prefix' => 'node-', 'hostname_regex' => '^node-[0-9]{5}$']);
+    $rules['classic_catalog']['host'] = '';
+    $product = new Product(['provisioning_rules' => $rules]);
+    $defaults = app(GenerateProductProvisioningDefaultsAction::class)->execute($product);
+
+    expect($defaults['errors'])->toBe([])->and($defaults['hostname'])->toMatch('/^node-[0-9]{5}$/');
+    $input = ['hostname' => $defaults['hostname'], 'password' => $defaults['password']];
+    expect(app(ProvisioningValidator::class)->validate($product, $input))->toBe($input);
+    Http::assertNothingSent();
+});
+
+it('keeps unreadable classic hostname rules invalid when the password rule is valid', function (mixed $host): void {
+    $rules = generatedProvisioningRules();
+    $rules['classic_catalog']['host'] = $host;
+    $defaults = generatedProvisioningDefaults($rules);
+
+    expect($defaults['hostname'])->toBeNull()->and(array_keys($defaults['errors']))->toBe(['hostname'])
+        ->and(strlen($defaults['password']))->toBe(12);
+})->with([[null], ['{']]);
+
 it('satisfies both local prefixes formats and the upstream suffix length and character rules', function (): void {
     $rules = generatedProvisioningRules([
         'hostname_mode' => 'custom', 'hostname_prefix' => 'vm-ecs-', 'hostname_regex' => '^vm-ecs-[A-Za-z0-9]{8}$',
