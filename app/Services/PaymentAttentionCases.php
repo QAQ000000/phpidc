@@ -84,22 +84,20 @@ class PaymentAttentionCases
             || ! hash_equals($case->source_fingerprint, $this->callbackFingerprint($callback, $invoice))) {
             throw new DomainException('The original verified callback identity requires reconciliation.');
         }
-        $matches = false;
-        foreach (DB::table('audit_logs')->where('action', 'payment.callback.attention')->where('subject_type', PaymentCallback::class)
-            ->where('subject_id', $callback->id)->get(['after']) as $audit) {
-            $facts = json_decode($audit->after, true, flags: JSON_THROW_ON_ERROR);
-            if (is_array($facts) && ($facts['reason'] ?? null) === $case->initial_reason
-                && ($facts['outcome'] ?? null) === $callback->outcome->value && ($facts['invoice_id'] ?? null) === $invoice->id
-                && is_string($facts['amount'] ?? null) && preg_match('/^\d+\.\d{2}$/D', $facts['amount'])
-                && Money::eq($facts['amount'], $callback->amount)) {
-                $matches = true;
-            }
-        }
-        if (! $matches) {
+        if (! is_array($case->source_snapshot)
+            || Arr::sortRecursive($case->source_snapshot) !== Arr::sortRecursive($this->callbackSourceSnapshot($callback, $invoice, $case->initial_reason))) {
             throw new DomainException('The original payment attention evidence does not match.');
         }
 
         return $callback;
+    }
+
+    /** Nonsecret facts recorded with the original verified receipt, independently of its audit output. */
+    public function callbackSourceSnapshot(PaymentCallback $callback, Invoice $invoice, string $reason): array
+    {
+        return ['version' => 1, 'callback_id' => $callback->id, 'invoice_id' => $invoice->id,
+            'user_id' => $invoice->user_id, 'reason' => $reason, 'outcome' => $callback->outcome->value,
+            'amount' => $callback->amount, 'source_fingerprint' => $this->callbackFingerprint($callback, $invoice)];
     }
 
     /** @return array<string, mixed> */
@@ -203,8 +201,8 @@ class PaymentAttentionCases
                 throw new DomainException('The original refund credit evidence does not match.');
             }
         } elseif ($case->source_type === 'payment_callback') {
-            $callback = PaymentCallback::find($case->payment_callback_id);
-            if ($callback === null || $case->source_id !== (string) $callback->id || $callback->invoice_id !== $invoice->id
+            $callback = $this->assertCallbackSource($case);
+            if ($case->source_id !== (string) $callback->id || $callback->invoice_id !== $invoice->id
                 || $callback->gateway !== $invoice->gateway || ! hash_equals($case->source_fingerprint, $this->callbackFingerprint($callback, $invoice))) {
                 throw new DomainException('The original callback evidence does not match.');
             }
@@ -234,10 +232,7 @@ class PaymentAttentionCases
             }
         }
 
-        return DB::table('audit_logs')->where('action', 'payment.callback.attention')->where('subject_type', PaymentCallback::class)
-            ->whereIn('subject_id', DB::table('payment_callbacks')->whereIn('invoice_id', Invoice::where('user_id', $userId)->select('id'))->select('id'))
-            ->whereIn('after->reason', ['wallet_capacity', 'closed_account'])
-            ->whereNotIn('subject_id', ReconciliationCase::where('user_id', $userId)->where('source_type', 'payment_callback')->whereNotNull('payment_callback_id')->select('payment_callback_id'))->exists();
+        return false;
     }
 
     public function isResolved(ReconciliationCase $case): bool

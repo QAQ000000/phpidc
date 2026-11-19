@@ -14,6 +14,6 @@ class ReconciliationCase extends Model
 
     protected function casts(): array
     {
-        return ['revision' => 'integer', 'resolved_at' => 'datetime'];
+        return ['revision' => 'integer', 'resolved_at' => 'datetime', 'source_snapshot' => 'array'];
     }
 }

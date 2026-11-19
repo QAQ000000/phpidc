@@ -9,6 +9,7 @@ use App\Actions\CloseCustomerAccountAction;
 use App\Actions\ConfigureIdentityAction;
 use App\Actions\CustomerIdentityAction;
 use App\Actions\PhoneBindingAction;
+use App\Actions\RecordPaymentAttentionCaseAction;
 use App\Actions\RegisterCustomerAction;
 use App\Contracts\SmsDriverInterface;
 use App\Data\KycStatusResult;
@@ -125,8 +126,11 @@ it('rechecks all obligations under the account lock instead of trusting an earli
         'unpaid' => Invoice::factory()->create(['user_id' => $user->id]),
         'payment_unknown' => PaymentAttempt::create(['invoice_id' => $invoice->id, 'gateway' => 'isolated', 'out_trade_no' => 'unknown-attempt', 'amount' => '1.00', 'status' => 'unknown']),
         'payment_attention' => (function () use ($invoice): void {
-            $callback = PaymentCallback::create(['invoice_id' => $invoice->id, 'gateway' => 'isolated', 'gateway_trade_no' => 'capacity-receipt', 'amount' => '1.00', 'outcome' => 'rejected_invalid_state', 'processed_at' => now()]);
-            DB::table('audit_logs')->insert(['action' => 'payment.callback.attention', 'subject_type' => PaymentCallback::class, 'subject_id' => $callback->id, 'after' => json_encode(['reason' => 'wallet_capacity']), 'created_at' => now(), 'updated_at' => now()]);
+            $invoice->forceFill(['gateway' => 'epay_wechat'])->save();
+            $callback = PaymentCallback::create(['invoice_id' => $invoice->id, 'invoice_no' => $invoice->invoice_no,
+                'gateway' => 'epay_wechat', 'gateway_trade_no' => 'capacity-receipt', 'amount' => '1.00',
+                'outcome' => 'rejected_invalid_state', 'processed_at' => now()]);
+            app(RecordPaymentAttentionCaseAction::class)->execute($callback, 'wallet_capacity');
         })(),
         'instance' => Instance::factory()->active()->create(['user_id' => $user->id]),
         'failed_instance' => Instance::factory()->create(['user_id' => $user->id, 'status' => InstanceStatus::PROVISION_FAILED]),

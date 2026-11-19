@@ -11,7 +11,7 @@ class BackfillPaymentAttentionCasesCommand extends Command
 {
     protected $signature = 'app:backfill-payment-attention-cases';
 
-    protected $description = 'Register historical payment/refund attention sources without changing funds';
+    protected $description = 'Register historical payment/refund sources and verify attention snapshots without changing funds';
 
     public function handle(BackfillPaymentAttentionCasesAction $action): int
     {

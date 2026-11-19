@@ -72,6 +72,19 @@ class RecordPaymentAttentionCaseAction
     /** Called after financial writes, while the original owner is locked. */
     public function execute(PaymentCallback $callback, string $reason): ReconciliationCase
     {
+        $invoice = Invoice::findOrFail($callback->invoice_id);
+
+        return $this->record($callback, $reason, app(PaymentAttentionCases::class)->callbackSourceSnapshot($callback, $invoice, $reason));
+    }
+
+    /** Upgrade-only import: NULL means the original attention proof was incomplete, never inferred. */
+    public function importHistorical(PaymentCallback $callback, string $reason, ?array $snapshot): ReconciliationCase
+    {
+        return $this->record($callback, $reason, $snapshot);
+    }
+
+    private function record(PaymentCallback $callback, string $reason, ?array $snapshot): ReconciliationCase
+    {
         $this->assertTransaction();
         if (! in_array($reason, ['wallet_capacity', 'closed_account'], true)) {
             throw new DomainException('Unsupported payment attention source.');
@@ -80,8 +93,17 @@ class RecordPaymentAttentionCaseAction
         $proof = app(PaymentAttentionCases::class);
         $case = ReconciliationCase::where('source_type', 'payment_callback')->where('source_id', (string) $callback->id)->lockForUpdate()->first();
         if ($case !== null) {
-            if ($case->user_id !== $invoice->user_id || ! hash_equals($case->source_fingerprint, $proof->callbackFingerprint($callback, $invoice))) {
+            if ($case->kind !== 'payment_attention' || $case->payment_callback_id !== $callback->id || $case->initial_reason !== $reason
+                || $case->user_id !== $invoice->user_id || ! hash_equals($case->source_fingerprint, $proof->callbackFingerprint($callback, $invoice))) {
                 throw new DomainException('Payment attention source changed; manual reconciliation is required.');
+            }
+            if ($case->source_snapshot !== null) {
+                $proof->assertCallbackSource($case);
+            } elseif ($snapshot !== null) {
+                // A source backfill is not a new disposition: retain timestamps, revision and the final resolved entry.
+                DB::table('reconciliation_cases')->where('id', $case->id)->update(['source_snapshot' => json_encode($snapshot, JSON_THROW_ON_ERROR)]);
+                $case->setAttribute('source_snapshot', $snapshot);
+                $proof->assertCallbackSource($case);
             }
 
             return $case;
@@ -90,12 +112,13 @@ class RecordPaymentAttentionCaseAction
         $case = ReconciliationCase::create(['user_id' => $invoice->user_id, 'payment_callback_id' => $callback->id,
             'kind' => 'payment_attention', 'source_type' => 'payment_callback', 'source_id' => (string) $callback->id,
             'source_fingerprint' => $proof->callbackFingerprint($callback, $invoice), 'initial_reason' => $reason,
-            'status' => $credit === null ? 'open' : 'awaiting_clearance', 'source_credit_transaction_id' => $credit?->id]);
-        if ($credit !== null) {
+            'status' => $credit === null || $snapshot === null ? 'open' : 'awaiting_clearance',
+            'source_credit_transaction_id' => $credit?->id, 'source_snapshot' => $snapshot]);
+        if ($credit !== null && $snapshot !== null) {
             $proof->assertSource($case);
         }
         $this->append($case, 'created', 'created', null, $reason);
-        if ($credit !== null && Money::isZero($credit->amount)) {
+        if ($credit !== null && $snapshot !== null && Money::isZero($credit->amount)) {
             $case->update(['status' => 'resolved', 'resolved_at' => now(), 'revision' => 2]);
             $this->append($case, 'resolved:zero', 'resolved', null, 'Verified original receipt has no wallet principal to clear.');
         }

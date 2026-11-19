@@ -107,17 +107,19 @@ it('acknowledges a zero late receipt for a closed identity and verifies its zero
         ->and(PaymentCallback::count())->toBe(1)->and(ReconciliationEntry::count())->toBe(2);
 });
 
-it('keeps historical unbackfilled callback attention blocking until source registration completes', function (): void {
+it('keeps registered historical callback attention with missing source proof blocking', function (): void {
     $owner = User::factory()->create();
     $invoice = Invoice::factory()->create(['user_id' => $owner->id, 'gateway' => 'epay_wechat']);
     $callback = PaymentCallback::factory()->create(['invoice_id' => $invoice->id]);
     DB::table('audit_logs')->insert(['actor_type' => 'system', 'action' => 'payment.callback.attention', 'subject_type' => PaymentCallback::class,
         'subject_id' => $callback->id, 'reason' => 'wallet_capacity', 'after' => json_encode(['reason' => 'wallet_capacity']), 'created_at' => now(), 'updated_at' => now()]);
+    app(RecordPaymentAttentionCaseAction::class)->importHistorical($callback, 'wallet_capacity', null);
     expect(app(PaymentAttentionCases::class)->hasUnresolvedForUser($owner->id))->toBeTrue();
     $before = $callback->fresh()->getRawOriginal();
     app(BackfillPaymentAttentionCasesAction::class)->execute();
     app(BackfillPaymentAttentionCasesAction::class)->execute();
-    expect(ReconciliationCase::sole()->status)->toBe('open')->and(ReconciliationEntry::count())->toBe(1)
+    expect(ReconciliationCase::sole()->status)->toBe('open')->and(ReconciliationCase::sole()->source_snapshot)->toBeNull()
+        ->and(ReconciliationEntry::count())->toBe(1)
         ->and(FinancialTransaction::count())->toBe(0)->and($callback->fresh()->getRawOriginal())->toBe($before)
         ->and(app(PaymentAttentionCases::class)->hasUnresolvedForUser($owner->id))->toBeTrue();
 });
