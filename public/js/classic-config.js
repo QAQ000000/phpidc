@@ -7,7 +7,7 @@
         const control = controls.get(Number(rule.config_id));
         const value = control ? Number(control.value) : null;
         const match = Object.entries(rule.sub_id || {}).some(([id, bounds]) =>
-            bounds.qty_minimum || bounds.qty_maximum
+            ['quantity', 'slider'].includes(control?.dataset.optionType)
                 ? value !== null && value >= Number(bounds.qty_minimum) && value <= Number(bounds.qty_maximum)
                 : value !== null && value === Number(id));
         return rule.relation === 'sneq' ? !match : match;
@@ -19,6 +19,12 @@
                 o.disabled = cycles !== null && !cycles.includes(form.elements.billing_cycle.value);
             });
             el.setCustomValidity('');
+            if (el.dataset.qtyStage !== undefined) {
+                const value = Number(el.value), stage = Math.max(1, Number(el.dataset.qtyStage));
+                if (value % stage !== 0 && value !== Number(el.min) && value !== Number(el.max)) {
+                    el.setCustomValidity(`数量须为 ${stage} 的倍数，或选择最小值 ${el.min}、最大值 ${el.max}。`);
+                }
+            }
         }
         for (const result of rules.filter(r => r.type === 'result')) {
             const condition = rules.find(r => r.type === 'condition' && Number(r.id) === Number(result.relation_id));

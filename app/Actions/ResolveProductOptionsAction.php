@@ -30,8 +30,15 @@ class ResolveProductOptionsAction
             }
             $value = (int) $value;
             $quantity = in_array($group->type, ['quantity', 'slider'], true);
-            if ($quantity && ($value < $group->min_value || $value > $group->max_value || ($value - $group->min_value) % max(1, $group->step) !== 0)) {
-                $this->invalid('Configuration quantity is outside its bounds or step.');
+            if ($quantity) {
+                $stage = $group->upstream_meta['qty_stage'] ?? null;
+                // Classic stages use absolute multiples with both endpoints allowed.
+                $validStep = $stage !== null
+                    ? $value % max(1, (int) $stage) === 0 || $value === (int) $group->min_value || $value === (int) $group->max_value
+                    : ($value - $group->min_value) % max(1, $group->step) === 0;
+                if ($value < $group->min_value || $value > $group->max_value || ! $validStep) {
+                    $this->invalid('Configuration quantity is outside its bounds or step.');
+                }
             }
             $item = $group->type === 'toggle' && $value === 0 ? $group->items->first() : ($quantity ? $group->items->first(function ($item) use ($group, $value) {
                 foreach ($group->upstream_meta['subs'] ?? [] as $sub) {
@@ -57,7 +64,9 @@ class ResolveProductOptionsAction
         if (array_diff(array_keys($selected), array_keys($mapped)) !== []) {
             $this->invalid('Unknown or hidden configuration option.');
         }
-        $this->dependencies($product->provisioning_rules['classic_catalog']['dependencies'] ?? [], $mapped);
+        $quantityGroupIds = $groups->filter(fn ($group) => in_array($group->type, ['quantity', 'slider'], true))
+            ->map(fn ($group) => (int) $group->upstream_group_id)->all();
+        $this->dependencies($product->provisioning_rules['classic_catalog']['dependencies'] ?? [], $mapped, $quantityGroupIds);
         if (! $validateCustomFields) {
             return ['configoption' => $mapped, 'customfield' => [], 'pairs' => $pairs];
         }
@@ -79,7 +88,7 @@ class ResolveProductOptionsAction
         return ['configoption' => $mapped, 'customfield' => $custom, 'pairs' => $pairs];
     }
 
-    public function dependencies(array $rules, array $values): void
+    public function dependencies(array $rules, array $values, array $quantityGroupIds = []): void
     {
         $conditions = [];
         foreach ($rules as $rule) {
@@ -95,18 +104,18 @@ class ResolveProductOptionsAction
             if ($condition === null) {
                 $this->invalid('Unreadable configuration dependency.');
             }
-            if ($this->matches($condition, $values) && ! $this->matches($rule, $values)) {
+            if ($this->matches($condition, $values, $quantityGroupIds) && ! $this->matches($rule, $values, $quantityGroupIds)) {
                 $this->invalid('Selected configuration violates a linked option rule.');
             }
         }
     }
 
-    private function matches(array $rule, array $values): bool
+    private function matches(array $rule, array $values, array $quantityGroupIds): bool
     {
         $value = $values[$rule['config_id']] ?? null;
         $matched = false;
         foreach ($rule['sub_id'] ?? [] as $id => $bounds) {
-            if (($bounds['qty_minimum'] ?? 0) || ($bounds['qty_maximum'] ?? 0)) {
+            if (in_array((int) $rule['config_id'], $quantityGroupIds, true)) {
                 $matched = $matched || ($value !== null && $value >= $bounds['qty_minimum'] && $value <= $bounds['qty_maximum']);
             } else {
                 $matched = $matched || ($value !== null && (int) $value === (int) $id);
