@@ -128,7 +128,7 @@ it('allows an upstream-generated hostname and products without provisioning cons
         ->and($validate->execute($user, $unrestricted->id, []))->toBe([]);
 });
 
-it('validates inside a transaction that reads the wallet owner before the product', function (): void {
+it('validates product inputs without reading the wallet owner or opening a transaction', function (): void {
     $user = User::factory()->create();
     $product = Product::factory()->create([
         'provisioning_rules' => ['hostname_mode' => 'custom'],
@@ -142,10 +142,9 @@ it('validates inside a transaction that reads the wallet owner before the produc
     expect(fn () => app(ValidateCheckoutAction::class)->execute($user, $product->id, []))
         ->toThrow(ValidationException::class);
 
-    expect($queries[0][0])->toContain('users')
-        ->and($queries[1][0])->toContain('products')
-        ->and($queries[0][1])->toBe($initialLevel + 1)
-        ->and($queries[1][1])->toBe($initialLevel + 1)
+    expect($queries)->toHaveCount(1)
+        ->and($queries[0][0])->toContain('products')->not->toContain('users')
+        ->and($queries[0][1])->toBe($initialLevel)
         ->and(DB::transactionLevel())->toBe($initialLevel);
 });
 
