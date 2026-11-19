@@ -28,14 +28,19 @@ class ExecuteFulfillmentTaskAction
         }
         $worker = (string) Str::uuid();
         $claimed = app(RecordObservedOperationalEventAction::class)->transaction(function (Closure $observe) use ($candidate, $worker): bool {
+            $owner = User::withTrashed()->whereKey($candidate->user_id)->lockForUpdate()->firstOrFail();
+            if ($owner->trashed() || $owner->anonymized_at !== null) {
+                return false;
+            }
             $invoice = $candidate->invoice_id === null ? null : Invoice::whereKey($candidate->invoice_id)->lockForUpdate()->firstOrFail();
             $instance = Instance::whereKey($candidate->instance_id)->lockForUpdate()->firstOrFail();
             $task = FulfillmentTask::whereKey($candidate->id)->lockForUpdate()->firstOrFail();
             if ($task->status !== FulfillmentTaskStatus::PENDING || ($task->available_at !== null && $task->available_at->isFuture())) {
                 return false;
             }
-            if ($task->instance_id !== $instance->id || $task->invoice_id !== $candidate->invoice_id
-                || ($invoice !== null && ($invoice->status !== InvoiceStatus::PAID || $invoice->instance_id !== $instance->id))
+            if ($task->user_id !== $owner->id || $instance->user_id !== $owner->id
+                || $task->instance_id !== $instance->id || $task->invoice_id !== $candidate->invoice_id
+                || ($invoice !== null && ($invoice->user_id !== $owner->id || $invoice->status !== InvoiceStatus::PAID || $invoice->instance_id !== $instance->id))
                 || $task->driver_type !== $instance->driver_type || $task->upstream_api_id !== $instance->upstream_api_id || $instance->status->isTerminal()) {
                 $task->update(['status' => FulfillmentTaskStatus::STALE]);
 
@@ -61,10 +66,16 @@ class ExecuteFulfillmentTaskAction
             ? app(ProvisionInstanceAction::class)->execute($candidate->instance()->firstOrFail(), $candidate->payload ?? [], $taskId, $worker)
             : app(ExecuteServiceTaskAction::class)->execute($taskId, $worker);
         app(RecordObservedOperationalEventAction::class)->transaction(function (Closure $observe) use ($candidate, $worker, $result): void {
-            User::whereKey($candidate->user_id)->lockForUpdate()->firstOrFail();
+            // An already-authorized external result belongs to its original historical owner.
+            User::withTrashed()->whereKey($candidate->user_id)->lockForUpdate()->firstOrFail();
+            $invoice = $candidate->invoice_id === null ? null : Invoice::whereKey($candidate->invoice_id)->lockForUpdate()->firstOrFail();
             $instance = Instance::whereKey($candidate->instance_id)->lockForUpdate()->firstOrFail();
             $task = FulfillmentTask::whereKey($candidate->id)->lockForUpdate()->firstOrFail();
-            if ($task->status !== FulfillmentTaskStatus::RUNNING || $task->locked_by !== $worker || $task->lease_expires_at->isPast()) {
+            if ($task->user_id !== $candidate->user_id || $instance->user_id !== $candidate->user_id
+                || $task->instance_id !== $instance->id || $task->invoice_id !== $candidate->invoice_id
+                || ($invoice !== null && ($invoice->user_id !== $candidate->user_id || $invoice->status !== InvoiceStatus::PAID || $invoice->instance_id !== $instance->id))
+                || $task->driver_type !== $instance->driver_type || $task->upstream_api_id !== $instance->upstream_api_id
+                || $task->status !== FulfillmentTaskStatus::RUNNING || $task->locked_by !== $worker || ! $task->lease_expires_at?->isFuture()) {
                 return;
             }
             $changes = ['locked_by' => null, 'locked_at' => null, 'lease_expires_at' => null];

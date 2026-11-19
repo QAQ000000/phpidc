@@ -141,7 +141,8 @@ class ProvisionRemoteCardAction
             return false;
         }
 
-        return $invoice->status === InvoiceStatus::PAID && $invoice->instance_id === $instance->id && $task->invoice_id === $invoice->id
+        return $invoice->user_id === $instance->user_id && $task->user_id === $instance->user_id && $instance->user_id === $binding->user_id
+            && $invoice->status === InvoiceStatus::PAID && $invoice->instance_id === $instance->id && $task->invoice_id === $invoice->id
             && $task->instance_id === $instance->id && $task->driver_type === $instance->driver_type && $task->upstream_api_id === $instance->upstream_api_id
             && $instance->driver_type === $binding->driver_type && $instance->upstream_api_id === $binding->upstream_api_id
             && in_array($instance->status, [InstanceStatus::PENDING, InstanceStatus::ACTIVE], true)

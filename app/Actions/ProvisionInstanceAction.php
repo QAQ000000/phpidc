@@ -9,9 +9,12 @@ use App\Data\ProvisionResult;
 use App\Drivers\SelfHosted\Sub2ApiRemoteDriver;
 use App\Enums\FulfillmentTaskStatus;
 use App\Enums\InstanceStatus;
+use App\Enums\InvoiceStatus;
 use App\Models\FulfillmentTask;
 use App\Models\Instance;
+use App\Models\Invoice;
 use App\Models\RedemptionCode;
+use App\Models\User;
 use App\Services\DriverManager;
 use Illuminate\Support\Facades\DB;
 
@@ -21,6 +24,24 @@ class ProvisionInstanceAction
 
     public function execute(Instance $instance, array $params, ?int $taskId = null, ?string $worker = null): ProvisionResult
     {
+        $candidate = $taskId === null ? null : FulfillmentTask::findOrFail($taskId);
+        $authorized = DB::transaction(function () use ($instance, $candidate, $taskId, $worker): bool {
+            $owner = User::withTrashed()->whereKey($instance->user_id)->lockForUpdate()->firstOrFail();
+            if ($owner->trashed() || $owner->anonymized_at !== null) {
+                return false;
+            }
+            $invoice = $candidate?->invoice_id === null ? null : Invoice::whereKey($candidate->invoice_id)->lockForUpdate()->firstOrFail();
+            $locked = Instance::whereKey($instance->id)->lockForUpdate()->firstOrFail();
+            if ($locked->user_id !== $owner->id || ($candidate !== null && $candidate->user_id !== $owner->id)
+                || ($invoice !== null && ($invoice->user_id !== $owner->id || $invoice->status !== InvoiceStatus::PAID || $invoice->instance_id !== $locked->id))) {
+                return false;
+            }
+
+            return $this->ownsTask($locked, $taskId, $worker);
+        });
+        if (! $authorized) {
+            return ProvisionResult::fail('The original owner, payment or task is no longer authorized for provisioning.');
+        }
         $driver = $this->drivers->fulfillment($instance->driver_type, $instance->upstream_api_id);
         if ($driver instanceof Sub2ApiRemoteDriver) {
             return app(ProvisionRemoteCardAction::class)->execute($instance, $driver, $params, $taskId, $worker);
@@ -30,7 +51,7 @@ class ProvisionInstanceAction
         }
         $reserved = DB::transaction(function () use ($instance, $taskId, $worker): bool {
             $locked = Instance::whereKey($instance->id)->lockForUpdate()->firstOrFail();
-            if (! in_array($locked->status, [InstanceStatus::PENDING, InstanceStatus::ACTIVE], true)) {
+            if ($locked->user_id !== $instance->user_id || ! in_array($locked->status, [InstanceStatus::PENDING, InstanceStatus::ACTIVE], true)) {
                 return false;
             }
             $code = RedemptionCode::where('instance_id', $locked->id)->lockForUpdate()->first();
@@ -63,7 +84,7 @@ class ProvisionInstanceAction
         return DB::transaction(function () use ($instance, $result, $taskId, $worker): ProvisionResult {
             $locked = Instance::whereKey($instance->id)->lockForUpdate()->firstOrFail();
             $code = RedemptionCode::where('instance_id', $locked->id)->lockForUpdate()->first();
-            if (! $this->ownsTask($locked, $taskId, $worker)) {
+            if ($locked->user_id !== $instance->user_id || ! $this->ownsTask($locked, $taskId, $worker)) {
                 return ProvisionResult::fail('Task lease changed before delivery.', retryable: true);
             }
             if ($code === null || $code->product_id !== $locked->product_id
@@ -96,7 +117,7 @@ class ProvisionInstanceAction
         }
         $task = FulfillmentTask::whereKey($taskId)->lockForUpdate()->firstOrFail();
 
-        return $task->instance_id === $instance->id && $task->status === FulfillmentTaskStatus::RUNNING
+        return $task->user_id === $instance->user_id && $task->instance_id === $instance->id && $task->status === FulfillmentTaskStatus::RUNNING
             && $task->locked_by === $worker && $task->lease_expires_at !== null && $task->lease_expires_at->isFuture()
             && $task->driver_type === $instance->driver_type && $task->upstream_api_id === $instance->upstream_api_id;
     }

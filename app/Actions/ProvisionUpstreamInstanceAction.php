@@ -22,7 +22,7 @@ class ProvisionUpstreamInstanceAction
     {
         $instance = DB::transaction(function () use ($instance, $taskId, $worker): ?Instance {
             $locked = Instance::whereKey($instance->id)->lockForUpdate()->firstOrFail();
-            if ($locked->driver_type !== $instance->driver_type || $locked->upstream_api_id !== $instance->upstream_api_id
+            if ($locked->user_id !== $instance->user_id || $locked->driver_type !== $instance->driver_type || $locked->upstream_api_id !== $instance->upstream_api_id
                 || ! in_array($locked->status, [InstanceStatus::PENDING, InstanceStatus::ACTIVE], true) || ! $this->ownsTask($locked, $taskId, $worker)) {
                 return null;
             }
@@ -49,7 +49,7 @@ class ProvisionUpstreamInstanceAction
         }
         $applied = DB::transaction(function () use ($instance, $result, $taskId, $worker, $endpoint): bool {
             $locked = Instance::whereKey($instance->id)->lockForUpdate()->firstOrFail();
-            if ($locked->driver_type !== $instance->driver_type || $locked->upstream_api_id !== $instance->upstream_api_id
+            if ($locked->user_id !== $instance->user_id || $locked->driver_type !== $instance->driver_type || $locked->upstream_api_id !== $instance->upstream_api_id
                 || $locked->downstream_token !== $instance->downstream_token || $locked->status !== $instance->status
                 || ! $this->ownsTask($locked, $taskId, $worker)) {
                 return false;
@@ -87,7 +87,7 @@ class ProvisionUpstreamInstanceAction
         }
         $task = FulfillmentTask::whereKey($taskId)->lockForUpdate()->firstOrFail();
 
-        return $task->instance_id === $instance->id && $task->status === FulfillmentTaskStatus::RUNNING
+        return $task->user_id === $instance->user_id && $task->instance_id === $instance->id && $task->status === FulfillmentTaskStatus::RUNNING
             && $task->locked_by === $worker && $task->lease_expires_at !== null && $task->lease_expires_at->isFuture()
             && $task->driver_type === $instance->driver_type && $task->upstream_api_id === $instance->upstream_api_id;
     }

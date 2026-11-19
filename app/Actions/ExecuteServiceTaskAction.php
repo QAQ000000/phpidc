@@ -29,6 +29,10 @@ class ExecuteServiceTaskAction
     {
         $task = FulfillmentTask::findOrFail($id);
         $binding = Instance::findOrFail($task->instance_id);
+        $owner = User::withTrashed()->findOrFail($task->user_id);
+        if ($owner->trashed() || $owner->anonymized_at !== null) {
+            return ProvisionResult::fail('The original task owner is no longer active.');
+        }
         $context = json_decode(Crypt::decryptString($task->payload['encrypted_operation']), true, flags: JSON_THROW_ON_ERROR);
         if (! $this->current($task, $binding, $context, $worker)) {
             return ProvisionResult::fail('Operation binding, payment or lease is obsolete.');
@@ -146,21 +150,26 @@ class ExecuteServiceTaskAction
     private function current(FulfillmentTask $task, Instance $instance, array $context, string $worker): bool
     {
         return $task->status === FulfillmentTaskStatus::RUNNING && $task->locked_by === $worker && $task->lease_expires_at?->isFuture()
-            && $task->instance_id === $instance->id && $task->driver_type === $instance->driver_type && $task->upstream_api_id === $instance->upstream_api_id
+            && $task->user_id === $instance->user_id && $task->instance_id === $instance->id && $task->driver_type === $instance->driver_type && $task->upstream_api_id === $instance->upstream_api_id
             && $context['upstream_instance_id'] === $instance->upstream_instance_id && $context['upstream_api_id'] === $instance->upstream_api_id
             && $context['token_hash'] === hash('sha256', $instance->downstream_token ?? '') && $context['base_url'] === $instance->upstreamApi?->base_url
-            && ! $instance->status->isTerminal() && ($task->invoice_id === null || ($task->invoice?->status === InvoiceStatus::PAID && $task->invoice->instance_id === $instance->id));
+            && ! $instance->status->isTerminal() && ($task->invoice_id === null || ($task->invoice?->user_id === $instance->user_id
+                && $task->invoice->status === InvoiceStatus::PAID && $task->invoice->instance_id === $instance->id));
     }
 
     private function intent(FulfillmentTask $candidate, Instance $binding, array $context, string $worker, array $state): bool
     {
         return DB::transaction(function () use ($candidate, $binding, $context, $worker, $state): bool {
+            $owner = User::withTrashed()->whereKey($candidate->user_id)->lockForUpdate()->firstOrFail();
+            if ($owner->trashed() || $owner->anonymized_at !== null) {
+                return false;
+            }
             if ($candidate->invoice_id !== null) {
                 Invoice::whereKey($candidate->invoice_id)->lockForUpdate()->firstOrFail();
             }
             $instance = Instance::whereKey($binding->id)->lockForUpdate()->firstOrFail();
             $task = FulfillmentTask::whereKey($candidate->id)->lockForUpdate()->firstOrFail();
-            if (! $this->current($task, $instance, $context, $worker)) {
+            if ($instance->user_id !== $owner->id || $task->user_id !== $owner->id || ! $this->current($task, $instance, $context, $worker)) {
                 return false;
             }
             $payload = $task->payload;
@@ -204,13 +213,13 @@ class ExecuteServiceTaskAction
     private function commit(FulfillmentTask $candidate, Instance $binding, array $context, string $worker, InstanceInfoResult $snapshot): ProvisionResult
     {
         return DB::transaction(function () use ($candidate, $binding, $context, $worker, $snapshot): ProvisionResult {
-            User::whereKey($binding->user_id)->lockForUpdate()->firstOrFail();
+            User::withTrashed()->whereKey($binding->user_id)->lockForUpdate()->firstOrFail();
             if ($candidate->invoice_id !== null) {
                 Invoice::whereKey($candidate->invoice_id)->lockForUpdate()->firstOrFail();
             }
             $instance = Instance::whereKey($binding->id)->lockForUpdate()->firstOrFail();
             $task = FulfillmentTask::whereKey($candidate->id)->lockForUpdate()->firstOrFail();
-            if (! $this->current($task, $instance, $context, $worker)) {
+            if ($instance->user_id !== $binding->user_id || $task->user_id !== $candidate->user_id || ! $this->current($task, $instance, $context, $worker)) {
                 return ProvisionResult::fail('Old operation result retained after payment, binding or lease change.');
             }
             $target = InstanceStatus::from($snapshot->upstreamStatus);

@@ -290,6 +290,8 @@ Mapping review requires `upstream.view` plus `upstream.mapping-review`, a stable
 
 **INV-T5 — `stale`.** Hot swap or cancellation marks queued tasks `stale`; a stale task never executes.
 
+**Human-approved B3-03 (2026-11-19):** new claims lock the original owner before invoice, instance and task, require matching ownership and an active, non-anonymized owner, and leave stopped owners pending without consuming attempts or calling drivers. New provisioning and service side-effect preparation recheck that execution eligibility. Results of already-authorized calls retain the original user identity through narrowly scoped historical-user reads and original-owner comparisons; stopping the owner does not discard observed external facts. Payment, resource binding, task ownership and current lease guards still apply. This does not bypass normal closure blockers, authorize new work for stopped identities, or add soft-delete bypasses to global relationships.
+
 ---
 
 ## 10. Redemption code pool
