@@ -22,9 +22,12 @@
 <section class="inventory-box"><h2>{{ $section['label'] }}</h2>
 @if($activeTab === 'mail')<p class="inventory-note">SMTP 465 使用隐式 TLS，587 按服务器支持协商 STARTTLS。日志模式仅模拟投递。</p>@endif
 @if($activeTab === 'sms')<p class="inventory-note">短信模板使用 JSON 对象，每项包含 id 和 content。测试短信需配置 system.settings_test 模板，仅支持 message 变量。</p>@endif
+@if($activeTab === 'site')<p class="inventory-note">站点名称、公告与页脚应用于商城和客户中心。默认 SEO 用于首页和缺少专属元数据的页面，产品与文章保留各自 SEO。</p><a class="inventory-link" href="/" target="_blank" rel="noopener">预览前台</a>@endif
+@if($activeTab === 'billing')<p class="inventory-note">修改应用于后续建单和新的佣金快照，历史账单金额、到期时间和佣金成熟时间保持原值。</p>@endif
+@if($activeTab === 'automation')<p class="inventory-note">调整现有任务每轮选取数量；仍受既有执行预算约束。此处保存不会启动或停止调度进程。</p>@endif
 @if(in_array($activeTab, ['github','google','qq','wechat'], true))<p class="inventory-note">授权回调地址：{{ rtrim(config('app.url'), '/') }}/auth/{{ $activeTab }}/callback</p>@endif
 @can($section['permission'])
-<form method="post" action="/admin/settings/identity/{{ $activeTab }}" class="inventory-form settings-form" autocomplete="off">@csrf
+<form method="post" action="{{ $saveAction }}" class="inventory-form settings-form" autocomplete="off">@csrf
 @foreach($section['fields'] as $key => $field)
 <label>{{ $field['label'] }}
 @if($field['type'] === 'checkbox')
@@ -36,8 +39,9 @@
 @elseif($field['secret'] ?? false)
 <input type="password" name="settings[{{ $key }}]" value="" autocomplete="new-password" placeholder="{{ $values[$key]['configured'] ? '已配置，留空保留' : '尚未配置' }}">
 @else
-<input type="{{ $field['type'] }}" name="settings[{{ $key }}]" value="{{ $values[$key]['value'] }}" @if($key === 'mail.port') min="1" max="65535" @endif>
+<input type="{{ $field['type'] }}" name="settings[{{ $key }}]" value="{{ $values[$key]['value'] }}" @if($key === 'mail.port') min="1" max="65535" @endif @if(isset($field['min'])) min="{{ $field['min'] }}" max="{{ $field['max'] }}" step="1" @endif>
 @endif
+@if(isset($field['help']))<small class="inventory-note">{{ $field['help'] }}</small>@endif
 </label>
 @endforeach
 @include('filament.settings-note')

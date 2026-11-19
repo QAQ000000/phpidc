@@ -7,6 +7,8 @@ namespace App\Filament\Pages;
 use App\Services\SettingService;
 use App\Support\IdentitySettings;
 use App\Support\PaymentChannels;
+use App\Support\PolicySettings;
+use App\Support\SiteSettings;
 use Filament\Pages\Page;
 use Illuminate\Support\Facades\Auth;
 use Livewire\Attributes\Url;
@@ -32,7 +34,8 @@ class SystemSettings extends Page
 
     protected function getViewData(): array
     {
-        $sections = IdentitySettings::sections();
+        $sections = ['site' => ['label' => '站点信息', 'permission' => 'settings.site.manage', 'fields' => SiteSettings::fields()]]
+            + IdentitySettings::sections() + PolicySettings::sections();
         $tabs = ['payment' => '易支付'];
         foreach ($sections as $key => $section) {
             $tabs[$key] = $section['label'];
@@ -48,13 +51,20 @@ class SystemSettings extends Page
             'sms.driver' => 'log', 'kyc.driver' => 'disabled'];
         foreach ($section['fields'] ?? [] as $key => $field) {
             // Only this safe projection enters the Blade/Livewire response.
-            $value = $settings->get($key, $defaults[$key] ?? null);
+            $default = isset($field['default']) ? (string) $field['default'] : ($defaults[$key] ?? null);
+            $value = $settings->get($key, $default);
             $values[$key] = IdentitySettings::isSecret($key)
                 ? ['configured' => $value !== null && $value !== '', 'value' => '']
                 : ['configured' => $value !== null, 'value' => $value ?? ''];
         }
 
-        return ['tabs' => $tabs, 'activeTab' => $tab, 'section' => $section, 'values' => $values,
+        $saveAction = match ($tab) {
+            'site' => '/admin/settings/site',
+            'billing', 'automation' => '/admin/settings/policy/'.$tab,
+            default => '/admin/settings/identity/'.$tab,
+        };
+
+        return ['tabs' => $tabs, 'activeTab' => $tab, 'section' => $section, 'values' => $values, 'saveAction' => $saveAction,
             'payment' => $tab === 'payment' ? ['url' => $settings->get('payment.epay_api_url', ''),
                 'pid' => $settings->get('payment.epay_pid', ''),
                 'has_key' => trim($settings->get('payment.epay_key', '') ?? '') !== '',

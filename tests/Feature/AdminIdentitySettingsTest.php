@@ -201,3 +201,16 @@ it('keeps saved settings and warm caches unchanged on rollback then invalidates 
     $cached = Cache::get('setting:mail:password');
     expect($cached['value'])->not->toContain('PRIVATE-CACHE-UPDATED')->and(Crypt::decryptString($cached['value']))->toBe('PRIVATE-CACHE-UPDATED');
 });
+
+it('bounds web identity audit notes to their database column before settings writes', function (): void {
+    $actor = identitySettingsAdmin();
+    $action = app(ConfigureIdentityAction::class);
+    $action->execute(['mail.from_name' => 'Original'], str_repeat('n', 255), $actor);
+    $beforeSettings = DB::table('system_settings')->orderBy('id')->get()->toArray();
+    $beforeAudit = DB::table('audit_logs')->count();
+    expect(fn () => $action->execute(['mail.from_name' => 'Must not save'], str_repeat('n', 256), $actor))
+        ->toThrow(ValidationException::class);
+    expect(DB::table('system_settings')->orderBy('id')->get()->toArray())->toEqual($beforeSettings)
+        ->and(DB::table('audit_logs')->count())->toBe($beforeAudit)
+        ->and(DB::table('audit_logs')->where('action', 'identity.configure')->sole()->reason)->toBe(str_repeat('n', 255));
+});

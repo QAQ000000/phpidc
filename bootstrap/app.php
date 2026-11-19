@@ -2,6 +2,7 @@
 
 use App\Http\Middleware\EnsureInstalledMiddleware;
 use App\Http\Middleware\InventoryNoStore;
+use App\Support\IdentitySettings;
 use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
 use Illuminate\Foundation\Configuration\Middleware;
@@ -19,7 +20,9 @@ return Application::configure(basePath: dirname(__DIR__))
         $middleware->prepend(InventoryNoStore::class);
         $middleware->redirectGuestsTo(fn (Request $request): string => $request->is('admin', 'admin/*') ? '/admin/login' : '/login');
         $middleware->redirectUsersTo('/console');
-        $middleware->trimStrings(except: ['codes', 'admin_password', 'admin_password_confirmation']);
+        $secretInputs = array_map(fn (string $key): string => 'settings.'.$key,
+            array_keys(array_filter(IdentitySettings::fields(), fn (array $field): bool => $field['secret'] ?? false)));
+        $middleware->trimStrings(except: ['codes', 'admin_password', 'admin_password_confirmation', 'epay_key', 'api_secret', ...$secretInputs]);
         // Install redirects must not trap /up or /install (charter §3.6).
         $middleware->web(append: [
             EnsureInstalledMiddleware::class,

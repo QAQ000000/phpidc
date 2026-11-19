@@ -123,6 +123,8 @@ Route::middleware('auth')->group(function (): void {
     Route::post('/admin/upstreams/sub2api/configure', [Sub2ApiSettingsController::class, 'store']);
     Route::post('/admin/settings/identity/{section}', [SystemSettingsController::class, 'identity']);
     Route::post('/admin/settings/payment', [SystemSettingsController::class, 'payment']);
+    Route::post('/admin/settings/site', [SystemSettingsController::class, 'site']);
+    Route::post('/admin/settings/policy/{section}', [SystemSettingsController::class, 'policy']);
     Route::post('/admin/settings/test/{channel}', [SystemSettingsController::class, 'test'])->middleware('throttle:settings-test');
     Route::post('/admin/upstreams/catalog', [ClassicOperationsController::class, 'catalog']);
     Route::post('/admin/upstreams/import', [ClassicOperationsController::class, 'import']);

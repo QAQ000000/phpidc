@@ -21,7 +21,7 @@ class ConfigureIdentityAction
     public function execute(array $settings, string $reason, ?User $actor = null): void
     {
         $reason = $actor !== null && trim($reason) === '' ? '更新账户与通知接口配置' : $reason;
-        validator(['reason' => trim($reason)], ['reason' => ['required', 'string', 'max:1000']])->validate();
+        validator(['reason' => trim($reason)], ['reason' => ['required', 'string', 'max:'.($actor === null ? 1000 : 255)]])->validate();
         $fields = IdentitySettings::fields();
         foreach ($settings as $key => $value) {
             if (! isset($fields[$key])) {

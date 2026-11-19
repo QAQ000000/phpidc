@@ -101,10 +101,10 @@ it('rotates a Sub2API key only on explicit input and preserves an omitted activa
     $actor = adminSub2Operator();
     $account = adminSub2Account();
     $account->update(['is_active' => false]);
-    $data = adminSub2Form($account, ['api_secret' => 'SUB2-ROTATED-PRIVATE-KEY', 'reason' => '0']);
+    $data = adminSub2Form($account, ['api_secret' => ' SUB2-ROTATED-PRIVATE-KEY ', 'reason' => '0']);
     unset($data['active']);
     $this->actingAs($actor)->post('/admin/upstreams/sub2api/configure', $data)->assertRedirect('/admin/upstreams')->assertSessionHasNoErrors();
-    expect($account->fresh()->encrypted_secret)->toBe('SUB2-ROTATED-PRIVATE-KEY')->and($account->fresh()->is_active)->toBeFalse()
+    expect($account->fresh()->encrypted_secret)->toBe(' SUB2-ROTATED-PRIVATE-KEY ')->and($account->fresh()->is_active)->toBeFalse()
         ->and($account->fresh()->getRawOriginal('encrypted_secret'))->not->toContain('SUB2-ROTATED-PRIVATE-KEY');
     $audit = DB::table('audit_logs')->where('action', 'sub2api.connection_update')->sole();
     expect($audit->reason)->toBe('0')->and($audit->after)->not->toContain('SUB2-ROTATED-PRIVATE-KEY')

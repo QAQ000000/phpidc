@@ -14,6 +14,8 @@ class AdminRoles
             'settings-payment' => ['settings.view', 'settings.payment.manage'],
             'settings-notification' => ['settings.view', 'settings.notification.manage'],
             'settings-identity' => ['settings.view', 'settings.identity.manage'],
+            'settings-site' => ['settings.view', 'settings.site.manage'],
+            'settings-billing' => ['settings.view', 'settings.billing.manage'],
             'inventory-viewer' => ['inventory.view'],
             'inventory-operator' => ['inventory.view', 'inventory.import', 'inventory.retry'],
             'upstream-viewer' => ['upstream.view'],
@@ -66,6 +68,7 @@ class AdminRoles
         return [
             'settings-viewer' => '系统配置查看', 'settings-payment' => '支付接口配置',
             'settings-notification' => '邮件与短信接口配置', 'settings-identity' => '实名与登录接口配置',
+            'settings-site' => '站点信息配置', 'settings-billing' => '计费与调度参数配置',
             'inventory-viewer' => '库存查看', 'inventory-operator' => '库存操作',
             'upstream-viewer' => '上游查看', 'upstream-operator' => '上游配置与导入',
             'upstream-lifecycle' => '服务暂停与终止', 'upstream-migrator' => '服务换绑',

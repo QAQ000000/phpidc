@@ -14,6 +14,7 @@ use App\Filament\Pages\SystemSettings;
 use App\Models\Product;
 use App\Models\User;
 use App\Models\UserNotificationBinding;
+use App\Services\SettingService;
 use App\Support\PaymentChannels;
 use Illuminate\Http\Client\ConnectionException;
 use Illuminate\Mail\MailManager;
@@ -90,11 +91,12 @@ it('saves notification settings with optional notes and never flashes failed sec
     $operator = systemSettingsOperator('settings-notification');
     $this->actingAs($operator)->post('/admin/settings/identity/mail', ['settings' => [
         'mail.transport' => 'smtp', 'mail.host' => 'smtp.example.test', 'mail.port' => '465',
-        'mail.username' => 'PRIVATE-SMTP-USERNAME', 'mail.password' => 'PRIVATE-SMTP-PASSWORD',
+        'mail.username' => ' PRIVATE-SMTP-USERNAME ', 'mail.password' => ' PRIVATE-SMTP-PASSWORD ',
         'mail.from_address' => 'sender@example.test', 'mail.from_name' => '测试主机',
     ]])->assertRedirect('/admin/settings?tab=mail')->assertSessionHasNoErrors();
     $cipher = DB::table('system_settings')->where('group', 'mail')->where('key', 'password')->value('value');
-    expect(Crypt::decryptString($cipher))->toBe('PRIVATE-SMTP-PASSWORD');
+    expect(Crypt::decryptString($cipher))->toBe(' PRIVATE-SMTP-PASSWORD ');
+    expect(app(SettingService::class)->get('mail.username'))->toBe(' PRIVATE-SMTP-USERNAME ');
     $audit = DB::table('audit_logs')->where('action', 'identity.configure')->latest('id')->first();
     expect($audit->actor_id)->toBe($operator->id)->and($audit->actor_type)->toBe('user')
         ->and($audit->reason)->not->toBe('')->and($audit->ip)->toBe('127.0.0.1')->and($audit->request_id)->not->toBeNull()
@@ -137,6 +139,10 @@ it('retains the current Epay secret on a blank Web save and keeps new channel co
     $this->from('/admin/settings')->post('/admin/settings/payment', ['url' => 'not-a-url', 'pid' => '1000',
         'epay_key' => 'PRIVATE-FAILED-EPAY', 'alipay' => '1', 'wechat' => '1'])->assertSessionHasErrors();
     expect(session('_old_input.epay_key'))->toBeNull();
+    $this->post('/admin/settings/payment', ['url' => 'https://pay.example.test', 'pid' => '1000',
+        'epay_key' => ' PRIVATE-EPAY-ROTATED ', 'alipay' => '1', 'wechat' => '1', 'reason' => '0'])->assertSessionHasNoErrors();
+    expect(Crypt::decryptString(DB::table('system_settings')->where('group', 'payment')->where('key', 'epay_key')->value('value')))->toBe(' PRIVATE-EPAY-ROTATED ')
+        ->and(DB::table('audit_logs')->where('action', 'payment.epay_configure')->latest('id')->value('reason'))->toBe('0');
     Http::assertNothingSent();
 });
 

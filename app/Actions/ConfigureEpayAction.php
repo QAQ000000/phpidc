@@ -24,7 +24,8 @@ class ConfigureEpayAction
     {
         $preserveKey = $actor !== null && trim($key) === '';
         if (! filter_var($url, FILTER_VALIDATE_URL) || ! in_array(parse_url($url, PHP_URL_SCHEME), ['https', 'http'], true)
-            || trim($pid) === '' || (! $preserveKey && trim($key) === '') || trim($reason) === '') {
+            || trim($pid) === '' || (! $preserveKey && trim($key) === '') || trim($reason) === ''
+            || ($actor !== null && mb_strlen($reason) > 255)) {
             throw new DomainException('A gateway URL, merchant ID, key and operator reason are required.');
         }
         if ($channels !== null && (array_diff(array_keys($channels), EpayProfiles::GATEWAYS) !== []

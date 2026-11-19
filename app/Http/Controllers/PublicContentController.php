@@ -10,9 +10,9 @@ use App\Models\Category;
 use App\Models\CmsArticle;
 use App\Models\CmsCategory;
 use App\Models\Product;
-use App\Services\SettingService;
 use App\Support\CmsRenderer;
 use App\Support\CmsSlugAliases;
+use App\Support\SitePresentation;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -21,12 +21,14 @@ use Illuminate\Support\LazyCollection;
 
 class PublicContentController extends Controller
 {
-    public function __construct(private readonly SettingService $settings, private readonly CmsRenderer $renderer) {}
+    public function __construct(private readonly CmsRenderer $renderer) {}
 
     public function home(): Response
     {
+        $site = app(SitePresentation::class)->values();
+
         return $this->page('home', ['products' => Product::publicCatalog()->with('category')->orderBy('sort_order')->orderBy('id')->limit(6)->get(),
-            'articles' => CmsArticle::published()->with('category')->latest('published_at')->limit(6)->get()], '/', '云产品与使用指南', '发现云服务、数字产品与实用的产品使用指南。');
+            'articles' => CmsArticle::published()->with('category')->latest('published_at')->limit(6)->get()], '/', $site['site.seo_title'], $site['site.seo_description']);
     }
 
     public function store(?string $category = null): Response
@@ -149,7 +151,8 @@ class PublicContentController extends Controller
 
     public function llms(): Response
     {
-        $body = '# '.$this->settings->get('site.name', config('app.name'))."\n\n公开产品、新闻与使用指南。价格以创建账单时的服务端报价为准。\n\n## 导航\n\n";
+        $site = app(SitePresentation::class)->values();
+        $body = '# '.$site['site.name']."\n\n".$site['site.llms_description']."\n\n## 导航\n\n";
         foreach (['/store' => '产品', '/news' => '新闻', '/help' => '帮助'] as $path => $label) {
             $body .= '- ['.$label.']('.$this->canonical($path).")\n";
         }
@@ -165,8 +168,12 @@ class PublicContentController extends Controller
 
     private function page(string $view, array $data, string $path, string $title, string $description, ?string $keywords = null): Response
     {
-        return response()->view('public.'.$view, $data + ['siteName' => $this->settings->get('site.name', config('app.name')), 'title' => $title,
-            'description' => $description, 'keywords' => $keywords, 'canonical' => $this->canonical($path)]);
+        $site = app(SitePresentation::class)->values();
+
+        return response()->view('public.'.$view, $data + ['siteName' => $site['site.name'],
+            'title' => trim($title) !== '' ? $title : $site['site.seo_title'],
+            'description' => trim($description) !== '' ? $description : $site['site.seo_description'],
+            'keywords' => $keywords, 'canonical' => $this->canonical($path)]);
     }
 
     private function canonical(string $path): string
@@ -184,6 +191,12 @@ class PublicContentController extends Controller
 
     private function markdown(string $body, string $path): Response
     {
+        $site = app(SitePresentation::class)->values();
+        $body .= "\n\n---\n\n站点：".$site['site.name']."\n";
+        if ($site['site.announcement'] !== '') {
+            $body .= "\n站点公告：".$site['site.announcement']."\n";
+        }
+
         return response($body)->header('Content-Type', 'text/markdown; charset=UTF-8')->header('Link', '<'.$this->canonical($path).'>; rel="canonical"');
     }
 }

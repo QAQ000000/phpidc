@@ -1,3 +1,4 @@
+@php($sitePresentation = app(\App\Support\SitePresentation::class)->values())
 <!doctype html>
 <html lang="zh-CN">
 <head>
@@ -15,12 +16,13 @@
 </style>
 </head>
 <body>
-<header><div class="wrap"><a class="brand" href="/">{{ $siteName }}</a><nav aria-label="主导航">
-<a href="/store" @if(request()->is('store*')) aria-current="page" @endif>产品商城</a><a href="/news" @if(request()->is('news*')) aria-current="page" @endif>新闻动态</a><a href="/help" @if(request()->is('help*')) aria-current="page" @endif>帮助中心</a><a href="{{ auth()->check() ? '/console' : '/login' }}">{{ auth()->check() ? '客户中心' : '登录 / 注册' }}</a>
+<header><div class="wrap"><a class="brand" href="/">@if($sitePresentation['site.logo_url'] !== '')<img src="{{ $sitePresentation['site.logo_url'] }}" alt="" width="36" height="36" style="display:inline-block;vertical-align:middle;object-fit:contain"> @endif{{ $siteName }}</a><nav aria-label="主导航">
+<a href="/store" @if(request()->is('store*')) aria-current="page" @endif>产品商城</a><a href="/news" @if(request()->is('news*')) aria-current="page" @endif>新闻动态</a><a href="/help" @if(request()->is('help*')) aria-current="page" @endif>帮助中心</a>@if($sitePresentation['site.support_url'] !== '')<a href="{{ $sitePresentation['site.support_url'] }}" rel="noopener noreferrer">联系客服</a>@endif<a href="{{ auth()->check() ? '/console' : '/login' }}">{{ auth()->check() ? '客户中心' : '登录 / 注册' }}</a>
 </nav></div></header>
 <main class="wrap">
+@if($sitePresentation['site.announcement'] !== '')<aside class="panel" role="status" style="margin-top:24px;white-space:pre-line">{{ $sitePresentation['site.announcement'] }}</aside>@endif
 @if($errors->any())<div class="error" role="alert"><ul>@foreach($errors->all() as $error)<li>{{ $error }}</li>@endforeach</ul></div>@endif
 @yield('content')
 </main>
-<footer><div class="wrap"><span>{{ $siteName }} · 产品与知识，触手可及。</span><span><a href="/sitemap.xml">站点地图</a> · <a href="/llms.txt">AI 阅读索引</a></span></div></footer>
+<footer><div class="wrap"><span>{{ $sitePresentation['site.copyright'] !== '' ? $sitePresentation['site.copyright'] : $siteName.' · 产品与知识，触手可及。' }}</span>@if($sitePresentation['site.icp_number'] !== '')<a href="https://beian.miit.gov.cn/" rel="noopener noreferrer">{{ $sitePresentation['site.icp_number'] }}</a>@endif<span><a href="/sitemap.xml">站点地图</a> · <a href="/llms.txt">AI 阅读索引</a></span></div></footer>
 </body></html>

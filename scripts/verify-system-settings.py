@@ -56,7 +56,7 @@ with tempfile.TemporaryDirectory(prefix="phpidc-settings-http-") as directory:
     fixture = root / "fixture.php"
     fixture.write_text("<?php\n" + bootstrap + r"""
 $app->make(Illuminate\Contracts\Console\Kernel::class)->bootstrap();
-foreach (['operator'=>['settings-payment','settings-notification','settings-identity','upstream-operator'],
+foreach (['operator'=>['settings-payment','settings-notification','settings-identity','settings-site','settings-billing','upstream-operator'],
     'viewer'=>['settings-viewer'], 'customer'=>[]] as $name=>$roles) {
     $user=App\Models\User::factory()->create(['name'=>$name,'email'=>$name.'@example.test','password'=>getenv('SETTINGS_TEST_PASSWORD')]);
     foreach($roles as $role) app(App\Actions\AssignAdminRoleAction::class)->execute($user,$role,'Isolated settings HTTP fixture');
@@ -110,8 +110,8 @@ foreach (['operator'=>['settings-payment','settings-notification','settings-iden
         csrf = token(html)
         rejected(operator, "/admin/settings/identity/mail", {"settings[mail.transport]": "log"}, 419)
         checks.append("real_csrf")
-        body = {"_token": csrf, "settings[mail.transport]": "log", "settings[mail.username]": "PRIVATE-HTTP-USERNAME",
-                "settings[mail.password]": "PRIVATE-HTTP-PASSWORD", "settings[mail.from_name]": "隔离测试主机"}
+        body = {"_token": csrf, "settings[mail.transport]": "log", "settings[mail.username]": " PRIVATE-HTTP-USERNAME ",
+                "settings[mail.password]": " PRIVATE-HTTP-PASSWORD ", "settings[mail.from_name]": "隔离测试主机"}
         html, status, destination = request(operator, "/admin/settings/identity/mail", body)
         assert status == 200 and destination.endswith("/admin/settings?tab=mail") and "配置已保存" in html
         assert "PRIVATE-HTTP" not in html
@@ -134,19 +134,19 @@ foreach (['operator'=>['settings-payment','settings-notification','settings-iden
         customer = login("customer")
         rejected(customer, "/admin/settings", None, 403)
         checks.append("customer_denied")
-        for tab in ["payment", "mail", "sms", "kyc", "github", "google", "qq", "wechat", "telegram", "upstreams"]:
+        for tab in ["payment", "site", "mail", "sms", "kyc", "github", "google", "qq", "wechat", "telegram", "upstreams", "billing", "automation"]:
             html, status, _ = request(operator, "/admin/settings?tab=" + tab)
             assert status == 200 and "PRIVATE-HTTP" not in html
         checks.append("all_external_interface_tabs")
         html, _, _ = request(operator, "/admin/settings/payment", {"_token": csrf, "url": "https://pay.example.invalid", "pid": "1000",
-                               "epay_key": "PRIVATE-HTTP-EPAY", "alipay": "1", "wechat": "0"})
+                               "epay_key": " PRIVATE-HTTP-EPAY ", "alipay": "1", "wechat": "0"})
         assert "支付配置已保存" in html and "PRIVATE-HTTP-EPAY" not in html
         html, _, _ = request(operator, "/admin/settings/payment", {"_token": csrf, "url": "not-a-url", "pid": "1000",
                                "epay_key": "PRIVATE-HTTP-FAILED-EPAY", "alipay": "1", "wechat": "0"})
         assert "PRIVATE-HTTP" not in html
         checks.append("epay_form_and_secret_error_redaction")
         html, _, _ = request(operator, "/admin/upstreams/sub2api/configure", {"_token": csrf, "name": "隔离远程连接",
-                               "url": "https://cards.example.invalid", "api_secret": "PRIVATE-HTTP-SUB2API", "active": "1"})
+                               "url": "https://cards.example.invalid", "api_secret": " PRIVATE-HTTP-SUB2API ", "active": "1"})
         assert "Sub2API 连接已保存" in html and "PRIVATE-HTTP" not in html
         with sqlite3.connect(database) as connection:
             account_id, original_url, original_key = connection.execute("select id,base_url,encrypted_secret from upstream_apis where name='隔离远程连接'").fetchone()
@@ -156,6 +156,46 @@ foreach (['operator'=>['settings-payment','settings-notification','settings-iden
         with sqlite3.connect(database) as connection:
             assert connection.execute("select base_url,encrypted_secret from upstream_apis where id=?", [account_id]).fetchone() == (original_url, original_key)
         checks.append("sub2api_original_endpoint_retained")
+        html, _, _ = request(operator, "/admin/settings/identity/github", {"_token": csrf,
+                               "settings[oauth.github_enabled]": "0", "settings[oauth.github_client_secret]": " PRIVATE-HTTP-OAUTH "})
+        assert "配置已保存" in html and "PRIVATE-HTTP" not in html
+        secret_check = root / "secret-check.php"
+        secret_check.write_text("<?php\n" + bootstrap + r"""
+$app->make(Illuminate\Contracts\Console\Kernel::class)->bootstrap();
+foreach (['mail.username'=>' PRIVATE-HTTP-USERNAME ', 'mail.password'=>' PRIVATE-HTTP-PASSWORD ',
+    'payment.epay_key'=>' PRIVATE-HTTP-EPAY ', 'oauth.github_client_secret'=>' PRIVATE-HTTP-OAUTH '] as $key=>$expected) {
+    if (app(App\Services\SettingService::class)->get($key) !== $expected) exit(1);
+}
+if (App\Models\UpstreamApi::where('name','隔离远程连接')->sole()->encrypted_secret !== ' PRIVATE-HTTP-SUB2API ') exit(1);
+echo 'secret-input-bytes-pass';
+""")
+        verified = subprocess.run([php, str(secret_check)], cwd=repo, env=environment, capture_output=True, text=True, timeout=30)
+        assert verified.returncode == 0 and verified.stdout == "secret-input-bytes-pass", "Secret input bytes changed during HTTP save"
+        checks.append("secret_input_bytes_preserved")
+        html, _, _ = request(operator, "/admin/settings/site", {"_token": csrf, "settings[site.name]": "隔离站点验收",
+                               "settings[site.logo_url]": "/favicon.svg", "settings[site.copyright]": "隔离版权",
+                               "settings[site.seo_title]": "隔离首页标题", "settings[site.llms_description]": "隔离 AI 阅读简介",
+                               "settings[site.announcement]": '<script>alert("plain")</script>'})
+        assert "站点信息已保存" in html
+        html, _, _ = request(operator, "/")
+        assert "隔离首页标题 · 隔离站点验收" in html and "隔离版权" in html
+        assert '<script>alert("plain")</script>' not in html
+        html, _, _ = request(operator, "/console")
+        assert "隔离站点验收" in html and '<script>alert("plain")</script>' not in html
+        html, _, _ = request(operator, "/llms.txt")
+        assert "# 隔离站点验收" in html and "隔离 AI 阅读简介" in html
+        checks.append("site_settings_consumed_by_public_and_console")
+        html, _, _ = request(operator, "/admin/settings/policy/billing", {"_token": csrf,
+                               "settings[billing.invoice_expiry_minutes]": "60", "settings[affiliate.freeze_days]": "10"})
+        assert "计费策略已保存" in html
+        html, _, _ = request(operator, "/admin/settings/policy/automation", {"_token": csrf, "settings[lifecycle.catalog_batch]": "25"})
+        assert "自动化策略已保存" in html
+        rejected(operator, "/admin/settings/policy/automation", {"_token": csrf, "settings[lifecycle.catalog_batch]": "101"}, 422)
+        rejected(operator, "/admin/settings/site", {"_token": csrf, "settings[site.name]": "过长备注", "reason": "长" * 256}, 422)
+        with sqlite3.connect(database) as connection:
+            assert connection.execute("select value from system_settings where `group`='billing' and `key`='invoice_expiry_minutes'").fetchone()[0] == "60"
+            assert connection.execute("select value from system_settings where `group`='lifecycle' and `key`='catalog_batch'").fetchone()[0] == "25"
+        checks.append("policy_forms_bounds_and_audit_note_limit")
         # The only explicit probe uses the log transport; there are no real counterparties.
         html, _, _ = request(operator, "/admin/settings/test/mail", {"_token": csrf})
         assert "已模拟测试，没有真实发送" in html

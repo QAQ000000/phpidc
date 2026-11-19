@@ -6,9 +6,13 @@ namespace App\Http\Controllers;
 
 use App\Actions\ConfigureEpayAction;
 use App\Actions\ConfigureIdentityAction;
+use App\Actions\SaveAutomationSettingsAction;
+use App\Actions\SaveBillingSettingsAction;
+use App\Actions\SaveSiteSettingsAction;
 use App\Actions\TestSystemConnectionAction;
 use App\Models\User;
 use App\Support\IdentitySettings;
+use App\Support\PolicySettings;
 use DomainException;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -18,12 +22,36 @@ use JsonException;
 
 class SystemSettingsController extends Controller
 {
+    public function site(Request $request): RedirectResponse
+    {
+        $actor = $this->actor($request, 'settings.site.manage');
+        $data = $request->validate(['settings' => ['required', 'array'], 'reason' => ['nullable', 'string', 'max:255']]);
+        app(SaveSiteSettingsAction::class)->execute($actor, $data['settings'], $data['reason'] ?? null);
+
+        return redirect('/admin/settings?tab=site')->with('inventory_status', '站点信息已保存。');
+    }
+
+    public function policy(Request $request, string $section): RedirectResponse
+    {
+        $definition = PolicySettings::sections()[$section] ?? null;
+        abort_if($definition === null, 404);
+        $actor = $this->actor($request, $definition['permission']);
+        $data = $request->validate(['settings' => ['required', 'array'], 'reason' => ['nullable', 'string', 'max:255']]);
+        if ($section === 'billing') {
+            app(SaveBillingSettingsAction::class)->execute($actor, $data['settings'], $data['reason'] ?? null);
+        } else {
+            app(SaveAutomationSettingsAction::class)->execute($actor, $data['settings'], $data['reason'] ?? null);
+        }
+
+        return redirect('/admin/settings?tab='.$section)->with('inventory_status', $definition['label'].'已保存。');
+    }
+
     public function identity(Request $request, string $section): RedirectResponse
     {
         $definition = IdentitySettings::sections()[$section] ?? null;
         abort_if($definition === null, 404);
         $actor = $this->actor($request, $definition['permission']);
-        $data = $request->validate(['settings' => ['required', 'array'], 'reason' => ['nullable', 'string', 'max:1000']]);
+        $data = $request->validate(['settings' => ['required', 'array'], 'reason' => ['nullable', 'string', 'max:255']]);
         $settings = $data['settings'];
         if (array_diff(array_keys($settings), IdentitySettings::keysForSection($section)) !== []) {
             throw ValidationException::withMessages(['settings' => '存在不属于此配置组的字段。']);
@@ -50,7 +78,7 @@ class SystemSettingsController extends Controller
         $actor = $this->actor($request, 'settings.payment.manage');
         $data = $request->validate(['url' => ['required', 'string', 'max:2048'], 'pid' => ['required', 'string', 'max:255'],
             'epay_key' => ['nullable', 'string', 'max:4096'], 'alipay' => ['required', 'boolean'], 'wechat' => ['required', 'boolean'],
-            'reason' => ['nullable', 'string', 'max:1000']]);
+            'reason' => ['nullable', 'string', 'max:255']]);
         try {
             app(ConfigureEpayAction::class)->execute($data['url'], $data['pid'], $data['epay_key'] ?? '',
                 $this->reason($data, '保存易支付接口配置'), $actor,
@@ -91,6 +119,8 @@ class SystemSettingsController extends Controller
 
     private function reason(array $data, string $fallback): string
     {
-        return trim($data['reason'] ?? '') ?: $fallback;
+        $reason = trim($data['reason'] ?? '');
+
+        return $reason === '' ? $fallback : $reason;
     }
 }
