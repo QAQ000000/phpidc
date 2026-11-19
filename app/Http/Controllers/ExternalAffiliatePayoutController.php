@@ -47,7 +47,17 @@ class ExternalAffiliatePayoutController extends Controller
     public function process(Request $request, AffiliateWithdrawal $withdrawal, ProcessExternalAffiliateWithdrawalAction $action)
     {
         abort_unless($request->user() instanceof User, 401);
-        $action->execute($withdrawal, $request->user(), $request->all());
+        $input = $request->all();
+        $description = match ($input['operation'] ?? null) {
+            'approve' => '批准外部佣金提现并冻结金额',
+            'start' => '记录外部佣金提现执行意图',
+            'paid' => '核对凭证并确认外部佣金提现已付款',
+            default => null,
+        };
+        if ($description !== null && (! isset($input['reason']) || (is_string($input['reason']) && trim($input['reason']) === ''))) {
+            $input['reason'] = $description;
+        }
+        $action->execute($withdrawal, $request->user(), $input);
 
         return redirect('/admin/external-payouts')->with('inventory_status', '外部提现处理已记录。');
     }
@@ -55,9 +65,8 @@ class ExternalAffiliatePayoutController extends Controller
     public function details(Request $request, AffiliateWithdrawal $withdrawal, ReadExternalPayoutDetailsAction $action)
     {
         abort_unless($request->user() instanceof User, 401);
-        $data = $request->validate(['reason' => ['required', 'string', 'max:255'], 'confirm' => ['required', 'accepted']]);
 
-        return response()->view('sales.external-payout-details', $action->execute($withdrawal, $request->user(), $data['reason']))
+        return response()->view('sales.external-payout-details', $action->execute($withdrawal, $request->user(), '查看外部佣金提现收款资料'))
             ->header('Cache-Control', 'private, no-store')->header('Referrer-Policy', 'no-referrer')->header('X-Robots-Tag', 'noindex, nofollow');
     }
 }

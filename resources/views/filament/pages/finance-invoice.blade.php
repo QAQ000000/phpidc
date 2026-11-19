@@ -15,11 +15,11 @@
 @elseif($invoice->status === \App\Enums\InvoiceStatus::PAID)
 <section class="inventory-box"><h2>全额退款 {{ $invoice->total_amount }} {{ $invoice->currency }}</h2>
 <p class="inventory-note">先确认服务已终止。若明确豁免，必须单独勾选保留服务；已交付卡密不会回收，退款会记录损失。佣金不足扣回的差额登记应收，仍需人工处理。</p>
-<form method="post" action="/admin/finance/invoices/{{ $invoice->id }}/refund" class="inventory-form">@csrf
-<label>处理方式<select name="mode" required><option value="">请选择</option><option value="refund_wallet">退回客户钱包</option><option value="external_record">登记已完成的外部退款</option></select></label>
-<label>退款原因<input name="reason" required maxlength="255" placeholder="填写经核实的原因与外部退款凭证编号"></label>
-<label><span><input type="checkbox" name="keep_service" value="1"> 明确豁免终止前置条件，接受保留服务的损失</span></label>
-<label><span><input type="checkbox" name="external_confirm" value="1"> 外部退款已经完成（仅外部登记时必选；本系统不打款）</span></label>
+<form method="post" action="/admin/finance/invoices/{{ $invoice->id }}/refund" class="inventory-form" x-data="{ mode: '{{ old('mode') === 'external_record' ? 'external_record' : 'refund_wallet' }}', keepService: {{ ($instance === null || !$instance->status->isTerminal()) && old('keep_service') ? 'true' : 'false' }} }">@csrf
+<label>处理方式<select name="mode" required x-model="mode"><option value="refund_wallet" @selected(old('mode') !== 'external_record')>退回客户钱包</option><option value="external_record" @selected(old('mode') === 'external_record')>登记已完成的外部退款</option></select></label>
+<label>{{ $instance !== null && $instance->status->isTerminal() ? '备注（选填）' : '退款说明（保留服务时必填）' }}<input name="reason" value="{{ old('reason') }}" :required="keepService" maxlength="255" placeholder="有特殊情况时补充说明"></label>
+@if($instance === null || !$instance->status->isTerminal())<label><span><input type="checkbox" name="keep_service" value="1" x-model="keepService"> 明确豁免终止前置条件，接受保留服务的损失</span></label>@endif
+<label x-show="mode === 'external_record'"><span><input type="checkbox" name="external_confirm" value="1" :disabled="mode !== 'external_record'" :required="mode === 'external_record'"> 外部退款已经完成（本系统不打款）</span></label>
 <label><span><input type="checkbox" name="confirm" value="1" required> 已核对客户、全额金额、服务状态及退款方式</span></label>
 <button class="inventory-button">确认全额退款</button>
 </form></section>

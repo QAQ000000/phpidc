@@ -28,6 +28,8 @@ class FinanceReceivables extends FinanceInvoices
             ->when(request()->integer('user_id'), fn ($query, $id) => $query->where('user_id', $id))
             ->latest('id')->paginate(20)->withQueryString();
         $selected = request()->integer('clawback') ? FinancialTransaction::where('type', TransactionType::AFFILIATE_CLAWBACK)->findOrFail(request()->integer('clawback')) : null;
+        $correctionId = request()->integer('corrects_settlement') ?: (int) old('corrects_settlement_id');
+        $correction = $correctionId ? AffiliateReceivableSettlement::with('reversal')->whereHas('reversal')->findOrFail($correctionId) : null;
         $check = null;
         try {
             $projections = app(ReceivableEvidenceScanner::class)->project($roots->getCollection(), hrtime(true) + 2000000000);
@@ -45,7 +47,7 @@ class FinanceReceivables extends FinanceInvoices
             }
         }
 
-        return ['roots' => $roots, 'projections' => $projections, 'selected' => $selected, 'selectedUser' => $selectedUser,
+        return ['roots' => $roots, 'projections' => $projections, 'selected' => $selected, 'selectedUser' => $selectedUser, 'correction' => $correction,
             'projection' => $projection, 'receivableCheck' => $check,
             'settlements' => $selected === null ? null : AffiliateReceivableSettlement::with('reversal')->where('clawback_transaction_id', $selected->id)
                 ->orderBy('id')->paginate(20, ['*'], 'settlements_page')->withQueryString(),

@@ -42,9 +42,7 @@ class ReconciliationController extends Controller
 
     public function evidence(Request $request, ReconciliationCase $case, ReadReconciliationEvidenceAction $action)
     {
-        $data = $request->validate(['reason' => ['required', 'string', 'max:255'], 'confirm' => ['required', 'accepted']]);
-
-        return response()->view('sales.reconciliation-evidence', $action->execute($case, $this->actor($request), $data['reason']))
+        return response()->view('sales.reconciliation-evidence', $action->execute($case, $this->actor($request), '查看原笔核验证据'))
             ->header('Cache-Control', 'private, no-store')->header('Referrer-Policy', 'no-referrer')->header('X-Robots-Tag', 'noindex, nofollow');
     }
 

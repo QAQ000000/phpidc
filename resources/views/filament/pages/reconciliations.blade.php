@@ -7,7 +7,7 @@
 <section class="inventory-box"><h2>案件 #{{ $selected->id }}</h2><p>原来源 {{ $selected->source_type }} #{{ $selected->source_id }} · {{ $selected->status }}</p>
 @php($authority = $selected->kind === 'payment_attention' ? 'finance.reconcile' : 'upstream.orphan-reconcile')
 @can($authority)
-<form method="post" action="/admin/reconciliations/{{ $selected->id }}/evidence" class="inventory-form">@csrf<label>查看原因<input name="reason" required maxlength="255"></label><label><input type="checkbox" name="confirm" value="1" required>确认查看受限证据</label><button class="inventory-button">查看核验证据</button></form>
+<form method="post" action="/admin/reconciliations/{{ $selected->id }}/evidence" class="inventory-form">@csrf<button class="inventory-button">查看核验证据</button></form>
 @if($selected->status === 'resolved')
 <form method="post" action="/admin/reconciliations/{{ $selected->id }}/reopen" class="inventory-form">@csrf
 <input type="hidden" name="request_id" value="{{ (string) \Illuminate\Support\Str::ulid() }}"><input type="hidden" name="expected_revision" value="{{ $selected->revision }}">
