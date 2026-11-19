@@ -65,7 +65,7 @@ php artisan app:deployment-check --production
 
 ## 4. worker 与调度器
 
-审查 `deploy/` 模板中的账户、工作目录、PHP 路径、Redis 连接及队列后，由服务器运维在完成迁移和运行前提后安装。当前预览没有启用业务 worker/scheduler 或真实告警；模板存在不表示服务在运行。
+审查 `deploy/` 模板中的账户、工作目录、PHP 路径、Redis 连接及队列后，由服务器运维在完成迁移和运行前提后安装。当前预览已按用户指示启用独立 `laravel13idc-preview-worker.service`，只消费原 SQLite/database 的 `default` 队列，systemd 自动重启及开机启动均已验证配置；调度器、其他队列消费者和真实告警尚未启用。该预览沿用原身份及 Web root 外私有环境，不直接套用生产的 www/Redis 模板；启停与验收见 [预览默认队列运行记录](preview-default-worker-2026-11-19.md)。生产模板存在不表示生产服务在运行。
 
 | 进程 | 模板/实例 | 队列、预算与职责 |
 | --- | --- | --- |
