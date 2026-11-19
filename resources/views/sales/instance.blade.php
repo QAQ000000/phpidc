@@ -61,5 +61,10 @@
 @if(isset($instance->encrypted_credentials['password']))<p>密码：<code>{{ $instance->encrypted_credentials['password'] }}</code></p>@endif
 @if(!$instance->encrypted_credentials)<p>开通信息同步中，请稍后刷新。</p>@endif
 @else<p>尚未完成交付，请稍后刷新；未交付的订单请联系管理员。</p>@endif
+@if($orderFields['fields'] !== [] || $orderFields['unavailable'])
+<h2>下单资料</h2><p>以下为下单时填写的资料，不代表上游当前配置。</p>
+@if($orderFields['unavailable'])<p>历史下单资料暂不可用。</p>
+@else<dl>@foreach($orderFields['fields'] as $field)<dt>{{ $field['label'] }}</dt><dd>{{ $field['value'] }}</dd>@endforeach</dl>@endif
+@endif
 <h2>关联账单</h2>@include('sales.invoice-list'){{ $invoices->links('sales.pagination') }}
 @endsection

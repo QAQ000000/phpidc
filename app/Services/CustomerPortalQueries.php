@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Services;
 
+use App\Actions\DescribeInstanceOrderFieldsAction;
 use App\Enums\InstanceStatus;
 use App\Enums\InvoiceStatus;
 use App\Models\Instance;
@@ -73,8 +74,9 @@ class CustomerPortalQueries
         abort_unless($instance->user_id === $user->id, 403);
         $instance->loadMissing('product');
 
-        return ['instance' => $instance, 'invoices' => $this->invoices($user)->where('instance_id', $instance->id)
-            ->latest('id')->paginate(10, self::INVOICE_COLUMNS)->withQueryString()];
+        return ['instance' => $instance, 'orderFields' => app(DescribeInstanceOrderFieldsAction::class)->execute($user, $instance),
+            'invoices' => $this->invoices($user)->where('instance_id', $instance->id)
+                ->latest('id')->paginate(10, self::INVOICE_COLUMNS)->withQueryString()];
     }
 
     /** @return Builder<Invoice> */
