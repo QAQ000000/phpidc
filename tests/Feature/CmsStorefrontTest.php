@@ -161,6 +161,7 @@ it('shows fixed card prices and cached upstream reference prices without calling
     $this->get($local->publicPath())->assertOk()->assertSee('12.34')->assertSee('1.00')->assertSee('登录 / 注册后购买');
     $account = UpstreamApi::factory()->create();
     $upstream = Product::factory()->create(['driver_type' => DriverType::ZJMF_API, 'upstream_api_id' => $account->id,
+        'provisioning_rules' => ['classic_catalog' => ['product_publisher_uid' => 0]],
         'upstream_pid' => 17, 'local_prices' => ['monthly' => ['price' => '9.60', 'setup_fee' => '0.00', 'enabled' => true]]]);
     $this->get($upstream->publicPath())->assertOk()->assertSee('9.60')->assertSee('参考价格');
     $this->get($upstream->publicPath().'.md')->assertOk()->assertHeader('Content-Type', 'text/markdown; charset=UTF-8')->assertSee('实时确认');

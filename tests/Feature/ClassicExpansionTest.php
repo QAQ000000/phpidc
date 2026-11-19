@@ -110,7 +110,7 @@ function expandedClassic(): array
 
 function expandedCatalog(int $version = 1): array
 {
-    return ['products' => ['id' => 17, 'name' => 'Expanded Cloud', 'location_version' => $version, 'stock_control' => 1, 'qty' => 20,
+    return ['products' => ['id' => 17, 'name' => 'Expanded Cloud', 'location_version' => $version, 'stock_control' => 1, 'qty' => 20, 'p_uid' => 0,
         'password' => ['show' => 0], 'host' => ['show' => 0]],
         'product_pricings' => [['code' => 'CNY', 'monthly' => '8.00', 'msetupfee' => '0.00', 'hour' => '1.00', 'hsetupfee' => '0.00', 'day' => '2.00', 'dsetupfee' => '0.00']],
         'config_groups' => [['id' => 10, 'options' => [['id' => 50, 'option_name' => 'cpu|CPU', 'option_type' => 1, 'upgrade' => 1,

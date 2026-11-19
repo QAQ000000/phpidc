@@ -371,7 +371,7 @@ it('isolates expected supplier probe failure but exposes unknown programming err
     $accounts = UpstreamApi::factory()->count(2)->create();
     foreach ($accounts as $n => $account) {
         Product::factory()->create(['driver_type' => DriverType::ZJMF_API, 'upstream_api_id' => $account->id,
-            'upstream_pid' => $n + 1, 'upstream_version' => 1, 'provisioning_rules' => ['classic_catalog' => ['version' => 1]]]);
+            'upstream_pid' => $n + 1, 'upstream_version' => 1, 'provisioning_rules' => ['classic_catalog' => ['version' => 1, 'product_publisher_uid' => 0]]]);
     }
     $calls = 0;
     Http::fake(function ($request) use (&$calls) {

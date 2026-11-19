@@ -3,6 +3,7 @@
 declare(strict_types=1);
 
 use App\Actions\CreateComboInvoiceAction;
+use App\Actions\CreatePurchaseFulfillmentAction;
 use App\Actions\DispatchStalePendingTasksAction;
 use App\Actions\ExecuteFulfillmentTaskAction;
 use App\Actions\HandlePaymentCallbackAction;
@@ -13,10 +14,12 @@ use App\Enums\FulfillmentTaskStatus;
 use App\Enums\InstanceStatus;
 use App\Models\FinancialTransaction;
 use App\Models\FulfillmentTask;
+use App\Models\Invoice;
 use App\Models\Product;
 use App\Models\UpstreamApi;
 use App\Models\User;
 use App\Services\DriverManager;
+use Illuminate\Support\Facades\Crypt;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
@@ -30,6 +33,7 @@ function classicPurchaseProduct(): Product
 
     return Product::factory()->create(['driver_type' => DriverType::ZJMF_API, 'upstream_api_id' => $account->id,
         'upstream_pid' => '17', 'markup_percent' => '20.00',
+        'provisioning_rules' => ['classic_catalog' => ['product_publisher_uid' => 0]],
         'upstream_base_prices' => ['monthly' => ['price' => '8.00', 'setup_fee' => '0.00', 'enabled' => true]]]);
 }
 
@@ -185,9 +189,16 @@ it('rejects upstream cycles that the local product does not offer', function ():
 it('preserves upstream selections without publishing private custom fields or claiming local option mappings', function (): void {
     Queue::fake();
     fakeClassicPurchase();
-    app(CreateComboInvoiceAction::class)->execute(User::factory()->create(['credit' => '100.00']), classicPurchaseProduct(),
-        BillingCycle::MONTHLY, ['configoption' => [50 => 501], 'customfield' => [10 => 'private-custom-value']], true,
-        input: ['request_id' => (string) Str::ulid(), 'password' => 'StrongPassword12!']);
+    // S1 stops new unsynchronized sales; already-paid legacy purchases retain their encrypted delivery inputs.
+    $product = classicPurchaseProduct();
+    $product->update(['provisioning_rules' => null]);
+    $params = ['upstream_pid' => '17', 'expected_cost' => '8.00', 'password' => 'StrongPassword12!',
+        'options' => ['configoption' => [50 => 501], 'customfield' => [10 => 'private-custom-value']]];
+    $invoice = Invoice::factory()->paid()->create(['user_id' => User::factory()->create(['credit' => '90.40'])->id,
+        'product_id' => $product->id, 'total_amount' => '9.60', 'credit_applied' => '9.60', 'gateway_amount' => '0.00',
+        'upstream_expected_cost' => '8.00', 'line_items' => ['purchase' => ['billing_cycle' => 'monthly', 'upstream_pid' => '17',
+            'options' => ['configoption' => [50 => 501]], 'encrypted_params' => Crypt::encryptString(json_encode($params, JSON_THROW_ON_ERROR))]]]);
+    DB::transaction(fn () => app(CreatePurchaseFulfillmentAction::class)->execute($invoice));
     $task = FulfillmentTask::sole();
     app(ExecuteFulfillmentTaskAction::class)->execute($task->id);
     expect($task->fresh()->status)->toBe(FulfillmentTaskStatus::SUCCESS)

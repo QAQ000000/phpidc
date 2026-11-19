@@ -46,7 +46,8 @@ class ProbeClassicCatalogAction
 
                         continue;
                     }
-                    if ((int) ($row['location_version'] ?? 0) > $product->upstream_version || ! isset($product->provisioning_rules['classic_catalog'])) {
+                    $publisher = $product->provisioning_rules['classic_catalog']['product_publisher_uid'] ?? null;
+                    if ((int) ($row['location_version'] ?? 0) > $product->upstream_version || ! is_int($publisher) || $publisher < 0) {
                         app(SyncClassicCatalogAction::class)->execute($product, 'Scheduled upstream version change');
                     } else {
                         DB::transaction(function () use ($product, $row): void {

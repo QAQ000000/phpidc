@@ -35,6 +35,7 @@ function generatedProvisioningFormFixture(): array
             'hostname_mode' => 'custom', 'hostname_regex' => '^vm-[a-z0-9]{10}$',
             'password_min_len' => 12, 'password_max_len' => 16,
             'classic_catalog' => [
+                'product_publisher_uid' => 0,
                 'dependencies' => [],
                 'host' => json_encode(['show' => 1, 'prefix' => 'vm-',
                     'rule' => ['len_num' => 10, 'upper' => 0, 'lower' => 1, 'num' => 1]]),

@@ -7,6 +7,11 @@
 @endphp
 <h1>配置 {{ $product->name }}</h1><p>选择配置查看本地预估，最终以提交核验为准。提交时实时核对上游价格与库存；价格变化后须再次确认。</p>
 <p>以下显示商品周期价与开通费，优惠券在创建账单时计算。</p>
+@if($details['purchase_unavailable'] ?? null)<p role="alert">{{ $details['purchase_unavailable'] }}</p>
+@elseif($details['stock'] === 0 && $details['live'])<p role="status">最近同步显示售罄，请稍后再来。库存可能变化，恢复后仍会在提交时重新核验。</p>
+@elseif($details['cycles'] === [])<p role="status">暂无可购买的计费周期。</p>
+@else
+@if($details['live'] && $details['stock'] !== null)<p>最近同步库存：{{ $details['stock'] }}；提交时重新核验。</p>@endif
 <form method="post" action="/checkout" id="classic-configuration" data-quote-url="/console/products/{{ $product->id }}/quote" data-confirmation-required="{{ ($confirmationRequired ?? false) ? '1' : '0' }}">@csrf<label>优惠券码（先在客户中心领取；仅新购/续费）<input name="coupon_code" maxlength="64" value="{{ $checkoutInput['coupon_code'] ?? '' }}"></label>
 <input type="hidden" name="product_id" value="{{ $product->id }}">
 <input type="hidden" name="quote_token" value="{{ $quoteToken ?? '' }}">
@@ -27,4 +32,5 @@
 </form>
 <script type="application/json" id="classic-dependencies">{!! json_encode($product->provisioning_rules['classic_catalog']['dependencies'] ?? [], JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT) !!}</script>
 <script src="/js/classic-config.js" defer></script>
+@endif
 @endsection

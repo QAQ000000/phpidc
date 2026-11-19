@@ -9,6 +9,7 @@ use App\Enums\BillingCycle;
 use App\Models\Product;
 use App\Models\ProductOptionGroup;
 use App\Models\ProductOptionItem;
+use App\Support\ClassicPurchaseAdmission;
 use App\Support\Money;
 use Illuminate\Validation\ValidationException;
 
@@ -20,6 +21,7 @@ class QuoteLocalProductAction
         if (BillingCycle::tryFrom($cycle) === null) {
             $this->invalid('billing_cycle', 'Select a supported billing cycle.');
         }
+        app(ClassicPurchaseAdmission::class)->assertAllowed($product, $cycle);
         [$period, $setup] = $this->price($product->local_prices ?? [], $cycle, 'billing_cycle');
         [$costPeriod, $costSetup] = $this->cost($product->upstream_base_prices ?? [], $cycle, 'billing_cycle');
         $groups = $product->optionGroups()->where('is_hidden', false)->where('sync_source', 'upstream')

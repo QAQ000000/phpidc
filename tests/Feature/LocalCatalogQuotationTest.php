@@ -20,7 +20,7 @@ function localCatalogQuoteProduct(): Product
     return Product::factory()->create(['driver_type' => DriverType::ZJMF_API, 'upstream_pid' => '17', 'upstream_version' => 7,
         'upstream_base_prices' => ['monthly' => ['price' => '10.00', 'setup_fee' => '2.00', 'enabled' => true]],
         'local_prices' => ['monthly' => ['price' => '12.00', 'setup_fee' => '2.40', 'enabled' => true]],
-        'provisioning_rules' => ['classic_catalog' => ['version' => 7, 'dependencies' => []]]]);
+        'provisioning_rules' => ['classic_catalog' => ['version' => 7, 'dependencies' => [], 'product_publisher_uid' => 0]]]);
 }
 
 function localCatalogQuoteGroup(Product $product, int $type, array $tiers = []): ProductOptionGroup
@@ -155,7 +155,7 @@ it('does not silently estimate an unknown type or an incomplete earlier tier', f
 it('enforces configuration dependencies and quantity bounds before local estimation', function (): void {
     $product = localCatalogQuoteProduct();
     localCatalogQuoteGroup($product, 4);
-    $product->update(['provisioning_rules' => ['classic_catalog' => ['dependencies' => [
+    $product->update(['provisioning_rules' => ['classic_catalog' => ['product_publisher_uid' => 0, 'dependencies' => [
         ['id' => 1, 'type' => 'condition', 'config_id' => 50, 'relation' => 'seq', 'sub_id' => [501 => ['qty_minimum' => 0, 'qty_maximum' => 20]]],
         ['id' => 2, 'type' => 'result', 'relation_id' => 1, 'config_id' => 50, 'relation' => 'seq', 'sub_id' => [501 => ['qty_minimum' => 6, 'qty_maximum' => 20]]],
     ]]]]);
@@ -185,7 +185,7 @@ it('keeps quantity stage metadata during catalog sync without confusing it with 
     Http::fake([
         '*/zjmf_api_login' => Http::response(['status' => 200, 'jwt' => 'catalog-token']),
         '*/cart/get_product_config*' => Http::response(['status' => 200, 'data' => [
-            'products' => ['id' => 17, 'location_version' => 8],
+            'products' => ['id' => 17, 'location_version' => 8, 'p_uid' => 0],
             'product_pricings' => [['code' => 'CNY', 'monthly' => '10.00', 'msetupfee' => '2.00']],
             'config_groups' => [['id' => 10, 'options' => [['id' => 50, 'option_type' => 4, 'qty_stage' => 5,
                 'qty_minimum' => 0, 'qty_maximum' => 20, 'sub' => [['id' => 501, 'qty_minimum' => 0, 'qty_maximum' => 20,

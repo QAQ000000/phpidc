@@ -33,7 +33,7 @@ function checkoutConfirmationFixture(): array
     $product = Product::factory()->create(['driver_type' => DriverType::ZJMF_API,
         'upstream_api_id' => UpstreamApi::factory()->create()->id, 'upstream_pid' => '17',
         'markup_percent' => '0.00', 'local_prices' => $prices, 'upstream_base_prices' => $prices,
-        'provisioning_rules' => ['classic_catalog' => ['dependencies' => []]]]);
+        'provisioning_rules' => ['classic_catalog' => ['dependencies' => [], 'product_publisher_uid' => 0]]]);
     $group = ProductOptionGroup::create(['product_id' => $product->id, 'upstream_group_id' => 50,
         'name' => 'Region', 'type' => 'select', 'sync_source' => 'upstream', 'upstream_meta' => ['option_type' => 1]]);
     $options = ['monthly' => ['price' => '0.00', 'setup_fee' => '0.00', 'enabled' => true],

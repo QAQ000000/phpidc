@@ -23,6 +23,7 @@ use App\Models\UpstreamApi;
 use App\Models\User;
 use App\Services\DriverManager;
 use App\Services\SettingService;
+use App\Support\ClassicPurchaseAdmission;
 use App\Support\MachineOperation;
 use App\Support\Money;
 use App\Support\ProvisioningValidator;
@@ -52,6 +53,7 @@ class CreateComboInvoiceAction
         }
         $product = $product->fresh();
         SettlementCurrency::assertSupported($product->currency);
+        app(ClassicPurchaseAdmission::class)->assertAllowed($product, $billingCycle->value);
         $options = app(ResolveProductOptionsAction::class)->execute($product, $billingCycle->value, $options);
         $driver = $this->drivers->fulfillment($product->driver_type, $product->upstream_api_id);
         $liveQuote = null;
@@ -76,6 +78,7 @@ class CreateComboInvoiceAction
             }
             $product = Product::findOrFail($product->id);
             SettlementCurrency::assertSupported($product->currency);
+            app(ClassicPurchaseAdmission::class)->assertAllowed($product, $billingCycle->value);
             $driver = $this->drivers->fulfillment($product->driver_type, $product->upstream_api_id);
             // Use current server rules inside the same transaction as wallet changes.
             $params = $liveQuote === null ? $driver->validateParams($product, $input) : app(ProvisioningValidator::class)->validate($product, $input);
