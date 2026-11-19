@@ -1,59 +1,141 @@
 <x-filament-panels::page>
-@include('filament.inventory-feedback')
-<nav class="settings-tabs" aria-label="系统配置分组">
-@foreach($tabs as $key => $label)<a href="/admin/settings?tab={{ $key }}" @if($activeTab === $key) aria-current="page" @endif>{{ $label }}</a>@endforeach
-</nav>
-@if($activeTab === 'payment')
-<section class="inventory-box"><h2>易支付接口</h2><p class="inventory-note">修改商户后，已发起的支付仍按原商户快照核验。关闭渠道只停止新的支付发起。</p>
-@can('settings.payment.manage')
-<form method="post" action="/admin/settings/payment" class="inventory-form settings-form" autocomplete="off">@csrf
-<label>API 接口地址<input type="url" name="url" value="{{ $payment['url'] }}" maxlength="2048" required></label>
-<label>商户 PID<input name="pid" value="{{ $payment['pid'] }}" maxlength="255" required></label>
-<label>商户密钥<input type="password" name="epay_key" value="" maxlength="4096" autocomplete="new-password" placeholder="{{ $payment['has_key'] ? '已配置，留空保留' : '尚未配置' }}"></label>
-<input type="hidden" name="alipay" value="0"><label><input type="checkbox" name="alipay" value="1" @checked($payment['alipay'])>启用支付宝</label>
-<input type="hidden" name="wechat" value="0"><label><input type="checkbox" name="wechat" value="1" @checked($payment['wechat'])>启用微信支付</label>
-@include('filament.settings-note')
-<button class="inventory-button">保存支付配置</button></form>
-@else<dl><dt>API 接口地址</dt><dd>{{ $payment['url'] ?: '未配置' }}</dd><dt>商户 PID</dt><dd>{{ $payment['pid'] ?: '未配置' }}</dd><dt>商户密钥</dt><dd>{{ $payment['has_key'] ? '已配置' : '未配置' }}</dd><dt>支付宝 / 微信</dt><dd>{{ $payment['alipay'] ? '启用' : '停用' }} / {{ $payment['wechat'] ? '启用' : '停用' }}</dd></dl>@endcan
-</section>
-@elseif($activeTab === 'upstreams')
-<section class="inventory-box"><h2>上游连接</h2><p>经典魔方与 Sub2API 连接共用已有管理入口。Sub2API 更换服务地址时请新建连接，保留旧连接处理原订单。</p><a class="inventory-button" href="/admin/upstreams">管理上游连接</a></section>
-@elseif($section)
-<section class="inventory-box"><h2>{{ $section['label'] }}</h2>
-@if($activeTab === 'mail')<p class="inventory-note">SMTP 465 使用隐式 TLS，587 按服务器支持协商 STARTTLS。日志模式仅模拟投递。</p>@endif
-@if($activeTab === 'sms')<p class="inventory-note">短信模板使用 JSON 对象，每项包含 id 和 content。测试短信需配置 system.settings_test 模板，仅支持 message 变量。</p>@endif
-@if($activeTab === 'site')<p class="inventory-note">站点名称、公告与页脚应用于商城和客户中心。默认 SEO 用于首页和缺少专属元数据的页面，产品与文章保留各自 SEO。</p><a class="inventory-link" href="/" target="_blank" rel="noopener">预览前台</a>@endif
-@if($activeTab === 'billing')<p class="inventory-note">修改应用于后续建单和新的佣金快照，历史账单金额、到期时间和佣金成熟时间保持原值。</p>@endif
-@if($activeTab === 'automation')<p class="inventory-note">调整现有任务每轮选取数量；仍受既有执行预算约束。此处保存不会启动或停止调度进程。</p>@endif
-@if(in_array($activeTab, ['github','google','qq','wechat'], true))<p class="inventory-note">授权回调地址：{{ rtrim(config('app.url'), '/') }}/auth/{{ $activeTab }}/callback</p>@endif
-@can($section['permission'])
-<form method="post" action="{{ $saveAction }}" class="inventory-form settings-form" autocomplete="off">@csrf
-@foreach($section['fields'] as $key => $field)
-<label>{{ $field['label'] }}
-@if($field['type'] === 'checkbox')
-<input type="hidden" name="settings[{{ $key }}]" value="0"><input type="checkbox" name="settings[{{ $key }}]" value="1" @checked(in_array($values[$key]['value'], ['1','true'], true))>
-@elseif($field['type'] === 'select')
-<select name="settings[{{ $key }}]">@foreach($field['options'] as $option => $label)<option value="{{ $option }}" @selected($values[$key]['value'] === (string) $option)>{{ $label }}</option>@endforeach</select>
-@elseif($field['type'] === 'textarea')
-<textarea name="settings[{{ $key }}]" rows="8">{{ $values[$key]['value'] }}</textarea>
-@elseif($field['secret'] ?? false)
-<input type="password" name="settings[{{ $key }}]" value="" autocomplete="new-password" placeholder="{{ $values[$key]['configured'] ? '已配置，留空保留' : '尚未配置' }}">
-@else
-<input type="{{ $field['type'] }}" name="settings[{{ $key }}]" value="{{ $values[$key]['value'] }}" @if($key === 'mail.port') min="1" max="65535" @endif @if(isset($field['min'])) min="{{ $field['min'] }}" max="{{ $field['max'] }}" step="1" @endif>
-@endif
-@if(isset($field['help']))<small class="inventory-note">{{ $field['help'] }}</small>@endif
-</label>
-@endforeach
-@include('filament.settings-note')
-<button class="inventory-button">保存{{ $section['label'] }}配置</button></form>
-@else<dl>@foreach($section['fields'] as $key => $field)<dt>{{ $field['label'] }}</dt><dd>{{ ($field['secret'] ?? false) ? ($values[$key]['configured'] ? '已配置' : '未配置') : ($values[$key]['value'] !== '' ? $values[$key]['value'] : '未配置') }}</dd>@endforeach</dl>@endcan
-</section>
-@if(in_array($activeTab, ['mail','sms','telegram'], true))
-@can($section['permission'])<section class="inventory-box"><h2>测试已保存配置</h2>
-<p class="inventory-note">{{ $activeTab === 'telegram' ? '只读取机器人身份，不发送 Telegram 消息。' : '仅发送至本人已验证的'.($activeTab === 'mail' ? '邮箱' : '手机号').'，不会自动重试。' }}</p>
-<form method="post" action="/admin/settings/test/{{ $activeTab }}">@csrf<button class="inventory-button">{{ $activeTab === 'telegram' ? '检查 Telegram 连接' : '发送测试'.($activeTab === 'mail' ? '邮件' : '短信') }}</button></form>
-</section>@endcan
-@endif
-@endif
-<style>.settings-tabs{display:flex;flex-wrap:wrap;gap:10px;margin-bottom:20px}.settings-tabs a{padding:8px 14px;border:1px solid #9ca3af66;border-radius:8px}.settings-tabs a[aria-current=page]{background:#4f46e5;color:white}.settings-form{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));align-items:start}.settings-form label{min-width:0}.settings-form input:not([type=checkbox]),.settings-form select,.settings-form textarea{width:100%}.settings-form details,.settings-form button{grid-column:1/-1}.settings-form button{justify-self:start}@media(max-width:700px){.settings-form{grid-template-columns:1fr}}</style>
+@include('filament.settings-styles')
+<div class="settings-center">
+    @include('filament.inventory-feedback')
+    <div class="settings-mobile-nav">
+        <label for="settings-section-select">配置分组</label>
+        <select id="settings-section-select" x-on:change="window.location.href = $event.target.value">
+            @foreach($navigationGroups as $group)
+                <optgroup label="{{ $group['label'] }}">
+                    @foreach($group['tabs'] as $key => $label)
+                        <option value="/admin/settings?tab={{ $key }}" @selected($activeTab === $key)>{{ $label }}</option>
+                    @endforeach
+                </optgroup>
+            @endforeach
+        </select>
+    </div>
+    <div class="settings-layout">
+        <nav class="settings-nav" aria-label="系统配置分组">
+            @foreach($navigationGroups as $group)
+                <div class="settings-nav-group">
+                    <h2>{{ $group['label'] }}</h2>
+                    @foreach($group['tabs'] as $key => $label)
+                        <a href="/admin/settings?tab={{ $key }}" @if($activeTab === $key) aria-current="page" @endif>{{ $label }}<span aria-hidden="true">›</span></a>
+                    @endforeach
+                </div>
+            @endforeach
+        </nav>
+        @php($canManage = $activeTab === 'payment' ? auth()->user()->can('settings.payment.manage') : ($section && auth()->user()->can($section['permission'])))
+        <section class="settings-card" aria-labelledby="settings-section-title">
+            <header class="settings-card-header">
+                <div>
+                    <div class="settings-heading-row">
+                        <h2 id="settings-section-title">{{ $sectionTitle }}</h2>
+                        @if($activeTab !== 'upstreams')<span class="settings-badge">{{ $canManage ? '可编辑' : '只读' }}</span>@endif
+                    </div>
+                    <p>{{ $sectionDescription }}</p>
+                </div>
+                @if($activeTab === 'site')<a class="settings-text-link" href="/" target="_blank" rel="noopener">预览前台 <span aria-hidden="true">↗</span></a>@endif
+            </header>
+            @if($activeTab === 'payment')
+                @if($canManage)<form method="post" action="/admin/settings/payment" autocomplete="off">@csrf @endif
+                <div class="settings-card-body">
+                    <section class="settings-field-group" aria-labelledby="payment-merchant-heading">
+                        <h3 id="payment-merchant-heading">商户信息</h3>
+                        <dl class="settings-fields">
+                            <div class="settings-field">
+                                <dt><label for="settings-payment-url">API 接口地址</label></dt>
+                                <dd class="settings-control">
+                                    @if($canManage)<input id="settings-payment-url" type="url" name="url" value="{{ $payment['url'] }}" maxlength="2048" placeholder="https://pay.example.com" required aria-describedby="settings-payment-url-help">
+                                    @else<span class="settings-read-value">{{ $payment['url'] ?: '未配置' }}</span>@endif
+                                    <p class="settings-field-help" id="settings-payment-url-help">填写易支付平台提供的接口根地址。</p>
+                                </dd>
+                            </div>
+                            <div class="settings-field">
+                                <dt><label for="settings-payment-pid">商户 PID</label></dt>
+                                <dd class="settings-control">@if($canManage)<input id="settings-payment-pid" name="pid" value="{{ $payment['pid'] }}" maxlength="255" placeholder="填写商户编号" required>@else<span class="settings-read-value">{{ $payment['pid'] ?: '未配置' }}</span>@endif</dd>
+                            </div>
+                            <div class="settings-field">
+                                <dt><label for="settings-payment-key">商户密钥</label>@if($canManage)<span class="settings-field-badge">{{ $payment['has_key'] ? '已配置' : '未配置' }}</span>@endif</dt>
+                                <dd class="settings-control">
+                                    @if($canManage)<input id="settings-payment-key" type="password" name="epay_key" value="" maxlength="4096" autocomplete="new-password" placeholder="{{ $payment['has_key'] ? '留空保留现有密钥' : '输入商户密钥' }}" aria-describedby="settings-payment-key-help">
+                                    @else<span class="settings-read-value">{{ $payment['has_key'] ? '已配置' : '未配置' }}</span>@endif
+                                    <p class="settings-field-help" id="settings-payment-key-help">已保存的密钥不显示，填写新值时才会替换。</p>
+                                </dd>
+                            </div>
+                        </dl>
+                    </section>
+                    <section class="settings-field-group" aria-labelledby="payment-channels-heading">
+                        <h3 id="payment-channels-heading">支付渠道</h3>
+                        <dl class="settings-fields">
+                            @foreach(['alipay' => '支付宝', 'wechat' => '微信支付'] as $key => $label)
+                                <div class="settings-field">
+                                    <dt><label for="settings-payment-{{ $key }}">{{ $label }}</label></dt>
+                                    <dd class="settings-control">
+                                        @if($canManage)
+                                            <input type="hidden" name="{{ $key }}" value="0">
+                                            <label class="settings-switch" for="settings-payment-{{ $key }}">
+                                                <input id="settings-payment-{{ $key }}" type="checkbox" role="switch" name="{{ $key }}" value="1" @checked($payment[$key])>
+                                                <span class="settings-switch-track" aria-hidden="true"></span>
+                                                <span class="settings-switch-on">已启用</span><span class="settings-switch-off">已停用</span>
+                                            </label>
+                                        @else<span class="settings-read-value">{{ $payment[$key] ? '启用' : '停用' }}</span>@endif
+                                    </dd>
+                                </div>
+                            @endforeach
+                        </dl>
+                        <p class="settings-inline-note">停用渠道后不再发起新支付，已经发起的付款仍可正常入账。更换商户不会影响旧支付的核验。</p>
+                    </section>
+                    @if($canManage)<div class="settings-optional-note">@include('filament.settings-note')</div>@endif
+                </div>
+                @if($canManage)@include('filament.settings-savebar')</form>@endif
+            @elseif($activeTab === 'upstreams')
+                <div class="settings-card-body">
+                    <div class="settings-connection">
+                        <div class="settings-connection-icon" aria-hidden="true">↗</div>
+                        <div><h3>集中管理上游连接</h3><p>在上游管理中配置经典魔方和 Sub2API 的账户、接口地址与启停状态。</p></div>
+                    </div>
+                    <p class="settings-inline-note">Sub2API 更换服务地址时请新建连接，旧连接保留用于处理原订单。</p>
+                    <a class="settings-button settings-button-primary" href="/admin/upstreams">管理上游连接 <span aria-hidden="true">→</span></a>
+                </div>
+            @elseif($section)
+                @if($canManage)<form method="post" action="{{ $saveAction }}" autocomplete="off">@csrf @endif
+                <div class="settings-card-body">
+                    @foreach($fieldGroups as $group)
+                        <section class="settings-field-group" aria-labelledby="settings-group-{{ $loop->index }}">
+                            <h3 id="settings-group-{{ $loop->index }}">{{ $group['title'] }}</h3>
+                            <dl class="settings-fields">
+                                @foreach($group['keys'] as $key)
+                                    @include('filament.settings-field', ['field' => $section['fields'][$key], 'fieldKey' => $key, 'editable' => $canManage])
+                                @endforeach
+                            </dl>
+                        </section>
+                    @endforeach
+                    @if(in_array($activeTab, ['github', 'google', 'qq', 'wechat'], true))
+                        <section class="settings-field-group" aria-labelledby="settings-callback-heading">
+                            <h3 id="settings-callback-heading">授权回调</h3>
+                            <dl class="settings-fields"><div class="settings-field">
+                                <dt><label for="settings-callback-url">回调地址</label></dt>
+                                <dd class="settings-control"><input id="settings-callback-url" type="text" value="{{ rtrim(config('app.url'), '/') }}/auth/{{ $activeTab }}/callback" readonly x-on:click="$el.select()" aria-describedby="settings-callback-help"><p id="settings-callback-help" class="settings-field-help">将此地址填写到开放平台的授权回调设置中，点击可选中复制。</p></dd>
+                            </div></dl>
+                        </section>
+                    @endif
+                    @if($canManage)<div class="settings-optional-note">@include('filament.settings-note')</div>@endif
+                </div>
+                @if($canManage)@include('filament.settings-savebar')</form>@endif
+                @if($canManage && in_array($activeTab, ['mail', 'sms', 'telegram'], true))
+                    <section class="settings-test" aria-labelledby="settings-test-heading">
+                        <div>
+                            <h3 id="settings-test-heading">{{ $activeTab === 'telegram' ? '检查连接' : '测试发送' }}
+                                @if(($activeTab === 'mail' && $values['mail.transport']['value'] === 'log') || ($activeTab === 'sms' && $values['sms.driver']['value'] === 'log'))<span class="settings-badge">日志模拟</span>@endif
+                            </h3>
+                            <p>{{ $activeTab === 'telegram' ? '使用已保存的配置读取机器人身份，不发送消息。' : '先保存配置，再向本人已验证的'.($activeTab === 'mail' ? '邮箱' : '手机号').'发送测试。' }}</p>
+                        </div>
+                        <form method="post" action="/admin/settings/test/{{ $activeTab }}">@csrf<button class="settings-button settings-button-secondary">{{ $activeTab === 'telegram' ? '检查 Telegram 连接' : '发送测试'.($activeTab === 'mail' ? '邮件' : '短信') }}</button></form>
+                    </section>
+                @endif
+            @endif
+        </section>
+    </div>
+</div>
 </x-filament-panels::page>
