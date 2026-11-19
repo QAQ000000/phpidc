@@ -3,6 +3,7 @@
 Laravel 13 云产品销售 CMS。当前代码版本见 [VERSION](VERSION)，当前能力、隔离验收、预览部署和生产阻断统一见 [发布状态](docs/release-status.md)；[rc.1 说明](docs/release-0.1.0-rc.1.md)保留历史记录。
 
 - [安装、部署、升级与恢复](docs/deployment.md)
+- [文档导航与历史记录](docs/README.md)
 - [工程章程](CLAUDE.md) · [业务不变量](docs/domain-invariants.md) · [Agent 工作规则](docs/agent-guardrails.md)
 - [运营扩展](docs/operations-expansion.md) · [管理后台](docs/admin-operations.md) · [经典 ZJMF](docs/classic-zjmf-integration.md)
 

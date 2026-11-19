@@ -807,7 +807,7 @@ username=<资源商账号>&password=<密码>&type=agent
 
 ## 6. 主机信息与老版运维
 
-> 字段级全量清单另见分册「zjmf-3.7.6-上游主机运维接口对接清单.md」；本章给总册口径 + `resource/*` 代理商线完整清单。
+> 原字段级分册 `zjmf-3.7.6-上游主机运维接口对接清单.md` 未收录于当前仓库，仅作历史存目；本章给总册口径 + `resource/*` 代理商线完整清单。CloudCMS 已实现的经典线操作与限制另见 [实例操作规范](zjmf-api-spec.md#4-instance-operations-provisiondefault--lifecycle) 和 [机器管理与 VNC](classic-zjmf-machine-controls.md)。
 
 ### 6.1 主机信息：`host/header` 与 `cart/hostinfo`
 
@@ -1417,7 +1417,7 @@ POST /host/renew + /apply_credit → 续费（Host.php:1863-1878）
 | `api/host` / `api/host/free` / `api/host_server` | POST | 入站（`ApiCheck`） |
 | `api/exec_module_func` | GET\|POST | 入站（无中间件） |
 
-字段级全量清单见分册「zjmf-3.7.6-上游主机运维接口对接清单.md」。
+本册已收录的主机接口与代理商线内容见 [§6 主机信息与老版运维](#6-主机信息与老版运维)；原字段级分册未收录，不以现有摘选冒充该分册全集。
 
 ### 13.5 回调 / 回传 / 工单
 
@@ -1437,10 +1437,12 @@ POST /host/renew + /apply_credit → 续费（Host.php:1863-1878）
 
 ## 分册
 
-| 文档 | 内容 |
-|---|---|
-| [zjmf-3.7.6-上游主机运维接口对接清单.md](zjmf-3.7.6-上游主机运维接口对接清单.md) | 老版主机信息与站际运维能力全集、`resource/*` 代理商线字段级契约、下游回传与工单跨站、老版风险清单 |
-| [zjmf-上游API对接分册A-鉴权与账户.md](zjmf-上游API对接分册A-鉴权与账户.md) | 老版鉴权链路考证、`api_open` 三处口径差异、账户/余额接口逐字段拆解、本站作为上游的登录应答契约 |
+下列两个原分册未收录于当前仓库，名称仅作历史存目。现有入口可定位本册已保留的考证和 CloudCMS 的经典线实现范围，不表示原分册已交付，也不把资源/代理商线整体视为 CloudCMS 已实现能力。
+
+| 原分册（未收录，仅存目） | 当前可用入口 | 已有内容范围 |
+|---|---|---|
+| `zjmf-3.7.6-上游主机运维接口对接清单.md` | [本册 §6 主机信息与老版运维](#6-主机信息与老版运维)、[CloudCMS 实例操作规范](zjmf-api-spec.md#4-instance-operations-provisiondefault--lifecycle)、[机器管理与 VNC](classic-zjmf-machine-controls.md) | 本册保留主机信息、站际运维和 `resource/*` 代理商线考证；CloudCMS 参考仅覆盖已接入的经典线操作及其验收边界 |
+| `zjmf-上游API对接分册A-鉴权与账户.md` | [本册 §1 鉴权](#1-鉴权)、[CloudCMS 传输与认证规范](zjmf-api-spec.md#1-transport--auth) | 本册保留老版登录、凭据和多路鉴权考证；CloudCMS 规范说明已接入经典线的登录、JWT、余额读取及脱敏规则 |
 
 ---
 

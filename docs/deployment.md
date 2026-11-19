@@ -1,6 +1,6 @@
 # 安装、升级、恢复与密钥操作
 
-本手册对应仓库 `VERSION` 的候选代码；实际发布状态以 [release-status.md](release-status.md) 为准。生产安装还须完成文末验收；隔离脚本成功不等于已上线。当前原预览已完成架构清理 B3-01～03 的 `000018`，共 24 条迁移，业务 worker/scheduler 与真实告警未启用；见 [最新升级记录](architecture-third-batch-2026-11-19.md)。[W4 升级记录](system-architecture-preview-w4-deployment-2026-11-19.md)保留阶段证据。
+本手册对应仓库 `VERSION` 的候选代码；实际发布状态以 [release-status.md](release-status.md) 为准。生产安装还须完成文末验收；隔离脚本成功不等于已上线。当前原预览已完成架构清理 B4，仍为 B3 的 `000018`、共 24 条迁移；B4 无 schema 变更，业务 worker/scheduler 与真实告警未启用，见 [最新实施记录](architecture-fourth-batch-2026-11-19.md)及 [B3 升级记录](architecture-third-batch-2026-11-19.md)。[W4 升级记录](system-architecture-preview-w4-deployment-2026-11-19.md)保留阶段证据。
 
 ## 1. 环境与发布目录
 
@@ -73,13 +73,17 @@ php artisan app:deployment-check --production
 | 独立监控检查进程 | `cloudcms-operations-watchdog.service/.timer` | 每 60 秒检查心跳，90 秒陈旧即异常；不依赖应用 scheduler、worker 或 outbox |
 | 调度器 | `cloudcms-schedule.service/.timer` | 每分钟只派发本地维护任务；catalog/应收巡检保留各自五分钟周期 |
 
+B4 当前通知统一派发 `SendNotificationDeliveryJob(deliveryId)`，队列只携带投递 ID；密文快照在原持久 outbox 中，由执行 Action 认领后读取。新代码上线前先更新所有发送 worker，再恢复派发，避免旧进程无法识别新 Job。旧 `SendNotificationJob`、`SendEventNotificationJob`、兼容 Action 与序列化过滤继续保留，已有队列不需转换或清空。当前通知 Job timeout=60、数据库租约=120 秒，框架最多 3 次尝试、原退避和 uncertain 不自动重发不变。
+
+生命周期和目录的手工、计划派发分别由 `DispatchInstanceLifecycleAction`、`DispatchClassicCatalogAction` 管理；维护总入口只委派领域 Action。两入口共享原领域锁，竞争时返回零派发，不报返回类型错误；锁释放后可恢复。游标、队列、绑定指纹与错误处理保持原策略，具体配额见下文和 [B4 记录](architecture-fourth-batch-2026-11-19.md)。
+
 生产 Redis `retry_after=240` 继续大于所有 Job timeout。maintenance 八种 kind 各有公平轮转、退避和心跳；通知展开/租约回收/派发/运营事实转通知共用一个批次预算，单用户的大量绑定也通过持久游标恢复。应收检查完成结果从原扫描开始最多保留 600 秒，并绑定原 user/action/稳定请求键/参数 HMAC/版本/算法/证据摘要；命中不续期，旧缺扫描起点 ready 重新核验。B3-01 允许普通无捕获根/无复核权限的准入跨请求复用加密完整证明；清偿/冲正/明细、人工复核和独立审计保持完整核验。合法 revision/算法/密钥/标志变化使旧证明失效；绕过 Action 且不提升版本的 SQL 篡改存在用户已批准的有效期检测窗口。缓存丢失只重新核验，不以缓存当账本。10000 根/100000 证据的完整扫描、复用、版本竞争与原请求恢复的测量范围见 [第三批记录](architecture-third-batch-2026-11-19.md)，不是生产 SLA。
 
 独立监控将结构化结果写 journal 和 `/run/cloudcms-operations/check.json`，**还须把两个检查服务的故障、自身缺失及陈旧心跳接入实际外部监控接收者**。`finance.view` 活跃账号只表示有可选运营身份，不证明地址可达或有人值班。未配置真实责任人与送达出口时，不能宣称运营告警已上线。阈值、恢复和演练见 [维护与巡检说明](maintenance-and-operations-2026-11-18.md)。
 
 - worker：Redis/default，job timeout=180，`REDIS_QUEUE_RETRY_AFTER=240`，停止宽限=210。HTTP timeout=30 < 180 < 240（INV-Q1）；不要改成相等。
 - FIX-011新增队列必须随代码部署：两个独立实例 `cloudcms-lifecycle@lifecycle-urgent`、`cloudcms-lifecycle@lifecycle`，以及一个 `cloudcms-catalog`；分别只消费对应队列，default另设。所有worker/cache必须共享同一Redis；不要用sync连接运行派发器。
-- lifecycle默认每分钟最多100临近到期+100全量轮转，catalog默认每5分钟100商品；job timeout=180、共享实例锁210、retry_after=240，unique排队TTL3600。1000实例/临期≤100/平均任务≤3s的容量假设下，目标临期≤10分钟、全量≤75分钟，尚未生产验收。持续上游错误或积压不在该时效内，及时人工核对失败记录。
+- 计划维护的 lifecycle 默认每分钟临近到期≤50、轮转≤50，共享总100单位/5秒预算；手工入口各≤100、去重合计≤200。catalog 计划每5分钟≤100，手工按配置≤200；两类入口保留独立游标。job timeout=180、共享实例锁210、retry_after=240，unique排队TTL3600。1000实例/临期≤100/平均任务≤3s的容量假设下，目标临期≤10分钟、全量≤75分钟，尚未生产验收。持续上游错误或积压不在该时效内，及时人工核对失败记录。
 - 监测urgent最老任务等待>5分钟、rotation>30分钟、应同步实例last_synced_at>75分钟或长期为空，并核对worker健康/失败队列；这些为生命周期容量巡检门槛；独立巡检已实现，但当前预览尚未启用实际服务及真实监控出口。不得简单增加worker数量突破已评估的上游并发。
 - scheduler：每分钟 `schedule:run`，模板TimeoutStartSec=55，供应商HTTP已移至独立worker。若选择 cron，运行账户同上，使用绝对 PHP/项目路径，**与 systemd timer 二选一**。业务调度已有 withoutOverlapping/onOneServer，所有节点必须共享 Redis 锁。
 - 部署验收检查 `systemctl status`、`journalctl -u`、`list-timers`、`php artisan schedule:list`、失败任务和 fulfillment_tasks；不能只看 service 文件存在。
