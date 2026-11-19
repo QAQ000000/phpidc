@@ -3,8 +3,11 @@
     if (!form) return;
     const rules = JSON.parse(document.getElementById('classic-dependencies').textContent);
     const controls = new Map([...form.querySelectorAll('[data-option]')].map(el => [Number(el.dataset.option), el]));
+    const linkageControls = [...controls.values()].filter(el => el.dataset.optionType === 'linkage');
+    const inactiveLinkage = el => el?.dataset.optionType === 'linkage' && el.disabled;
     const matches = rule => {
         const control = controls.get(Number(rule.config_id));
+        if (inactiveLinkage(control)) return false;
         const value = control ? Number(control.value) : null;
         const match = Object.entries(rule.sub_id || {}).some(([id, bounds]) =>
             ['quantity', 'slider'].includes(control?.dataset.optionType)
@@ -12,6 +15,47 @@
                 : value !== null && value === Number(id));
         return rule.relation === 'sneq' ? !match : match;
     };
+    function updateHierarchy() {
+        const resolved = new Set(), resolving = new Set();
+        let changed = false;
+        function resolve(el) {
+            if (resolved.has(el)) return !el.disabled;
+            if (resolving.has(el)) return false;
+            resolving.add(el);
+            const parentId = Number(el.dataset.linkageParent), parent = controls.get(parentId);
+            const parentActive = parentId === 0 || (parent?.dataset.optionType === 'linkage' && resolve(parent) && parent.value !== '');
+            const parentValue = parentId === 0 ? 0 : Number(parent?.value);
+            const eligible = [...el.options].filter(option => option.value !== '' && Number(option.dataset.linkageParent) === parentValue);
+            const parentSubs = JSON.parse(el.dataset.linkageParents);
+            const active = parentActive && (parentId === 0 || parentSubs.includes(parentValue));
+            el.disabled = !active;
+            el.required = active;
+            el.closest('[data-linkage-group]').hidden = !active;
+            for (const option of el.options) {
+                if (option.value === '') continue;
+                const matchesParent = parentActive && eligible.includes(option);
+                option.hidden = !matchesParent;
+                option.disabled = option.disabled || !matchesParent;
+            }
+            if (!active) {
+                changed = changed || el.value !== '';
+                el.value = '';
+            } else {
+                const available = eligible.filter(option => !option.disabled);
+                if (!available.some(option => option.value === el.value)) {
+                    const value = available[0]?.value || '';
+                    changed = changed || el.value !== value;
+                    el.value = value;
+                }
+                if (available.length === 0) el.setCustomValidity('此层级暂无支持当前周期的选项，请调整上级配置或计费周期。');
+            }
+            resolving.delete(el);
+            resolved.add(el);
+            return active;
+        }
+        for (const el of linkageControls) resolve(el);
+        return changed;
+    }
     function updateLinks() {
         for (const el of controls.values()) {
             if (el.tagName === 'SELECT') [...el.options].forEach(o => {
@@ -26,8 +70,10 @@
                 }
             }
         }
+        const changed = updateHierarchy();
         for (const result of rules.filter(r => r.type === 'result')) {
             const condition = rules.find(r => r.type === 'condition' && Number(r.id) === Number(result.relation_id));
+            if (inactiveLinkage(controls.get(Number(condition?.config_id))) || inactiveLinkage(controls.get(Number(result.config_id)))) continue;
             if (!condition || !matches(condition)) continue;
             const el = controls.get(Number(result.config_id));
             if (!el) continue;
@@ -42,6 +88,7 @@
         for (const el of controls.values()) {
             if (el.tagName === 'SELECT' && el.selectedOptions[0]?.disabled) el.setCustomValidity('当前选项不支持此周期，请重新选择。');
         }
+        return changed;
     }
     const label = document.getElementById('classic-price');
     const token = form.elements.namedItem('quote_token');
@@ -98,7 +145,7 @@
         revision++;
         clearConfirmation();
         updateLinks();
-        const invalid = [...form.elements].find(el => isPriceField(el.name) && !el.checkValidity());
+        const invalid = [...form.elements].find(el => !el.disabled && isPriceField(el.name) && !el.checkValidity());
         if (invalid) {
             queued = null;
             label.textContent = '请先填写有效配置后报价。';
@@ -123,6 +170,15 @@
 
     async function checkout() {
         if (checkoutBusy) return;
+        if (linkageControls.length > 0) {
+            if (updateLinks()) clearConfirmation();
+            const invalid = linkageControls.find(el => !el.disabled && !el.checkValidity());
+            if (invalid) {
+                invalid.reportValidity();
+                label.textContent = '请先选择完整有效的层级配置后下单。';
+                return;
+            }
+        }
         checkoutBusy = true;
         clearTimeout(timer);
         timer = null;
@@ -172,6 +228,11 @@
             checkout();
         }
     });
-    updateLinks();
+    const changed = updateLinks();
+    if (linkageControls.length > 0) {
+        checkoutButton.disabled = false;
+        form.querySelector('[data-quote-trigger]').disabled = false;
+        if (changed) clearConfirmation();
+    }
     if (!token.value) requestQuote(true);
 })();
