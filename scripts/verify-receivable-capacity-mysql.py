@@ -3,7 +3,8 @@
 Requires cached mysql:8.0.35 and redis:7-alpine images. Accepts no database,
 credentials, socket or external endpoint. Containers have network=none and no
 host ports; HTTP, mail and queue transport are faked. Evidence stays private in
-/tmp. Tests actual withdrawal/approval Actions and a concurrent real reversal.
+/tmp. Tests complete verification, B3-01 cross-request proof reuse, actual
+withdrawal/approval Actions and a concurrent real reversal with recovery.
 """
 
 import base64
@@ -198,14 +199,34 @@ if($mode==='seed'){
     demand(FinancialTransaction::where('reference_key','payout:'.$withdrawal->id)->count()===1,'Idempotent approval duplicated money');
     Http::assertNothingSent();output(['request_checks'=>$request['checks'],'approval_checks'=>$approve['checks'],'withdrawal_status'=>$withdrawal->fresh()->status,
         'wallet_credit'=>$owner->credit,'affiliate_balance'=>$owner->affiliate_balance,'unique_payout_ledgers'=>1,'real_external_actions'=>0]);
+}elseif($mode==='proof-reuse'){
+    $data=state();$owner=User::findOrFail($data['owner']);$samples=[];$evidence=0;$queries=0;$digests=[];
+    DB::listen(function($query)use(&$queries,&$evidence):void{
+        $queries++;if(preg_match('/`(?:financial_transactions|affiliate_commissions|invoices|affiliate_receivable_settlements|affiliate_receivable_reversals)`/',$query->sql))$evidence++;
+    });
+    for($i=0;$i<20;$i++){
+        $start=hrtime(true);$permit=app(App\Services\ReceivableAdmission::class)->run($owner,'offline-ordinary-proof',(string)Str::ulid(),['probe'=>$i],
+            function(array $permit)use($owner):array{return DB::transaction(function()use($permit,$owner):array{
+                $locked=User::whereKey($owner->id)->lockForUpdate()->firstOrFail();
+                app(App\Services\ReceivableAdmission::class)->assertLocked($locked,$permit);return $permit;
+            });});
+        $samples[]=(hrtime(true)-$start)/1000000;$digests[]=$permit['digest'];
+        demand($permit['valid']&&!$permit['has_outstanding']&&$permit['totals']['roots']===10000,'Reused proof omitted original complete totals');
+    }
+    demand($evidence===0,'Ordinary proof hits read historical evidence');
+    demand(count(array_unique($digests))===1,'Same-revision proof changed original digest');
+    sort($samples);$ordinary=['samples'=>20,'p50_ms'=>$samples[9],'p95_ms'=>$samples[18],'max_ms'=>$samples[19],
+        'total_sql'=>$queries,'evidence_sql'=>$evidence,'digest'=>$digests[0]];
+    $start=hrtime(true);$withdrawal=app(App\Actions\RequestAffiliateWithdrawalAction::class)->execute($owner,'1.00',(string)Str::ulid());
+    demand($withdrawal->status==='pending','Actual fresh money request did not reuse complete proof');
+    $data['proof_withdrawal']=$withdrawal->id;save($data);Http::assertNothingSent();
+    output(['ordinary'=>$ordinary,'actual_new_withdrawal'=>['id'=>$withdrawal->id,'status'=>$withdrawal->status,
+        'elapsed_ms'=>(hrtime(true)-$start)/1000000],'peak_bytes'=>memory_get_peak_usage(true),'real_external_actions'=>0]);
 }elseif($mode==='race-prepare'){
-    $data=state();$requests=app(ReceivableCheckRequests::class);
-    try{app(App\Actions\RequestAffiliateWithdrawalAction::class)->execute(User::findOrFail($data['owner']),'1.00',$data['race_request']);
-        throw new RuntimeException('Capacity fixture unexpectedly completed within foreground budget');}
-    catch(Illuminate\Validation\ValidationException $error){demand(isset($error->errors()['receivable_check']),'Race preparation must queue the original Action');}
-    $pending=Queue::pushed(RunReceivableCheckJob::class)->last();demand($pending!==null,'Race preparation queued no check');
-    $check=job($requests->get($pending->userId,$pending->action,$pending->requestId,$pending->intentHmac));
-    demand($check['valid']&&!$check['has_outstanding'],'Race requires a genuine clear result');output($check);
+    $data=state();$permit=app(App\Services\ReceivableAdmission::class)->prepare(User::findOrFail($data['owner']),
+        'affiliate-wallet-request',$data['race_request'],['amount'=>'1.00','destination'=>'wallet']);
+    demand($permit['valid']&&!$permit['has_outstanding'],'Race requires current complete proof');
+    output(['revision'=>$permit['revision'],'digest'=>$permit['digest'],'has_outstanding'=>$permit['has_outstanding']]);
 }elseif($mode==='race-reader'){
     $data=state();$barrier=false;$started=hrtime(true);
     DB::connection()->beforeExecuting(function(string $sql)use(&$barrier):void{
@@ -296,6 +317,7 @@ if($mode==='seed'){
             raise RuntimeError('Fixture did not meet required capacity')
         pagination = run('pagination')
         complete = run('complete')
+        reuse = run('proof-reuse')
         prepared = run('race-prepare')
         reader = subprocess.Popen([php, '-d', 'memory_limit=512M', str(harness), 'race-reader'], cwd=repo, env=env,
                                   stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
@@ -323,11 +345,11 @@ if($mode==='seed'){
         result = {'status': 'PASS', 'mysql_version': probe.stdout.strip(), 'redis': '7-alpine', 'network': 'none',
                   'mysql_session_default': 'READ COMMITTED', 'snapshot': 'explicit REPEATABLE READ',
                   'hardware': {'logical_cpus': os.cpu_count(), 'meminfo': pathlib.Path('/proc/meminfo').read_text().splitlines()[:3]},
-                  'capacity': seeded, 'pagination_data': pagination, 'real_money_action': complete, 'race_original_check': prepared,
+                  'capacity': seeded, 'pagination_data': pagination, 'cross_request_proof_reuse': reuse, 'real_money_action': complete, 'race_original_check': prepared,
                   'concurrent_real_writer': writer, 'stale_permit_reader': race, 'original_request_recovery': recovered,
                   'real_external_actions': 0}
         (root / 'result.json').write_text(json.dumps(result, indent=2))
-        print('PASS: complete capacity verification, real money action, stale-permit rejection and original-request recovery.', flush=True)
+        print('PASS: complete capacity verification, proof reuse, real money action, stale-permit rejection and original-request recovery.', flush=True)
     finally:
         cleanup = []
         for container in created:

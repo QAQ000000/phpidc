@@ -9,6 +9,7 @@ use App\Services\NotificationManager;
 use App\Services\ReceivableCheckRequests;
 use App\Services\ReceivableReconciliation;
 use App\Services\ReceivableSnapshot;
+use App\Services\ReceivableVerificationCache;
 use Illuminate\Contracts\Queue\ShouldBeUnique;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Queue\Queueable;
@@ -41,15 +42,19 @@ class RunReceivableCheckJob implements ShouldBeUnique, ShouldQueue
         if ($state === null || ! in_array($state['status'] ?? null, ['queued', 'running'], true)) {
             return;
         }
+        $startedAt = now()->toImmutable();
         $requests->put($this->userId, $this->action, $this->requestId, $this->intentHmac,
-            ['status' => 'running', 'started_at' => now()->toIso8601String(), 'capture_ids' => $state['capture_ids'] ?? []]);
+            ['status' => 'running', 'started_at' => $startedAt->toIso8601String(), 'capture_ids' => $state['capture_ids'] ?? []]);
         $scan = $snapshot->read($this->userId, (int) config('receivables.background_seconds', 90), $state['capture_ids'] ?? []);
         app(ReceivableReconciliation::class)->flagIfUnchanged($scan);
         $user = User::withTrashed()->findOrFail($this->userId);
         $unchanged = $scan['revision'] === (string) $user->receivable_revision
             && $scan['reconciliation_required'] === (bool) $user->receivable_reconciliation_required;
-        $requests->put($this->userId, $this->action, $this->requestId, $this->intentHmac,
-            ['status' => ! $scan['valid'] && $user->receivable_reconciliation_required ? 'invalid' : ($unchanged ? 'ready' : 'stale'), 'completed_at' => now()->toIso8601String(), 'scan' => $scan]);
+        $requests->complete($this->userId, $this->action, $this->requestId, $this->intentHmac, $scan, $startedAt,
+            ! $scan['valid'] && $user->receivable_reconciliation_required ? 'invalid' : ($unchanged ? 'ready' : 'stale'));
+        if ($unchanged) {
+            app(ReceivableVerificationCache::class)->put($user, $scan, $startedAt);
+        }
     }
 
     public function failed(?Throwable $error): void

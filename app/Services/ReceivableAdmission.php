@@ -8,12 +8,14 @@ use App\Exceptions\ReceivableScanBudgetExceeded;
 use App\Exceptions\ReceivableVersionConflict;
 use App\Jobs\RunReceivableCheckJob;
 use App\Models\User;
+use Carbon\CarbonImmutable;
 use Closure;
 use Illuminate\Validation\ValidationException;
 
 class ReceivableAdmission
 {
-    public function __construct(private readonly ReceivableCheckRequests $requests, private readonly ReceivableSnapshot $snapshot) {}
+    public function __construct(private readonly ReceivableCheckRequests $requests, private readonly ReceivableSnapshot $snapshot,
+        private readonly ReceivableVerificationCache $verificationCache) {}
 
     /** The callback starts its own ordinary money transaction and checks its permit after locking users. */
     public function run(User $user, string $action, string $requestId, array $intent, Closure $operation, bool $requireClear = true, bool $allowFlag = false): mixed
@@ -25,21 +27,28 @@ class ReceivableAdmission
     /** Independent snapshots are rechecked together under the financial transaction's ordered user locks. */
     public function runMany(array $users, string $action, string $requestId, array $intent, Closure $operation, bool $requireClear = true, bool $allowFlag = false, array $captureIds = []): mixed
     {
+        $previousPermits = [];
         for ($attempt = 0; $attempt < 3; $attempt++) {
             $permits = [];
             foreach ($users as $user) {
-                $permits[$user->id] = $this->prepare($user, $action, $requestId, $intent, $requireClear, $allowFlag, $captureIds[$user->id] ?? []);
+                $permits[$user->id] = $this->prepareAttempt($user, $action, $requestId, $intent, $requireClear, $allowFlag, $captureIds[$user->id] ?? [], null, $previousPermits[$user->id] ?? null);
             }
             try {
                 return $operation($permits);
             } catch (ReceivableVersionConflict) {
                 // The financial transaction has rolled back; recompute outside every user lock.
+                $previousPermits = $permits;
             }
         }
         throw ValidationException::withMessages(['operation' => '应收证据连续变化，本次操作待核对；请使用同一原请求稍后继续。']);
     }
 
     public function prepare(User $user, string $action, string $requestId, array $intent, bool $requireClear = true, bool $allowFlag = false, array $captureIds = [], ?int $foregroundSeconds = null): array
+    {
+        return $this->prepareAttempt($user, $action, $requestId, $intent, $requireClear, $allowFlag, $captureIds, $foregroundSeconds);
+    }
+
+    private function prepareAttempt(User $user, string $action, string $requestId, array $intent, bool $requireClear, bool $allowFlag, array $captureIds, ?int $foregroundSeconds, ?array $previousPermit = null): array
     {
         $captureIds = array_values(array_unique(array_map('intval', $captureIds)));
         sort($captureIds);
@@ -65,15 +74,28 @@ class ReceivableAdmission
             && $state['scan']['reconciliation_required'] === (bool) $current->receivable_reconciliation_required) {
             return $this->permit($state['scan'], $requireClear, $allowFlag);
         }
-        if ($state !== null && in_array($state['status'] ?? null, ['ready', 'stale', 'invalid'], true)) {
+        $retryingOwnPermit = $previousPermit !== null && ($state['status'] ?? null) === 'ready' && ($state['scan'] ?? null) === $previousPermit;
+        if ($state !== null && in_array($state['status'] ?? null, ['ready', 'stale', 'invalid'], true) && ! $retryingOwnPermit) {
             return $this->queue($user->id, $action, $requestId, $hmac, $captureIds);
         }
+        if (! $allowFlag && $captureIds === [] && ($proof = $this->verificationCache->get($current)) !== null) {
+            $this->requests->complete($user->id, $action, $requestId, $hmac, $proof['scan'], CarbonImmutable::createFromTimestamp($proof['started_at']));
+
+            return $this->permit($proof['scan'], $requireClear, $allowFlag);
+        }
+        $startedAt = now()->toImmutable();
         try {
             $scan = $this->snapshot->read($user->id, min((int) config('receivables.foreground_seconds', 2), $foregroundSeconds ?? (int) config('receivables.foreground_seconds', 2)), $captureIds);
         } catch (ReceivableScanBudgetExceeded) {
             return $this->queue($user->id, $action, $requestId, $hmac, $captureIds);
         }
         app(ReceivableReconciliation::class)->flagIfUnchanged($scan);
+        $current = User::withTrashed()->findOrFail($user->id);
+        if ($scan['revision'] === (string) $current->receivable_revision
+            && $scan['reconciliation_required'] === (bool) $current->receivable_reconciliation_required) {
+            $this->requests->complete($user->id, $action, $requestId, $hmac, $scan, $startedAt, $scan['valid'] ? 'ready' : 'invalid');
+            $this->verificationCache->put($current, $scan, $startedAt);
+        }
 
         return $this->permit($scan, $requireClear, $allowFlag);
     }
