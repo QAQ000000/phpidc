@@ -17,8 +17,8 @@ use Illuminate\Support\Facades\Schema;
  * Redis may not be reachable at all, so every read short-circuits to the
  * default value and no connection is opened.
  *
- * Values flagged `is_encrypted` are decrypted per read. Only the ciphertext is
- * stored in Redis, never the plaintext (charter §3.6).
+ * Values flagged `is_encrypted` are decrypted into request/job-scoped memory.
+ * Only the ciphertext is stored in Redis, never the plaintext (charter §3.6).
  */
 class SettingService
 {

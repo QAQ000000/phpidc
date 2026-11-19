@@ -22,7 +22,8 @@ class AppServiceProvider extends ServiceProvider
     {
         $this->app->bind(MaintenanceBatchWork::class, RunMaintenanceBatchAction::class);
         $this->app->scoped(UpstreamOperationBuffer::class);
-        $this->app->singleton(SettingService::class, function (): SettingService {
+        // Keep a consistent request/job snapshot; workers clear scoped instances between jobs.
+        $this->app->scoped(SettingService::class, function (): SettingService {
             return new SettingService(Cache::store());
         });
     }
