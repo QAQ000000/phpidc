@@ -5,25 +5,15 @@ declare(strict_types=1);
 namespace App\Actions;
 
 use App\Contracts\MaintenanceBatchWork;
-use App\Enums\BillingCycle;
-use App\Enums\DriverType;
 use App\Enums\FulfillmentTaskStatus;
-use App\Enums\InstanceStatus;
 use App\Enums\InvoiceStatus;
 use App\Enums\InvoiceType;
-use App\Jobs\ProbeClassicProductJob;
-use App\Jobs\ProcessInstanceLifecycleJob;
 use App\Models\AffiliateCommission;
 use App\Models\FulfillmentTask;
-use App\Models\Instance;
 use App\Models\Invoice;
-use App\Models\Product;
 use App\Models\RedemptionCode;
-use App\Services\SettingService;
 use App\Support\FairMaintenanceBatch;
-use App\Support\MachineOperation;
 use App\Support\MaintenanceBudget;
-use Illuminate\Support\Facades\Cache;
 use LogicException;
 
 class RunMaintenanceBatchAction implements MaintenanceBatchWork
@@ -51,53 +41,10 @@ class RunMaintenanceBatchAction implements MaintenanceBatchWork
                 'paid_at', fn (int $id) => app(AccrueAffiliateCommissionAction::class)->execute($id), budget: $budget),
             'affiliate-mature' => $this->batch->execute($kind, AffiliateCommission::where('status', 'pending')->where('available_at', '<=', now()),
                 'available_at', fn (int $id) => app(MatureAffiliateCommissionsAction::class)->execute($id), budget: $budget),
-            'lifecycle' => $this->lifecycle($budget), 'catalog' => $this->catalog(),
+            'lifecycle' => app(DispatchInstanceLifecycleAction::class)->executeMaintenance($budget),
+            'catalog' => app(DispatchClassicCatalogAction::class)->executeMaintenance($budget),
             'notifications' => app(DispatchPendingNotificationsAction::class)->run($budget),
             default => throw new LogicException('Unknown maintenance kind.'),
         };
-    }
-
-    private function lifecycle(MaintenanceBudget $budget): array
-    {
-        $this->assertAsynchronous();
-
-        return Cache::lock('lifecycle-dispatch', 50)->get(function () use ($budget): array {
-            $settings = app(SettingService::class);
-            $base = Instance::whereIn('status', [InstanceStatus::ACTIVE, InstanceStatus::SUSPENDED])
-                ->whereNotIn('billing_cycle', [BillingCycle::FREE, BillingCycle::ONETIME, BillingCycle::ONTRIAL]);
-            $urgent = (clone $base)->whereNotNull('next_due_at')->where('next_due_at', '<=', now()->addDays(7));
-
-            return $this->batch->execute('lifecycle', $base, 'last_synced_at', function (int $id): void {
-                $instance = Instance::with('upstreamApi')->find($id);
-                if ($instance === null || ! in_array($instance->status, [InstanceStatus::ACTIVE, InstanceStatus::SUSPENDED], true)
-                    || in_array($instance->billing_cycle, [BillingCycle::FREE, BillingCycle::ONETIME, BillingCycle::ONTRIAL], true)) {
-                    return;
-                }
-                ProcessInstanceLifecycleJob::dispatch($id, app(MachineOperation::class)->binding($instance))
-                    ->onQueue($instance->next_due_at !== null && $instance->next_due_at->lte(now()->addDays(7)) ? 'lifecycle-urgent' : 'lifecycle');
-            }, budget: $budget, priorityQuery: $urgent,
-                priorityLimit: min(50, max(1, $settings->getInt('lifecycle.urgent_batch', 100))),
-                rotationLimit: min(50, max(1, $settings->getInt('lifecycle.rotation_batch', 100))));
-        }) ?? ['selected' => 0, 'attempted' => 0, 'succeeded' => 0, 'failed' => 0, 'units' => 0, 'deferred' => 0, 'budget_exhausted' => false];
-    }
-
-    private function catalog(): array
-    {
-        $this->assertAsynchronous();
-
-        return Cache::lock('catalog-dispatch', 50)->get(function (): array {
-            $budget = new MaintenanceBudget(limit: min(100, max(1, app(SettingService::class)->getInt('lifecycle.catalog_batch', 100))));
-
-            return $this->batch->execute('catalog', Product::where('driver_type', DriverType::ZJMF_API)
-                ->whereHas('upstreamApi', fn ($query) => $query->where('is_active', true)), 'id',
-                fn (int $id) => ProbeClassicProductJob::dispatch($id)->onQueue('catalog'), budget: $budget);
-        }) ?? ['selected' => 0, 'attempted' => 0, 'succeeded' => 0, 'failed' => 0, 'units' => 0, 'deferred' => 0, 'budget_exhausted' => false];
-    }
-
-    private function assertAsynchronous(): void
-    {
-        if (config('queue.connections.'.config('queue.default').'.driver') === 'sync') {
-            throw new LogicException('Lifecycle and catalog maintenance require asynchronous queues.');
-        }
     }
 }
