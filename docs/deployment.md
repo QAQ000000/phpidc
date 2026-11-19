@@ -1,6 +1,6 @@
 # 安装、升级、恢复与密钥操作
 
-本手册对应仓库 `VERSION` 的候选代码；实际发布状态以 [release-status.md](release-status.md) 为准。生产安装还须完成文末验收；隔离脚本成功不等于已上线。当前原预览已完成架构清理 B2-01 的 `000016`–`000017`，共 23 条迁移，业务 worker/scheduler 与真实告警未启用；见 [最新升级记录](architecture-second-batch-2026-11-19.md)。[W4 升级记录](system-architecture-preview-w4-deployment-2026-11-19.md)保留阶段证据。
+本手册对应仓库 `VERSION` 的候选代码；实际发布状态以 [release-status.md](release-status.md) 为准。生产安装还须完成文末验收；隔离脚本成功不等于已上线。当前原预览已完成架构清理 B3-01～03 的 `000018`，共 24 条迁移，业务 worker/scheduler 与真实告警未启用；见 [最新升级记录](architecture-third-batch-2026-11-19.md)。[W4 升级记录](system-architecture-preview-w4-deployment-2026-11-19.md)保留阶段证据。
 
 ## 1. 环境与发布目录
 
@@ -73,7 +73,7 @@ php artisan app:deployment-check --production
 | 独立监控检查进程 | `cloudcms-operations-watchdog.service/.timer` | 每 60 秒检查心跳，90 秒陈旧即异常；不依赖应用 scheduler、worker 或 outbox |
 | 调度器 | `cloudcms-schedule.service/.timer` | 每分钟只派发本地维护任务；catalog/应收巡检保留各自五分钟周期 |
 
-生产 Redis `retry_after=240` 继续大于所有 Job timeout。maintenance 八种 kind 各有公平轮转、退避和心跳；通知展开/租约回收/派发/运营事实转通知共用一个批次预算，单用户的大量绑定也通过持久游标恢复。应收检查临时结果保留十分钟，并绑定原 user/action/稳定请求键/参数 HMAC/版本/算法/证据摘要；丢失只重新核验，不以缓存当账本。10000 根/100000 证据离线实测最长 66.78 秒，版本竞争拒绝旧结果且原请求重核后真实完成；容量、分页与资金锁样本范围见 [发布状态](release-status.md)，不是生产 SLA。
+生产 Redis `retry_after=240` 继续大于所有 Job timeout。maintenance 八种 kind 各有公平轮转、退避和心跳；通知展开/租约回收/派发/运营事实转通知共用一个批次预算，单用户的大量绑定也通过持久游标恢复。应收检查完成结果从原扫描开始最多保留 600 秒，并绑定原 user/action/稳定请求键/参数 HMAC/版本/算法/证据摘要；命中不续期，旧缺扫描起点 ready 重新核验。B3-01 允许普通无捕获根/无复核权限的准入跨请求复用加密完整证明；清偿/冲正/明细、人工复核和独立审计保持完整核验。合法 revision/算法/密钥/标志变化使旧证明失效；绕过 Action 且不提升版本的 SQL 篡改存在用户已批准的有效期检测窗口。缓存丢失只重新核验，不以缓存当账本。10000 根/100000 证据的完整扫描、复用、版本竞争与原请求恢复的测量范围见 [第三批记录](architecture-third-batch-2026-11-19.md)，不是生产 SLA。
 
 独立监控将结构化结果写 journal 和 `/run/cloudcms-operations/check.json`，**还须把两个检查服务的故障、自身缺失及陈旧心跳接入实际外部监控接收者**。`finance.view` 活跃账号只表示有可选运营身份，不证明地址可达或有人值班。未配置真实责任人与送达出口时，不能宣称运营告警已上线。阈值、恢复和演练见 [维护与巡检说明](maintenance-and-operations-2026-11-18.md)。
 
@@ -91,7 +91,7 @@ php artisan app:deployment-check --production
 1. 在隔离环境验收候选提交、完整 Pest/PHPStan/Pint、升级/并发/容量/恢复脚本；记录 Git commit、VERSION、composer.lock 校验值、迁移状态和部署文件清单。历史脚本只按其明确目标使用，不在业务库运行。
 2. 明确目标库及所有写入节点；为支付回调设置维护期间的接收/重试策略。进入维护模式，先停本项目 timer 并等待 scheduler 退出，再按各服务停止宽限排空/停止精确归属本项目的 worker、长核验与其他写入者；不要停止共享 MySQL/Redis。已有上游、付款或出款 unknown 保留证据、人工核对。
 3. 先备份，再部署完整的同一版本代码/依赖。保留 `.env`、APP_KEY、storage、私有下载和原安装锁。
-4. 明确本次 schema 后在原库执行批准的增量迁移。D01–D05 是 `2026_11_18_000004`–`000007`；W1–W3 继续至 `000012`；W4 新增 `2026_11_19_000013_add_receivable_evidence_revision_to_users`、`000014_add_notification_recipient_cursors`、`000015_add_operational_event_outbox`，不要重写旧迁移。按批次说明运行受限历史登记命令，再发布资源/缓存，由实际运行账户执行 `app:deployment-check --production`。**升级不重新运行安装向导**。
+4. 明确本次 schema 后在原库执行批准的增量迁移。D01–D05 是 `2026_11_18_000004`–`000007`；W1–W3 继续至 `000012`；W4 新增 `2026_11_19_000013_add_receivable_evidence_revision_to_users`、`000014_add_notification_recipient_cursors`、`000015_add_operational_event_outbox`，不要重写旧迁移。B2-01 的 `000016`–`000017` 在停止旧写入后登记历史来源及零佣金事实；B3 的 `000018` 仅将两条历史留存外键改为 RESTRICT，SQLite 需要独立迁移事务，保留原行和自增序列。按批次说明运行受限历史登记命令，再发布资源/缓存，由实际运行账户执行 `app:deployment-check --production`。**升级不重新运行安装向导**。
 5. 核实角色、实际通知接收者、外部监控和值班责任；重启 FPM，先启动 worker 与独立巡检，再启用 scheduler。检查进程/监听/日志/心跳/队列，完成管理员与客户入口验收后开放流量。实际支付、出款、供应商变更及真实发送须分别明确测试商品、动作和额度。当前预览只读页面通过不能代替这些验收。
 6. 失败时保持维护模式并优先向前修复。已有新账本方向或真实业务事实后，不能只回退 Git 或盲跑 migrate:rollback；旧枚举可能无法读取新账本。确需恢复时先列出检查点后的支付回调、出款、清偿和供应商动作，再恢复同检查点 DB/文件/密钥并逐项对账，不以旧备份抹掉已发生外部结果。
 

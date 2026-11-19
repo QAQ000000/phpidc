@@ -300,6 +300,8 @@ Mapping review requires `upstream.view` plus `upstream.mapping-review`, a stable
 
 **INV-C2 — Atomic claim.** `ProvisionInstanceAction` owns inventory writes, never the driver. Inside `DB::transaction()`: lock the `instances` row first, look up its bound `redemption_codes` by unique `instance_id`, and reuse that reservation or sold code. Only if none exists, lock one available code ordered by `id` with no active lease, and set `instance_id`, `status=reserved` and `reserved_until=now()+15m` together before commit. The pure `RedemptionCodeDriver` reads the bound code and returns credentials in its DTO. Before making credentials visible, the Action locks instance then code, revalidates the binding and reservation lease, and atomically persists `status=sold` with `instances.encrypted_credentials`. A retry must reuse the existing binding; it must not claim a second code for the same instance.
 
+**Human-approved B3-02 (2026-11-19):** `redemption_codes.product_id` and `instance_upstream_bindings.instance_id` use ON DELETE RESTRICT. Inventory in every state and original binding history must survive parent retention rules; no new physical-delete entry point, historical-row rewrite or product soft-delete policy is introduced. Migration `000018` changes only these two constraints.
+
 **INV-C3 — Reap reservations.** An Action-backed sweeper locks instance then code, and returns expired `reserved` rows to `available` only if delivery has not completed, clearing their `instance_id` and lease together. A sold or delivered code is never released (INV-R3). Without reservation reaping, a crashed provision permanently burns stock.
 
 ---
