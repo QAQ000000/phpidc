@@ -47,8 +47,7 @@ class RunMaintenanceBatchAction implements MaintenanceBatchWork
             'affiliate-accrue' => $this->batch->execute($kind, Invoice::where('status', InvoiceStatus::PAID)->where('type', InvoiceType::NEW_ORDER)
                 ->where('currency', 'CNY')->where('total_amount', '>', '0.00')->whereNotNull('line_items->affiliate')
                 ->whereNotIn('id', AffiliateCommission::select('invoice_id'))
-                ->whereNotExists(fn ($query) => $query->selectRaw('1')->from('audit_logs')->whereColumn('audit_logs.subject_id', 'invoices.id')
-                    ->where('audit_logs.subject_type', Invoice::class)->where('audit_logs.action', AccrueAffiliateCommissionAction::ZERO_ACCRUAL_ACTION)),
+                ->whereNull('affiliate_zero_accrual_at'),
                 'paid_at', fn (int $id) => app(AccrueAffiliateCommissionAction::class)->execute($id), budget: $budget),
             'affiliate-mature' => $this->batch->execute($kind, AffiliateCommission::where('status', 'pending')->where('available_at', '<=', now()),
                 'available_at', fn (int $id) => app(MatureAffiliateCommissionsAction::class)->execute($id), budget: $budget),

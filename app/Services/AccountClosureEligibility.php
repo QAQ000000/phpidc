@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace App\Services;
 
-use App\Actions\AccrueAffiliateCommissionAction;
 use App\Enums\InstanceStatus;
 use App\Enums\InvoiceStatus;
 use App\Models\AffiliateCommission;
@@ -20,7 +19,6 @@ use App\Models\WalletClearance;
 use App\Support\MachineOperation;
 use App\Support\Money;
 use Illuminate\Contracts\Encryption\DecryptException;
-use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
 
 class AccountClosureEligibility
@@ -92,7 +90,7 @@ class AccountClosureEligibility
         if (AffiliateCommission::where('referrer_id', $user->id)->where('status', 'pending')->exists()
             || Invoice::where('line_items->affiliate->referrer_id', $user->id)->whereIn('status', [InvoiceStatus::UNPAID, InvoiceStatus::PAID])
                 ->whereNotIn('id', AffiliateCommission::select('invoice_id'))
-                ->whereNotIn('id', DB::table('audit_logs')->where('action', AccrueAffiliateCommissionAction::ZERO_ACCRUAL_ACTION)->where('subject_type', Invoice::class)->whereNotNull('subject_id')->select('subject_id'))->exists()) {
+                ->whereNull('affiliate_zero_accrual_at')->exists()) {
             $reasons['commissions'] = '仍有待成熟佣金或尚未结转的推广订单，请先完成结转核对。';
         }
         if ($permit !== null) {

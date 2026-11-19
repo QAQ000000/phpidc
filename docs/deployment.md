@@ -1,6 +1,6 @@
 # 安装、升级、恢复与密钥操作
 
-本手册对应仓库 `VERSION` 的候选代码；实际发布状态以 [release-status.md](release-status.md) 为准。生产安装还须完成文末验收；隔离脚本成功不等于已上线。当前原预览已完成 W4 的 `000013`–`000015`，共 21 条迁移，业务 worker/scheduler 与真实告警未启用；见 [升级记录](system-architecture-preview-w4-deployment-2026-11-19.md)。
+本手册对应仓库 `VERSION` 的候选代码；实际发布状态以 [release-status.md](release-status.md) 为准。生产安装还须完成文末验收；隔离脚本成功不等于已上线。当前原预览已完成架构清理 B2-01 的 `000016`–`000017`，共 23 条迁移，业务 worker/scheduler 与真实告警未启用；见 [最新升级记录](architecture-second-batch-2026-11-19.md)。[W4 升级记录](system-architecture-preview-w4-deployment-2026-11-19.md)保留阶段证据。
 
 ## 1. 环境与发布目录
 
@@ -94,6 +94,12 @@ php artisan app:deployment-check --production
 4. 明确本次 schema 后在原库执行批准的增量迁移。D01–D05 是 `2026_11_18_000004`–`000007`；W1–W3 继续至 `000012`；W4 新增 `2026_11_19_000013_add_receivable_evidence_revision_to_users`、`000014_add_notification_recipient_cursors`、`000015_add_operational_event_outbox`，不要重写旧迁移。按批次说明运行受限历史登记命令，再发布资源/缓存，由实际运行账户执行 `app:deployment-check --production`。**升级不重新运行安装向导**。
 5. 核实角色、实际通知接收者、外部监控和值班责任；重启 FPM，先启动 worker 与独立巡检，再启用 scheduler。检查进程/监听/日志/心跳/队列，完成管理员与客户入口验收后开放流量。实际支付、出款、供应商变更及真实发送须分别明确测试商品、动作和额度。当前预览只读页面通过不能代替这些验收。
 6. 失败时保持维护模式并优先向前修复。已有新账本方向或真实业务事实后，不能只回退 Git 或盲跑 migrate:rollback；旧枚举可能无法读取新账本。确需恢复时先列出检查点后的支付回调、出款、清偿和供应商动作，再恢复同检查点 DB/文件/密钥并逐项对账，不以旧备份抹掉已发生外部结果。
+
+### 架构清理 B2-01 的来源切换
+
+`2026_11_19_000016_add_payment_attention_source_snapshots` 增加支付关注来源快照，并在同一迁移内登记历史 audit-only 关注、检查零遗漏；`000017_add_zero_affiliate_accrual_completion` 增加零佣金完成时间并受限回填。**先停稳全部旧写入者，再迁移，迁移成功后才开放访问与启动新 worker。** 缺证明的旧案仍未结；矛盾或遗漏会令迁移失败，保持维护并核对，不能以删审计绕过。两条迁移允许 MySQL 已落 DDL 后重跑数据阶段；已有来源/完成时间不覆盖。来源补齐不改变旧案版本或结案处置序列，零佣金回填不执行正佣金、资金或通知。
+
+正常审计仍必须保留。本批只移除支付关注、零佣金结转及相应注销/维护判断对审计的依赖；机器操作等其他业务仍依赖审计，不允许整表清理。具体范围见 [B2-01 决议](architecture-second-batch-plan-2026-11-19.md)。
 
 ## 6. 备份与恢复
 

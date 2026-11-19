@@ -36,6 +36,7 @@ class Invoice extends Model
             'upstream_expected_cost' => 'decimal:2',
             'paid_at' => 'datetime',
             'expires_at' => 'datetime',
+            'affiliate_zero_accrual_at' => 'datetime',
         ];
     }
 
