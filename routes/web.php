@@ -116,45 +116,47 @@ Route::middleware('auth')->group(function (): void {
     Route::post('/console/products/{product}/quote', [ServiceBillingController::class, 'quote'])->middleware('throttle:quote');
     Route::post('/console/instances/{instance}/operations', [ServiceBillingController::class, 'bill']);
 });
-Route::post('/admin/upstreams/configure', [ClassicOperationsController::class, 'configure']);
-Route::post('/admin/upstreams/catalog', [ClassicOperationsController::class, 'catalog']);
-Route::post('/admin/upstreams/import', [ClassicOperationsController::class, 'import']);
-Route::post('/admin/upstream-options/{group}/bounds', [ClassicOperationsController::class, 'bounds']);
-Route::post('/admin/upstream-tasks/{task}/retry', [ClassicOperationsController::class, 'retry']);
-Route::post('/admin/upstreams/{product}/sync', [ClassicOperationsController::class, 'sync']);
-Route::post('/admin/upstream-instances/{instance}/control', [ClassicOperationsController::class, 'control']);
-Route::post('/admin/upstream-instances/{instance}/machine-review', [MachineOperationReviewController::class, 'inspect'])->middleware('throttle:machine-review');
-Route::post('/admin/upstream-instances/{instance}/machine-reconcile', [MachineOperationReviewController::class, 'store'])->middleware('throttle:machine-reconcile');
-Route::post('/admin/upstream-instances/{instance}/hot-swap', [ClassicOperationsController::class, 'hotSwap']);
-Route::get('/admin/upstream-instances/{instance}/mapping-review', [InstanceMappingReviewController::class, 'show']);
-Route::post('/admin/upstream-instances/{instance}/mapping-review/check', [InstanceMappingReviewController::class, 'check'])->middleware('throttle:mapping-review');
-Route::post('/admin/upstream-instances/{instance}/mapping-review', [InstanceMappingReviewController::class, 'store'])->middleware('throttle:mapping-review');
+Route::middleware('auth')->group(function (): void {
+    Route::post('/admin/upstreams/configure', [ClassicOperationsController::class, 'configure']);
+    Route::post('/admin/upstreams/catalog', [ClassicOperationsController::class, 'catalog']);
+    Route::post('/admin/upstreams/import', [ClassicOperationsController::class, 'import']);
+    Route::post('/admin/upstream-options/{group}/bounds', [ClassicOperationsController::class, 'bounds']);
+    Route::post('/admin/upstream-tasks/{task}/retry', [ClassicOperationsController::class, 'retry']);
+    Route::post('/admin/upstreams/{product}/sync', [ClassicOperationsController::class, 'sync']);
+    Route::post('/admin/upstream-instances/{instance}/control', [ClassicOperationsController::class, 'control']);
+    Route::post('/admin/upstream-instances/{instance}/machine-review', [MachineOperationReviewController::class, 'inspect'])->middleware('throttle:machine-review');
+    Route::post('/admin/upstream-instances/{instance}/machine-reconcile', [MachineOperationReviewController::class, 'store'])->middleware('throttle:machine-reconcile');
+    Route::post('/admin/upstream-instances/{instance}/hot-swap', [ClassicOperationsController::class, 'hotSwap']);
+    Route::get('/admin/upstream-instances/{instance}/mapping-review', [InstanceMappingReviewController::class, 'show']);
+    Route::post('/admin/upstream-instances/{instance}/mapping-review/check', [InstanceMappingReviewController::class, 'check'])->middleware('throttle:mapping-review');
+    Route::post('/admin/upstream-instances/{instance}/mapping-review', [InstanceMappingReviewController::class, 'store'])->middleware('throttle:mapping-review');
 
-// Explicit POST endpoints: authorization is enforced again by the transactional Actions.
-Route::post('/admin/inventory/import', [InventoryOperationsController::class, 'import'])->name('inventory.import');
-Route::post('/admin/access/{target}/role', [AdminOperationsController::class, 'role']);
-Route::post('/admin/access/{target}/roles', [AdminOperationsController::class, 'roles']);
-Route::post('/admin/finance/invoices/{invoice}/refund', [AdminOperationsController::class, 'refund']);
-Route::post('/admin/finance/wallet-topup-settings', [WalletTopupSettingsController::class, 'store']);
-Route::post('/admin/finance/receivables/{clawback}/settlements', [AffiliateReceivableController::class, 'store']);
-Route::post('/admin/finance/receivable-settlements/{settlement}/reverse', [AffiliateReceivableController::class, 'reverse']);
-Route::post('/admin/external-payouts/{withdrawal}', [ExternalAffiliatePayoutController::class, 'process']);
-Route::post('/admin/external-payouts/{withdrawal}/details', [ExternalAffiliatePayoutController::class, 'details']);
-Route::post('/admin/wallet-clearances/closed-account', [WalletClearanceController::class, 'closed'])->middleware('throttle:wallet-clearance');
-Route::post('/admin/wallet-clearances/{clearance}', [WalletClearanceController::class, 'process']);
-Route::post('/admin/wallet-clearances/{clearance}/details', [WalletClearanceController::class, 'details']);
-Route::post('/admin/reconciliations/{case}/payment', [ReconciliationController::class, 'payment'])->middleware('throttle:reconciliation');
-Route::post('/admin/reconciliations/{case}/binding', [ReconciliationController::class, 'binding'])->middleware('throttle:reconciliation');
-Route::post('/admin/reconciliations/{case}/reopen', [ReconciliationController::class, 'reopen'])->middleware('throttle:reconciliation');
-Route::post('/admin/reconciliations/{case}/evidence', [ReconciliationController::class, 'evidence']);
-Route::post('/admin/finance/receivables/{user}/review', [ReceivableCheckController::class, 'review'])->withTrashed()->middleware('throttle:receivable-check');
-Route::post('/admin/notification-outbox/{delivery}/resolve', [NotificationOutboxController::class, 'resolve']);
-Route::post('/admin/tasks/{task}/retry', [AdminOperationsController::class, 'retry']);
-Route::post('/admin/fulfillment/{task}/retry', [InventoryOperationsController::class, 'retry'])->name('inventory.retry');
-Route::post('/admin/content/articles', [CmsOperationsController::class, 'saveArticle']);
-Route::post('/admin/content/categories', [CmsOperationsController::class, 'saveCategory']);
-Route::post('/admin/content/products/{product}', [CmsOperationsController::class, 'saveProduct']);
-Route::get('/admin/content/articles/{article}/preview', [CmsOperationsController::class, 'preview']);
+    // Explicit POST endpoints: authorization is enforced again by the transactional Actions.
+    Route::post('/admin/inventory/import', [InventoryOperationsController::class, 'import'])->name('inventory.import');
+    Route::post('/admin/access/{target}/role', [AdminOperationsController::class, 'role']);
+    Route::post('/admin/access/{target}/roles', [AdminOperationsController::class, 'roles']);
+    Route::post('/admin/finance/invoices/{invoice}/refund', [AdminOperationsController::class, 'refund']);
+    Route::post('/admin/finance/wallet-topup-settings', [WalletTopupSettingsController::class, 'store']);
+    Route::post('/admin/finance/receivables/{clawback}/settlements', [AffiliateReceivableController::class, 'store']);
+    Route::post('/admin/finance/receivable-settlements/{settlement}/reverse', [AffiliateReceivableController::class, 'reverse']);
+    Route::post('/admin/external-payouts/{withdrawal}', [ExternalAffiliatePayoutController::class, 'process']);
+    Route::post('/admin/external-payouts/{withdrawal}/details', [ExternalAffiliatePayoutController::class, 'details']);
+    Route::post('/admin/wallet-clearances/closed-account', [WalletClearanceController::class, 'closed'])->middleware('throttle:wallet-clearance');
+    Route::post('/admin/wallet-clearances/{clearance}', [WalletClearanceController::class, 'process']);
+    Route::post('/admin/wallet-clearances/{clearance}/details', [WalletClearanceController::class, 'details']);
+    Route::post('/admin/reconciliations/{case}/payment', [ReconciliationController::class, 'payment'])->middleware('throttle:reconciliation');
+    Route::post('/admin/reconciliations/{case}/binding', [ReconciliationController::class, 'binding'])->middleware('throttle:reconciliation');
+    Route::post('/admin/reconciliations/{case}/reopen', [ReconciliationController::class, 'reopen'])->middleware('throttle:reconciliation');
+    Route::post('/admin/reconciliations/{case}/evidence', [ReconciliationController::class, 'evidence']);
+    Route::post('/admin/finance/receivables/{user}/review', [ReceivableCheckController::class, 'review'])->withTrashed()->middleware('throttle:receivable-check');
+    Route::post('/admin/notification-outbox/{delivery}/resolve', [NotificationOutboxController::class, 'resolve']);
+    Route::post('/admin/tasks/{task}/retry', [AdminOperationsController::class, 'retry']);
+    Route::post('/admin/fulfillment/{task}/retry', [InventoryOperationsController::class, 'retry'])->name('inventory.retry');
+    Route::post('/admin/content/articles', [CmsOperationsController::class, 'saveArticle']);
+    Route::post('/admin/content/categories', [CmsOperationsController::class, 'saveCategory']);
+    Route::post('/admin/content/products/{product}', [CmsOperationsController::class, 'saveProduct']);
+    Route::get('/admin/content/articles/{article}/preview', [CmsOperationsController::class, 'preview']);
+});
 
 // Operations expansion: customer ownership and admin authority are checked in Actions.
 Route::get('/r/{user}', [CustomerOperationsController::class, 'referral'])->middleware('signed:relative')->name('affiliate.referral');
@@ -170,7 +172,7 @@ Route::middleware('auth')->controller(CustomerOperationsController::class)->grou
     Route::get('/console/tickets/{ticket}', 'ticket');
     Route::post('/console/tickets/{ticket}', 'updateTicket')->middleware('throttle:ticket-update');
 });
-Route::controller(OperationsAdminController::class)->group(function (): void {
+Route::middleware('auth')->controller(OperationsAdminController::class)->group(function (): void {
     Route::post('/admin/operations/config/{kind}', 'save');
     Route::post('/admin/operations/coupons/grant', 'grant');
     Route::post('/admin/operations/payouts/{withdrawal}', 'payout');

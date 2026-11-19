@@ -98,7 +98,7 @@ it('updates content by ID when a slug changes and rejects duplicate or cross-cat
 it('sanitizes internal previews and protects them from anonymous visitors and indexing', function (): void {
     $category = CmsCategory::create(['type' => 'help', 'slug' => 'guides', 'name' => 'Guides']);
     $article = app(SaveCmsArticleAction::class)->execute($category, cmsDraftData(['body' => '<script>BAD</script><h2>SAFE</h2>', 'content_format' => 'html']), 'Unsafe markup input');
-    $this->get('/admin/content/articles/'.$article->id.'/preview')->assertUnauthorized();
+    $this->get('/admin/content/articles/'.$article->id.'/preview')->assertRedirect('/admin/login');
     $viewer = cmsOperator('cms-viewer');
     $this->actingAs($viewer)->get('/admin/content/articles/'.$article->id.'/preview')->assertOk()->assertSee('SAFE')->assertDontSee('<script', false);
     expect($article->body)->not->toContain('<script');

@@ -17,6 +17,7 @@ return Application::configure(basePath: dirname(__DIR__))
     )
     ->withMiddleware(function (Middleware $middleware): void {
         $middleware->prepend(InventoryNoStore::class);
+        $middleware->redirectGuestsTo(fn (Request $request): string => $request->is('admin', 'admin/*') ? '/admin/login' : '/login');
         $middleware->redirectUsersTo('/console');
         $middleware->trimStrings(except: ['codes', 'admin_password', 'admin_password_confirmation']);
         // Install redirects must not trap /up or /install (charter §3.6).
