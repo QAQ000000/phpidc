@@ -134,6 +134,10 @@ class AdminNavigation
             return '/admin/finance';
         }
 
+        if ($path === '/admin/upstreams/catalog') {
+            return '/admin/upstreams';
+        }
+
         if ($path === '/admin/machine-operation-review'
             || preg_match('#^/admin/upstream-instances/[^/]+/mapping-review(?:/check)?$#', $path) === 1) {
             return '/admin/upstream-instances';

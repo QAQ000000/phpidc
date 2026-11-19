@@ -9,6 +9,7 @@ use App\Filament\Pages\AdminAudit;
 use App\Filament\Pages\AdminTasks;
 use App\Filament\Pages\AffiliateOperations;
 use App\Filament\Pages\AffiliatePayouts;
+use App\Filament\Pages\ClassicCatalog;
 use App\Filament\Pages\CmsContent;
 use App\Filament\Pages\DownloadOperations;
 use App\Filament\Pages\ExternalAffiliatePayouts;
@@ -66,7 +67,7 @@ class AdminPanelProvider extends PanelProvider
             ->renderHook(PanelsRenderHook::STYLES_AFTER, fn (): string => Blade::render('@livewireStyles'))
             ->renderHook(PanelsRenderHook::SCRIPTS_AFTER, fn (): string => Blade::render('@livewireScripts'))
             ->navigation(fn (NavigationBuilder $builder): NavigationBuilder => app(AdminNavigation::class)->build($builder))
-            ->pages([PromotionCoupons::class, AffiliateOperations::class, AffiliatePayouts::class, SupportTickets::class, NotificationOperations::class, NotificationOutbox::class, DownloadOperations::class, InventoryOverview::class, InventoryCards::class, FulfillmentQueue::class, UpstreamAccounts::class, UpstreamInstances::class, MachineOperationReview::class, InstanceMappingReview::class, CmsContent::class,
+            ->pages([PromotionCoupons::class, AffiliateOperations::class, AffiliatePayouts::class, SupportTickets::class, NotificationOperations::class, NotificationOutbox::class, DownloadOperations::class, InventoryOverview::class, InventoryCards::class, FulfillmentQueue::class, UpstreamAccounts::class, UpstreamInstances::class, ClassicCatalog::class, MachineOperationReview::class, InstanceMappingReview::class, CmsContent::class,
                 FinanceInvoices::class, FinanceInvoice::class, FinanceLedger::class, FinanceReceivables::class, ExternalAffiliatePayouts::class, WalletClearances::class, ReconciliationCases::class, AdminTasks::class, AdminAccess::class, AdminAudit::class, SystemSettings::class])
             ->middleware([EncryptCookies::class, AddQueuedCookiesToResponse::class, StartSession::class,
                 AuthenticateSession::class, ShareErrorsFromSession::class, PreventRequestForgery::class,

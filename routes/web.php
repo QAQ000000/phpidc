@@ -127,7 +127,6 @@ Route::middleware('auth')->group(function (): void {
     Route::post('/admin/settings/site', [SystemSettingsController::class, 'site']);
     Route::post('/admin/settings/policy/{section}', [SystemSettingsController::class, 'policy']);
     Route::post('/admin/settings/test/{channel}', [SystemSettingsController::class, 'test'])->middleware('throttle:settings-test');
-    Route::post('/admin/upstreams/catalog', [ClassicOperationsController::class, 'catalog']);
     Route::post('/admin/upstreams/import', [ClassicOperationsController::class, 'import']);
     Route::post('/admin/upstream-options/{group}/bounds', [ClassicOperationsController::class, 'bounds']);
     Route::post('/admin/upstream-tasks/{task}/retry', [ClassicOperationsController::class, 'retry']);

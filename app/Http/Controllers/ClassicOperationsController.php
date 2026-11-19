@@ -14,6 +14,7 @@ use App\Actions\RetryFulfillmentTaskAction;
 use App\Actions\SyncClassicCatalogAction;
 use App\Enums\BillingCycle;
 use App\Enums\DriverType;
+use App\Filament\Pages\ClassicCatalog;
 use App\Models\FulfillmentTask;
 use App\Models\Instance;
 use App\Models\Product;
@@ -74,16 +75,22 @@ class ClassicOperationsController extends Controller
         $data = $request->validate(['account_id' => ['required', 'integer']]);
         $catalog = $this->run(fn () => app(CallUpstreamAction::class)->execute(fn () => app(DriverManager::class)->classicAccount($data['account_id'])->catalog()));
 
-        return response()->view('sales.classic-catalog', ['catalog' => $catalog, 'accountId' => $data['account_id']])->header('Cache-Control', 'private, no-store');
+        return response()->view('filament.classic-catalog-shell', ['catalog' => $catalog, 'accountId' => (int) $data['account_id'],
+            'layoutPage' => app(ClassicCatalog::class)])->header('Cache-Control', 'private, no-store');
     }
 
     public function import(Request $request)
     {
         $actor = $this->actor($request, 'upstream.import');
-        $data = $request->validate(['account_id' => ['required', 'integer'], 'pid' => ['required', 'integer', 'min:1'], 'cycle' => ['required', Rule::enum(BillingCycle::class)],
-            'currency' => ['required', 'regex:/^[A-Z]{3}$/D'], 'markup' => ['required', 'regex:/^\d+(\.\d{1,2})?$/D'], 'reason' => ['nullable', 'string', 'max:1000']]);
-        $reason = $this->reason($data, '导入上游商品与完整配置');
-        $this->run(fn () => app(ImportClassicProductAction::class)->execute($data['account_id'], (string) $data['pid'], BillingCycle::from($data['cycle']), $data['currency'], $data['markup'], $reason, $actor));
+        try {
+            $data = $request->validate(['account_id' => ['required', 'integer'], 'pid' => ['required', 'integer', 'min:1'], 'cycle' => ['required', Rule::enum(BillingCycle::class)],
+                'currency' => ['required', 'regex:/^[A-Z]{3}$/D'], 'markup' => ['required', 'regex:/^\d+(\.\d{1,2})?$/D'], 'reason' => ['nullable', 'string', 'max:1000']]);
+            $reason = $this->reason($data, '导入上游商品与完整配置');
+            $this->run(fn () => app(ImportClassicProductAction::class)->execute($data['account_id'], (string) $data['pid'], BillingCycle::from($data['cycle']), $data['currency'], $data['markup'], $reason, $actor));
+        } catch (ValidationException $exception) {
+            // The supplier directory is a POST document and cannot receive a browser GET redirect.
+            throw $exception->redirectTo('/admin/upstreams');
+        }
 
         return redirect('/admin/upstreams')->with('inventory_status', '商品与配置已导入。');
     }
