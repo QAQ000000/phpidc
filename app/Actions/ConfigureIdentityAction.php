@@ -19,6 +19,7 @@ class ConfigureIdentityAction
         $rules = ['mail.transport' => ['required', Rule::in(['smtp', 'log'])], 'mail.host' => ['required', 'string', 'max:255'],
             'mail.port' => ['required', 'integer', 'min:1', 'max:65535'], 'mail.username' => ['nullable', 'string', 'max:255'],
             'mail.password' => ['nullable', 'string', 'max:4096'], 'mail.from_address' => ['required', 'email', 'max:255'],
+            'mail.from_name' => ['nullable', 'string', 'max:255', 'not_regex:/[\r\n]/'],
             'sms.binding_enabled' => ['required', 'boolean'], 'sms.binding_template' => ['required', 'string', 'max:255'],
             'sms.driver' => ['required', Rule::in(['log', 'idcsmart'])],
             'sms.idcsmart_endpoint' => ['required', 'url:https', 'max:2048', 'not_regex:/[?#@]/'],

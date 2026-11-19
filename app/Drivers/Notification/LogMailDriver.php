@@ -30,7 +30,8 @@ class LogMailDriver implements MailDriverInterface
             return false;
         }
         try {
-            Mail::build($config)->raw($bodyMarkdown, fn ($message) => $message->to($to)->from($this->settings->get('mail.from_address', 'noreply@example.test'))->subject($subject));
+            Mail::build($config)->raw($bodyMarkdown, fn ($message) => $message->to($to)
+                ->from($this->settings->get('mail.from_address', 'noreply@example.test'), $this->settings->get('mail.from_name'))->subject($subject));
         } catch (UnexpectedResponseException $e) {
             if ($e->getCode() >= 400 && $e->getCode() < 500) {
                 throw new RetryableNotificationException;

@@ -59,6 +59,10 @@ php artisan app:deployment-check --production
 
 若仅在 local SQLite 跑 `app:deployment-check`，输出明确写 `local validation only`；附加 `--production` 必须失败，不能当成生产验收。
 
+### 邮件配置
+
+通过 `identity:configure` 从 Web root 外私密 JSON 导入 `mail.transport`、`mail.host`、`mail.port`、`mail.username`、`mail.password`、`mail.from_address` 和可选 `mail.from_name`。用户名/密码加密保存，审计只记录键名；发件名称/正文支持 UTF-8，名称禁止换行。端口 465 自动使用 implicit TLS（smtps），无需新增 SSL 设置。配置与认证测试不发送邮件，实际送达另行验收。当前预览的支付/邮件配置及只读验证见 [配置记录](payment-mail-configuration-2026-11-19.md)。
+
 ## 4. worker 与调度器
 
 审查 `deploy/` 模板中的账户、工作目录、PHP 路径、Redis 连接及队列后，由服务器运维在完成迁移和运行前提后安装。当前预览没有启用业务 worker/scheduler 或真实告警；模板存在不表示服务在运行。
