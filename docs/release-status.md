@@ -23,6 +23,7 @@
 | 2026-11-19 架构清理第四批 B4 | 当前通知仅投递 ID、维护派发归属领域 Action、9 份历史文档归档并保留旧入口/锚点；修复领域锁争用返回类型错误 | 完整门禁 1801 passed / 14895 assertions、PHPStan 0、Pint PASS；隔离真实 MySQL 通知 worker/竞争与 MySQL/Redis 领域派发通过 | 无 schema 变更，仍为 24 条迁移；57 张持久表734条原行哈希及 jobs=1 保持，健康/前后台登录200，见 [实施记录](architecture-fourth-batch-2026-11-19.md) |
 | 2026-11-19 架构清理第五批 B5 隔离运行验收 | 新增同环境实际 HTTPS/Nginx/FPM/www、MySQL8/Redis、HTTP交易及常驻队列/调度验收脚本；业务实现与schema未改 | 1801 passed /14895 assertions、PHPStan0、Pint PASS；经典三单、重复回调、worker/Redis AOF恢复、五封本地SMTP、实际维护/领域队列、巡检/watchdog及进程清理通过 | 原预览仍24迁移、57表734行及jobs=1保持；真实外部收款/上游/送达与最终生产启用待配置，见 [验收与待办](architecture-fifth-batch-2026-11-19.md) |
 | 2026-11-19 支付与邮件配置 | 原预览保存用户给定易支付/SMTP配置及历史商户快照；新增可选UTF-8发件名称，凭据加密 | 1806 passed /14934 assertions、PHPStan0、Pint PASS；指定商户只读密钥匹配、实际应用465 SSL认证通过；无真实支付/发信 | 无迁移；除settings/audit外55表哈希及jobs=1保持、健康/登录200，见 [配置及连接记录](payment-mail-configuration-2026-11-19.md) |
+| 2026-11-19 真实支付与 CDN 单笔交付 | 用户实付账单 #4 已回调记Paid；经明确批准按原任务开通，成本上限1.00CNY | 原任务success/attempts1、实例Active/上游4297；上游账单1.00CNY、付款1001、详情只读同步/控制器渲染及HTTP健康PASS；用户报告邮件测试正常 | 原支付、资金及其他业务记录保持，24迁移；仅指定任务恢复，六条队列任务未消费，常驻worker/scheduler未启用，见 [单笔恢复记录](paid-cdn-provisioning-recovery-2026-11-19.md) |
 
 W2、W3 的阶段数字各自只证明当时提交；当前完整门禁及隔离运行结果见 [架构清理第五批](architecture-fifth-batch-2026-11-19.md)，流程收敛见 [第四批](architecture-fourth-batch-2026-11-19.md)，应收容量及最近 schema 升级结果见 [架构清理第三批](architecture-third-batch-2026-11-19.md)。[W4 记录](system-architecture-batch4-2026-11-19.md) 与 [W5 收口](system-architecture-batch5-2026-11-19.md)保留其阶段验收。现有卡密/经典 ZJMF 的历史真实购买与只读机器数据验收也只覆盖其原记录，不扩展为本次付费续费、退款、清退、热切换或机器控制授权。
 
@@ -32,8 +33,8 @@ W2、W3 的阶段数字各自只证明当时提交；当前完整门禁及隔离
 
 - 当前原预览已完成 B4（无 schema 变更），仍为 B3 升级后的 **24 条迁移**；本次维护检查点的 57 张持久表、734 条原行原列、索引/其他约束/序列及原环境/密钥/封印保持，原 jobs=1 未消费，依据 [B3 升级记录](architecture-third-batch-2026-11-19.md)及 [B4 只读核对](architecture-fourth-batch-2026-11-19.md)。[B2-01 升级记录](architecture-second-batch-2026-11-19.md)保留其阶段证据。[W4 升级记录](system-architecture-preview-w4-deployment-2026-11-19.md)保留其当时数据范围。预览使用 SQLite，不能当作生产 MySQL 容量结论。
 - 本批 `2026_11_19_000013`（用户应收版本及持久失效标志）、`000014`（通知四游标）、`000015`（operational_events）执行完成，deployment-check 通过；客户/后台 11 页只读验收通过。该检查不证明未启用的消费者和监控已经运行。
-- B5 的独立生产模式环境已验证实际 HTTPS/FPM、MySQL/Redis、交易/常驻队列/调度及本地 SMTP；实例在验收后全部清理。B5 检查点后，已按用户参数配置原预览易支付与邮件：商户密钥只读匹配、应用465 SSL认证通过；未实际收款或发送邮件，见 [配置记录](payment-mail-configuration-2026-11-19.md)。真实外部通道、生产服务与运营送达仍待最终验收，见 [B5 结果及缺项](architecture-fifth-batch-2026-11-19.md)。
-- 前台/后台页面可访问与业务自动运转是不同验收。当前没有启用本项目业务 worker/scheduler、maintenance/receivable-check 消费者或真实告警；不发送通知、不执行真实外付/供应商变更来“补齐”状态。
+- B5 的独立生产模式环境已验证实际 HTTPS/FPM、MySQL/Redis、交易/常驻队列/调度及本地 SMTP；实例在验收后全部清理。之后已配置原预览易支付与邮件，并在用户实付及明确单笔批准后完成账单 #4 的真实回调与上游交付，成本1.00CNY、实例Active/4297；用户报告邮件测试正常，本轮没有额外发送。见 [配置记录](payment-mail-configuration-2026-11-19.md)与 [单笔恢复记录](paid-cdn-provisioning-recovery-2026-11-19.md)。生产服务、其他真实外部业务及运营告警仍待最终验收，见 [B5 结果及缺项](architecture-fifth-batch-2026-11-19.md)。
+- 前台/后台页面可访问与业务自动运转是不同验收。当前没有启用本项目业务 worker/scheduler、maintenance/receivable-check 消费者或真实告警；已付账单 #4 原因确认为无消费者，已单笔恢复。现存六条队列任务保留，启用消费者前应核对其通知及其他业务执行范围。
 - 生产启用仍需 MySQL 8、Redis 可靠性、HTTPS/FPM、实际运行账户、备份/恢复、常驻进程与定时器、真实邮件/OAuth、计划启用的供应商协议验收。**真实值班人、监控接收方和故障送达出口尚未配置，不能标为运营上线。** 独立检测写 journal 不等于有人收到告警。
 - PVE 和其他未实现支付渠道保持未交付；短信/实名按既有用户决定保持关闭。已有界面、驱动接口或数据表不能替代实际实现和验收。
 
@@ -61,7 +62,7 @@ B3 新版脚本已验证：同一 10000 根/100000 证据夹具的 20 个普通�
 
 当前支持的退出与异常终点依赖实际结果：未结资金/业务继续阻断注销；无运营接收者的事件保持可见 awaiting；证据不完整、核验超时或版本漂移不会视为无应收；历史无端点证据的绑定不会由当前地址猜测补齐。
 
-IMPLEMENTED: D01–D05、W1–W4、架构清理 B1–B3 及预览迁移；W5 整体验收、发布入口及部署/密钥/恢复口径。
+IMPLEMENTED: D01–D05、W1–W4、架构清理 B1–B5 及预览迁移；W5 整体验收、发布入口及部署/密钥/恢复口径；支付/邮件配置与已付CDN单笔真实交付。
 NOT DONE: 生产/异机恢复、常驻进程/监控接收者及真实外部业务的运营启用。
-DECISIONS: 沿用已批准 D01–D05、N01–N06 及分批自动提交/必要预览迁移授权；不扩展真实付款、出款、通知或供应商动作。
+DECISIONS: 沿用已批准 D01–D05、N01–N06 及分批自动提交/必要预览迁移授权；真实供应商执行仅按新增明确授权恢复账单 #4、上限1.00CNY，不扩展其他付款/出款/通知/供应商动作。
 CONCERNS: 代码/schema 已在原预览对齐；实际消费者与外部告警尚未启用，不能把隔离门禁当作生产上线。
