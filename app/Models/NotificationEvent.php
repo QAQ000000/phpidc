@@ -10,6 +10,8 @@ class NotificationEvent extends Model
 {
     protected $guarded = ['id'];
 
+    protected $hidden = ['encrypted_payload'];
+
     protected function casts(): array
     {
         return ['encrypted_payload' => 'encrypted:array', 'expanded_at' => 'datetime',

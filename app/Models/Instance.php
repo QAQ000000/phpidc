@@ -20,6 +20,8 @@ class Instance extends Model
 
     protected $guarded = ['id'];
 
+    protected $hidden = ['encrypted_credentials', 'downstream_token'];
+
     /**
      * @return array<string, string>
      */

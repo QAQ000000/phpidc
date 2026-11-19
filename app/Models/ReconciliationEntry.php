@@ -13,6 +13,8 @@ class ReconciliationEntry extends Model
 
     protected $guarded = ['id'];
 
+    protected $hidden = ['evidence'];
+
     protected function casts(): array
     {
         return ['sequence' => 'integer', 'evidence' => 'encrypted:array'];

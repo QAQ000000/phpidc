@@ -10,6 +10,8 @@ class NotificationDelivery extends Model
 {
     protected $guarded = ['id'];
 
+    protected $hidden = ['encrypted_payload'];
+
     protected function casts(): array
     {
         return ['encrypted_payload' => 'encrypted:array', 'is_fallback' => 'boolean', 'attempts' => 'integer', 'max_attempts' => 'integer',
