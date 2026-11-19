@@ -1,7 +1,4 @@
-@extends('sales.layout')
-@section('title', '服务配置映射核准')
-@section('content')
-<p><a href="/admin/upstream-instances">返回上游实例</a></p><h1>服务 #{{ $instance->id }} 配置映射核准</h1>
+<x-filament-panels::page>
 <p>当前绑定 {{ $instance->upstream_api_id }}/{{ $instance->upstream_instance_id }}；未来续费价 {{ $instance->recurring_amount }} {{ $instance->currency }}；到期 {{ $instance->next_due_at }}。</p>
 @if($preview)
 @php($snapshot = $preview['snapshot'])
@@ -24,4 +21,4 @@
 <label>目标本地商品<select name="target_product_id" required>@foreach($products as $product)<option value="{{ $product->id }}">#{{ $product->id }} {{ $product->name }}</option>@endforeach</select></label><button>检查完整映射与计费基线</button></form>
 @else<p role="status">当前映射已核准。价格确认状态：{{ ($instance->active_config['price_requires_review'] ?? false) ? '等待客户本人确认' : '已核对' }}。</p>@endif
 <h2>不可覆盖的核准历史</h2><ul>@forelse($reviews as $review)<li>#{{ $review->id }} {{ $review->kind }} · 商品 #{{ $review->target_product_id }} · 操作人 #{{ $review->actor_id }} · {{ $review->applied_at }} · {{ $review->reason }}</li>@empty<li>暂无核准记录</li>@endforelse</ul>
-@endsection
+</x-filament-panels::page>

@@ -17,6 +17,7 @@ use App\Filament\Pages\FinanceInvoices;
 use App\Filament\Pages\FinanceLedger;
 use App\Filament\Pages\FinanceReceivables;
 use App\Filament\Pages\FulfillmentQueue;
+use App\Filament\Pages\InstanceMappingReview;
 use App\Filament\Pages\InventoryCards;
 use App\Filament\Pages\InventoryOverview;
 use App\Filament\Pages\MachineOperationReview;
@@ -30,10 +31,12 @@ use App\Filament\Pages\UpstreamAccounts;
 use App\Filament\Pages\UpstreamInstances;
 use App\Filament\Pages\WalletClearances;
 use App\Http\Middleware\EnsureInstalledMiddleware;
+use App\Support\AdminNavigation;
 use Filament\Http\Middleware\Authenticate;
 use Filament\Http\Middleware\AuthenticateSession;
 use Filament\Http\Middleware\DisableBladeIconComponents;
 use Filament\Http\Middleware\DispatchServingFilamentEvent;
+use Filament\Navigation\NavigationBuilder;
 use Filament\Panel;
 use Filament\PanelProvider;
 use Filament\View\PanelsRenderHook;
@@ -52,7 +55,7 @@ class AdminPanelProvider extends PanelProvider
         return $panel->default()->id('admin')->path('admin')->login()->authGuard('web')
             ->brandName('产品运营')->homeUrl(function (): string {
                 foreach (['promotion.view' => '/admin/coupons', 'affiliate.view' => '/admin/affiliates', 'support.view' => '/admin/support', 'notification.view' => '/admin/notifications', 'download.view' => '/admin/downloads', 'inventory.view' => '/admin/inventory', 'upstream.view' => '/admin/upstreams', 'cms.view' => '/admin/content',
-                    'finance.view' => '/admin/finance', 'tasks.view' => '/admin/tasks', 'access.view' => '/admin/access', 'audit.view' => '/admin/audit', 'settings.view' => '/admin/settings'] as $ability => $url) {
+                    'finance.view' => '/admin/finance', 'tasks.view' => '/admin/tasks', 'access.view' => '/admin/access', 'audit.view' => '/admin/audit', 'settings.view' => '/admin/settings?tab=site'] as $ability => $url) {
                     if (auth()->user()?->can($ability)) {
                         return $url;
                     }
@@ -62,7 +65,8 @@ class AdminPanelProvider extends PanelProvider
             })
             ->renderHook(PanelsRenderHook::STYLES_AFTER, fn (): string => Blade::render('@livewireStyles'))
             ->renderHook(PanelsRenderHook::SCRIPTS_AFTER, fn (): string => Blade::render('@livewireScripts'))
-            ->pages([PromotionCoupons::class, AffiliateOperations::class, AffiliatePayouts::class, SupportTickets::class, NotificationOperations::class, NotificationOutbox::class, DownloadOperations::class, InventoryOverview::class, InventoryCards::class, FulfillmentQueue::class, UpstreamAccounts::class, UpstreamInstances::class, MachineOperationReview::class, CmsContent::class,
+            ->navigation(fn (NavigationBuilder $builder): NavigationBuilder => app(AdminNavigation::class)->build($builder))
+            ->pages([PromotionCoupons::class, AffiliateOperations::class, AffiliatePayouts::class, SupportTickets::class, NotificationOperations::class, NotificationOutbox::class, DownloadOperations::class, InventoryOverview::class, InventoryCards::class, FulfillmentQueue::class, UpstreamAccounts::class, UpstreamInstances::class, MachineOperationReview::class, InstanceMappingReview::class, CmsContent::class,
                 FinanceInvoices::class, FinanceInvoice::class, FinanceLedger::class, FinanceReceivables::class, ExternalAffiliatePayouts::class, WalletClearances::class, ReconciliationCases::class, AdminTasks::class, AdminAccess::class, AdminAudit::class, SystemSettings::class])
             ->middleware([EncryptCookies::class, AddQueuedCookiesToResponse::class, StartSession::class,
                 AuthenticateSession::class, ShareErrorsFromSession::class, PreventRequestForgery::class,

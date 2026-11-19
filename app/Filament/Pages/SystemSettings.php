@@ -6,6 +6,7 @@ namespace App\Filament\Pages;
 
 use App\Services\SettingService;
 use App\Support\IdentitySettings;
+use App\Support\InstalledPlugins;
 use App\Support\PaymentChannels;
 use App\Support\PolicySettings;
 use App\Support\SiteSettings;
@@ -27,6 +28,9 @@ class SystemSettings extends Page
     #[Url(as: 'tab')]
     public string $tab = 'payment';
 
+    #[Url(as: 'plugin')]
+    public ?string $plugin = null;
+
     public static function canAccess(): bool
     {
         return Auth::user()?->can('settings.view') ?? false;
@@ -43,7 +47,13 @@ class SystemSettings extends Page
         if (Auth::user()?->can('upstream.view')) {
             $tabs['upstreams'] = '上游连接';
         }
+        foreach (InstalledPlugins::categories() as $key => $category) {
+            $tabs[$key.'-plugins'] = $category['label'];
+        }
         $tab = array_key_exists($this->tab, $tabs) ? $this->tab : 'payment';
+        $pluginCategory = str_ends_with($tab, '-plugins') ? substr($tab, 0, -8) : null;
+        $pluginDefinition = $pluginCategory === null ? null : InstalledPlugins::categories()[$pluginCategory];
+        $pluginContext = $this->configurationContext($tab);
         $section = $sections[$tab] ?? null;
         $settings = app(SettingService::class);
         $values = [];
@@ -64,10 +74,23 @@ class SystemSettings extends Page
             default => '/admin/settings/identity/'.$tab,
         };
         [$sectionTitle, $sectionDescription] = $this->sectionPresentation($tab);
+        if ($pluginDefinition !== null) {
+            $sectionTitle = $pluginCategory === 'payment' ? '支付方式' : $pluginDefinition['label'];
+            $sectionDescription = $pluginDefinition['description'];
+        } elseif ($pluginContext !== null) {
+            $sectionTitle = $pluginContext['definition']['name'].'配置';
+        }
+        // Channel selection belongs to the plugin list. Keep these values for status only.
+        $fieldKeys = array_diff(array_keys($section['fields'] ?? []), [
+            'mail.transport', 'sms.driver', 'kyc.enabled', 'kyc.driver', 'oauth.'.$tab.'_enabled',
+        ]);
 
         return ['tabs' => $tabs, 'activeTab' => $tab, 'section' => $section, 'values' => $values, 'saveAction' => $saveAction,
-            'navigationGroups' => $this->navigationGroups($tabs),
-            'fieldGroups' => $this->fieldGroups($tab, array_keys($section['fields'] ?? [])),
+            'pluginCategory' => $pluginCategory, 'pluginDefinition' => $pluginDefinition,
+            'plugins' => $pluginCategory === null ? [] : InstalledPlugins::rows($pluginCategory),
+            'pluginContext' => $pluginContext,
+            'pluginListUrl' => $pluginContext === null ? null : '/admin/settings?tab='.$pluginContext['category'].'-plugins',
+            'fieldGroups' => $this->fieldGroups($tab, array_values($fieldKeys)),
             'sectionTitle' => $sectionTitle, 'sectionDescription' => $sectionDescription, 'fieldHints' => $this->fieldHints(),
             'payment' => $tab === 'payment' ? ['url' => $settings->get('payment.epay_api_url', ''),
                 'pid' => $settings->get('payment.epay_pid', ''),
@@ -76,31 +99,24 @@ class SystemSettings extends Page
                 'wechat' => app(PaymentChannels::class)->enabled('epay_wechat')] : null];
     }
 
-    /** @param array<string, string> $tabs
-     * @return list<array{label: string, tabs: array<string, string>}>
-     */
-    private function navigationGroups(array $tabs): array
+    private function configurationContext(string $tab): ?array
     {
-        $groups = [];
-        foreach ([
-            '站点管理' => ['site'],
-            '支付与财务' => ['payment', 'billing'],
-            '通知通道' => ['mail', 'sms'],
-            '账户与认证' => ['kyc', 'github', 'google', 'qq', 'wechat', 'telegram'],
-            '连接与自动化' => ['upstreams', 'automation'],
-        ] as $label => $keys) {
-            $visible = [];
-            foreach ($keys as $key) {
-                if (isset($tabs[$key])) {
-                    $visible[$key] = $tabs[$key];
+        if ($this->plugin !== null) {
+            $context = InstalledPlugins::configurationContext($tab, $this->plugin);
+            abort_if($context === null, 404);
+
+            return $context;
+        }
+        // Old bookmarked configuration URLs use the same form and plugin-list return path.
+        foreach (InstalledPlugins::categories() as $category => $details) {
+            foreach (InstalledPlugins::definitions($category) as $definition) {
+                if ($definition['tab'] === $tab) {
+                    return ['category' => $category, 'definition' => $definition];
                 }
-            }
-            if ($visible !== []) {
-                $groups[] = ['label' => $label, 'tabs' => $visible];
             }
         }
 
-        return $groups;
+        return null;
     }
 
     /** @param list<string> $keys

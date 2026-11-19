@@ -138,6 +138,47 @@ foreach (['operator'=>['settings-payment','settings-notification','settings-iden
             html, status, _ = request(operator, "/admin/settings?tab=" + tab)
             assert status == 200 and "PRIVATE-HTTP" not in html
         checks.append("all_external_interface_tabs")
+        for category, identifiers in {"payment": ["payment.epay"], "mail": ["mail.smtp", "mail.log"],
+                                      "sms": ["sms.idcsmart", "sms.log"], "kyc": ["kyc.idcsmartali"],
+                                      "login": ["login.github", "login.google", "login.qq", "login.wechat", "login.telegram"]}.items():
+            html, status, _ = request(operator, "/admin/settings?tab=" + category + "-plugins")
+            assert status == 200 and all("<code>" + identifier + "</code>" in html for identifier in identifiers)
+            assert 'class="settings-nav"' not in html and 'id="settings-section-select"' not in html
+            assert "PRIVATE-HTTP" not in html and "Yansongda" not in html
+            readonly, _, _ = request(viewer, "/admin/settings?tab=" + category + "-plugins")
+            assert 'action="/admin/settings/plugins/' not in readonly and "PRIVATE-HTTP" not in readonly
+        checks.append("plugin_tables_and_single_global_navigation")
+        rejected(operator, "/admin/settings/plugins/mail/smtp/status", {"enabled": "1"}, 419)
+        rejected(viewer, "/admin/settings/plugins/mail/smtp/status", {"_token": token(readonly), "enabled": "1"}, 403)
+        html, _, destination = request(operator, "/admin/settings/identity/mail", {"_token": csrf,
+            "plugin_context": "smtp", "settings[mail.host]": "smtp.example.invalid", "settings[mail.port]": "465",
+            "settings[mail.from_address]": "sender@example.invalid", "settings[mail.password]": ""})
+        assert destination.endswith("/admin/settings?tab=mail&plugin=smtp") and "配置已保存" in html
+        assert 'name="plugin_context" value="smtp"' in html and 'name="settings[mail.transport]"' not in html
+        with sqlite3.connect(database) as connection:
+            assert connection.execute("select value from system_settings where `group`='mail' and `key`='transport'").fetchone()[0] == "log"
+            assert connection.execute("select value from system_settings where `group`='mail' and `key`='password'").fetchone()[0] == original
+        for plugin in ["smtp", "log"]:
+            html, _, destination = request(operator, "/admin/settings/plugins/mail/" + plugin + "/status", {"_token": csrf, "enabled": "1"})
+            assert destination.endswith("/admin/settings?tab=mail-plugins") and "插件状态已更新" in html
+            assert html.count('class="settings-plugin-state is-enabled"') == 1
+            with sqlite3.connect(database) as connection:
+                assert connection.execute("select value from system_settings where `group`='mail' and `key`='transport'").fetchone()[0] == plugin
+                assert connection.execute("select value from system_settings where `group`='mail' and `key`='password'").fetchone()[0] == original
+        html, _, destination = request(operator, "/admin/settings/identity/sms", {"_token": csrf,
+            "plugin_context": "idcsmart", "settings[sms.idcsmart_endpoint]": "https://sms.example.invalid/api",
+            "settings[sms.idcsmart_api]": "PRIVATE-HTTP-SMS-API", "settings[sms.idcsmart_key]": "PRIVATE-HTTP-SMS-KEY",
+            "settings[sms.idcsmart_sign]": "隔离测试", "settings[sms.idcsmart_templates]": '{"binding":{"id":"bind","content":"验证码 {code}"}}',
+            "settings[sms.binding_enabled]": "0", "settings[sms.binding_template]": "binding"})
+        assert destination.endswith("/admin/settings?tab=sms&plugin=idcsmart") and "配置已保存" in html
+        assert 'name="settings[sms.driver]"' not in html and "PRIVATE-HTTP" not in html
+        for plugin in ["idcsmart", "log"]:
+            html, _, destination = request(operator, "/admin/settings/plugins/sms/" + plugin + "/status", {"_token": csrf, "enabled": "1"})
+            assert destination.endswith("/admin/settings?tab=sms-plugins") and "插件状态已更新" in html
+            assert html.count('class="settings-plugin-state is-enabled"') == 1
+            with sqlite3.connect(database) as connection:
+                assert connection.execute("select value from system_settings where `group`='sms' and `key`='driver'").fetchone()[0] == plugin
+        checks.append("plugin_csrf_authorization_configuration_and_exclusive_switches")
         html, _, _ = request(operator, "/admin/settings/payment", {"_token": csrf, "url": "https://pay.example.invalid", "pid": "1000",
                                "epay_key": " PRIVATE-HTTP-EPAY ", "alipay": "1", "wechat": "0"})
         assert "支付配置已保存" in html and "PRIVATE-HTTP-EPAY" not in html

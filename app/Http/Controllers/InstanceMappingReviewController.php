@@ -6,8 +6,8 @@ namespace App\Http\Controllers;
 
 use App\Actions\ApplyInstanceMappingReviewAction;
 use App\Actions\InspectInstanceMappingAction;
+use App\Filament\Pages\InstanceMappingReview as InstanceMappingReviewPage;
 use App\Models\Instance;
-use App\Models\InstanceMappingReview;
 use App\Models\Product;
 use App\Models\User;
 use Illuminate\Http\RedirectResponse;
@@ -55,10 +55,8 @@ class InstanceMappingReviewController extends Controller
 
     private function page(Instance $instance, ?array $preview = null): Response
     {
-        return response()->view('sales.instance-mapping-review', ['instance' => $instance->fresh(), 'preview' => $preview,
-            'products' => Product::where('upstream_api_id', $instance->upstream_api_id)
-                ->where('upstream_pid', $instance->active_config['upstream_pid'] ?? null)->where('driver_type', $instance->driver_type)->orderBy('id')->get(),
-            'reviews' => InstanceMappingReview::where('instance_id', $instance->id)->latest('id')->limit(20)->get()])
+        return response()->view('filament.instance-mapping-review-shell', ['instance' => $instance->fresh(), 'preview' => $preview,
+            'layoutPage' => app(InstanceMappingReviewPage::class)])
             ->header('Cache-Control', 'private, no-store');
     }
 }

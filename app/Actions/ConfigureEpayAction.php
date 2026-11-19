@@ -19,6 +19,49 @@ use Illuminate\Support\Str;
 
 class ConfigureEpayAction
 {
+    /** Change admission flags without creating or rewriting merchant snapshots. */
+    public function setChannels(User $actor, bool $enabled, ?string $reason = null): void
+    {
+        $reason = trim($reason ?? '');
+        $reason = $reason === '' ? ($enabled ? '启用易支付插件' : '停用易支付插件') : $reason;
+        validator(['reason' => $reason], ['reason' => ['required', 'string', 'max:255']])->validate();
+        DB::transaction(function () use ($actor, $enabled, $reason): void {
+            $this->lockConfiguration();
+            $operator = User::whereKey($actor->id)->whereNull('anonymized_at')->lockForUpdate()->first();
+            if ($operator === null) {
+                throw new AuthorizationException('管理员账户已停用。');
+            }
+            Gate::forUser($operator)->authorize('settings.view');
+            Gate::forUser($operator)->authorize('settings.payment.manage');
+            if ($enabled) {
+                $profiles = app(EpayProfiles::class);
+                $credentials = $profiles->credentials();
+                if (! filter_var($credentials['api_url'], FILTER_VALIDATE_URL)
+                    || ! in_array(parse_url($credentials['api_url'], PHP_URL_SCHEME), ['http', 'https'], true)
+                    || trim($credentials['pid']) === '' || trim($credentials['key']) === '') {
+                    throw new DomainException('启用易支付前请先保存完整商户配置。');
+                }
+                $id = $profiles->currentId();
+                if ($id !== null && array_diff_assoc($credentials, $profiles->find($id)) !== []) {
+                    throw new DomainException('商户配置与历史快照不一致，请先修复配置。');
+                }
+            }
+            $keys = [];
+            foreach (EpayProfiles::GATEWAYS as $gateway) {
+                $name = $gateway.'_enabled';
+                DB::table('system_settings')->updateOrInsert(['group' => 'payment', 'key' => $name], [
+                    'value' => $enabled ? '1' : '0', 'is_encrypted' => false, 'created_at' => now(), 'updated_at' => now(),
+                ]);
+                $keys[] = 'payment.'.$name;
+                DB::afterCommit(fn () => app(SettingService::class)->forget('payment.'.$name));
+            }
+            DB::table('audit_logs')->insert(['actor_type' => 'user', 'actor_id' => $actor->id,
+                'action' => 'payment.epay_channels', 'subject_type' => 'system_settings', 'reason' => $reason,
+                'after' => json_encode(['keys' => $keys], JSON_THROW_ON_ERROR),
+                ...AdminAuditContext::fields(true), 'created_at' => now(), 'updated_at' => now()]);
+        });
+    }
+
     /** @param array<string, mixed>|null $channels Raw channel input, restricted to boolean flags below. */
     public function execute(string $url, string $pid, string $key, string $reason, ?User $actor = null, ?array $channels = null): void
     {
