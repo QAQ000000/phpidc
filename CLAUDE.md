@@ -74,6 +74,7 @@ Allowed dependency direction: **`Entry (Controller/Resource) -> Actions -> Contr
   Approved N01/N02 additionally allow evidence-backed manual wallet clearance and owner-confirmed one-time entitlement archives. Archives preserve Active/sold delivery facts and only exempt their matching completed one-time service from the termination blocker; all other closure blockers stay enforced. Closed-user clearance uses the original user and verified credit source, encrypted rights evidence and shared unique external payout receipts. See `docs/domain-invariants.md` §5 for amounts, states, ledger references and source limits.
 - `financial_transactions` is append-only and **must** be written for every balance movement, with a unique `reference_key` (INV-W2). It is never updated or deleted.
 - Every admin-initiated financial or lifecycle action writes an `audit_logs` row with a non-empty `reason` (INV-A1, INV-A2).
+  The human-approved 2026-11-19 usability change permits stable server-generated descriptions for routine operations with optional notes; explicit refund waivers and exceptional-result evidence retain their consent requirements. See `docs/usability-simplification-2026-11-19.md`.
 
 ### 3.2 Reliable Transactional Handoff / Outbox (F02)
 

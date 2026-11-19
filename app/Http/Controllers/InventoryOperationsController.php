@@ -23,10 +23,11 @@ class InventoryOperationsController extends Controller
         abort_unless($actor instanceof User, 401);
         Gate::forUser($actor)->authorize('inventory.view');
         Gate::forUser($actor)->authorize('inventory.import');
-        $data = $request->validate(['product_id' => ['required', 'integer'], 'codes' => ['required', 'string', 'max:500000'], 'reason' => ['required', 'string', 'max:1000']]);
+        $data = $request->validate(['product_id' => ['required', 'integer'], 'codes' => ['required', 'string', 'max:500000'], 'reason' => ['nullable', 'string', 'max:1000']]);
         $codes = array_values(array_filter(preg_split('/\r\n|\r|\n/', $data['codes']), fn (string $code) => trim($code) !== ''));
+        $reason = trim($data['reason'] ?? '');
         try {
-            $count = $import->execute(Product::findOrFail($data['product_id']), $codes, $data['reason'], $actor);
+            $count = $import->execute(Product::findOrFail($data['product_id']), $codes, $reason === '' ? '导入卡密库存' : $reason, $actor);
         } catch (DomainException $e) {
             throw ValidationException::withMessages(['operation' => $e->getMessage()]);
         }

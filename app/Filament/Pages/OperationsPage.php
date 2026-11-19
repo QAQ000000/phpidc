@@ -12,6 +12,7 @@ use App\Models\Coupon;
 use App\Models\DownloadResource;
 use App\Models\FinancialTransaction;
 use App\Models\NotificationTemplate;
+use App\Models\Product;
 use App\Models\Ticket;
 use App\Models\TicketReply;
 use App\Models\User;
@@ -102,6 +103,10 @@ abstract class OperationsPage extends Page
                 }
                 $data['payoutFunds'][$user->id] = $row;
             }
+        }
+
+        if (in_array($section, ['coupons', 'affiliates'], true)) {
+            $data['availableProducts'] = Product::orderBy('name')->get(['id', 'name']);
         }
 
         return ['section' => $section, 'events' => NotificationManager::EVENTS, 'variables' => NotificationManager::VARIABLES] + $data;

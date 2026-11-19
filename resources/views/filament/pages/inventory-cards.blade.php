@@ -5,7 +5,7 @@
 <form method="post" action="{{ route('inventory.import') }}" class="inventory-form">@csrf
 <label>本地卡池商品<select name="product_id" required><option value="">选择商品</option>@foreach ($products as $product)<option value="{{ $product->id }}" @selected((string) request('product_id') === (string) $product->id)>{{ $product->name }} (#{{ $product->id }})</option>@endforeach</select></label>
 <label style="width:100%">卡密（提交后清空）<textarea name="codes" required maxlength="500000" autocomplete="off" spellcheck="false" placeholder="每行一张卡密"></textarea></label>
-<label style="flex:1">导入原因<input name="reason" required maxlength="1000" placeholder="例如：补充批次 2026-11"></label><button class="inventory-button">加密导入</button>
+<label style="flex:1">批次备注（可选）<input name="reason" maxlength="1000" placeholder="可填写采购批次或补充说明"></label><button class="inventory-button">加密导入</button>
 </form></section>
 @endcan
 <section class="inventory-box"><h2>卡密元数据</h2><p class="inventory-note">此页仅展示批次和状态，不提供明文查看或导出。</p>

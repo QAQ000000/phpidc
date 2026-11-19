@@ -162,7 +162,7 @@ it('rejects incomplete refund consent without changing money', function (array $
     $this->assertDatabaseCount('financial_transactions', 0);
 })->with([
     [['mode' => 'refund_wallet', 'reason' => 'Missing confirmation'], 'confirm'],
-    [['mode' => 'refund_wallet', 'reason' => '   ', 'confirm' => 1], 'reason'],
+    [['mode' => 'refund_wallet', 'keep_service' => 1, 'reason' => '   ', 'confirm' => 1], 'reason'],
     [['mode' => 'refund_wallet', 'reason' => str_repeat('x', 256), 'confirm' => 1], 'reason'],
     [['mode' => 'partial_refund', 'reason' => 'Unsupported mode', 'confirm' => 1], 'mode'],
 ]);
@@ -341,9 +341,9 @@ it('does not expose credentials or grant controls through read-only access permi
     $manager = adminOperator('access-manager');
     $manager->removeRole('access-manager');
     $manager->givePermissionTo('access.view');
-    $this->actingAs($manager)->get('/admin/access')->assertOk()->assertDontSee('确认更新角色');
+    $this->actingAs($manager)->get('/admin/access')->assertOk()->assertDontSee('保存角色');
     Filament::setCurrentPanel(Filament::getPanel('admin'));
-    Livewire::test(AdminAccess::class)->assertOk()->assertDontSee('确认更新角色')->assertDontSee($manager->password);
+    Livewire::test(AdminAccess::class)->assertOk()->assertDontSee('保存角色')->assertDontSee($manager->password);
     $this->postJson('/admin/access/'.User::factory()->create()->id.'/role', ['role' => 'finance-operator', 'operation' => 'grant', 'reason' => 'Viewer forgery', 'confirm' => 1])->assertForbidden();
     expect(Gate::forUser($manager)->allows('finance.refund'))->toBeFalse();
 });

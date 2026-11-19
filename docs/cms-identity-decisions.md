@@ -68,6 +68,8 @@ KycDriverInterface::handleCallback(Request $request): KycStatusResult;
 
 ## 不需新增表字段的实施选择
 
+2026-11-19 CMS 输入更新：用户已批准普通创建/编辑备注选填，未填写时由 HTTP 入口生成稳定的审计说明；权限、真实操作者、清洗、地址唯一性及历史重定向契约保持。详见 [操作精简](usability-simplification-2026-11-19.md)。
+
 以下为推荐实现方向，不构成新的冻结接口修改：
 
 - **CMS 管理**：复用现有权限表，独立 cms.view/cms.edit/cms.publish 权限；库存/上游角色不自动获得。创建和编辑使用 Action、填写原因、记录真实操作者；按记录 ID 更新，避免把改 slug 误实现成新增文章。无发布权限的编辑不能通过通用保存入口改变发布状态/时间或改写已公开正文。Markdown/HTML 预览使用同一清洗渲染器；预览不进入 sitemap/llms。

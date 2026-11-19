@@ -133,6 +133,7 @@ Route::post('/admin/upstream-instances/{instance}/mapping-review', [InstanceMapp
 // Explicit POST endpoints: authorization is enforced again by the transactional Actions.
 Route::post('/admin/inventory/import', [InventoryOperationsController::class, 'import'])->name('inventory.import');
 Route::post('/admin/access/{target}/role', [AdminOperationsController::class, 'role']);
+Route::post('/admin/access/{target}/roles', [AdminOperationsController::class, 'roles']);
 Route::post('/admin/finance/invoices/{invoice}/refund', [AdminOperationsController::class, 'refund']);
 Route::post('/admin/finance/wallet-topup-settings', [WalletTopupSettingsController::class, 'store']);
 Route::post('/admin/finance/receivables/{clawback}/settlements', [AffiliateReceivableController::class, 'store']);

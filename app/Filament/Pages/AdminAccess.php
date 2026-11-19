@@ -30,6 +30,7 @@ class AdminAccess extends Page
             ->when(request('user_id'), fn ($q, $id) => $q->whereKey((int) $id))
             ->when(request('email'), fn ($q, $email) => $q->where('email', mb_substr((string) $email, 0, 255)))
             ->latest('id')->paginate(20)->withQueryString(),
-            'roles' => AdminRoles::webAssignable(), 'definitions' => AdminRoles::permissions()];
+            'roles' => AdminRoles::webAssignable(), 'definitions' => AdminRoles::permissions(),
+            'roleLabels' => AdminRoles::labels(), 'presets' => AdminRoles::presets()];
     }
 }

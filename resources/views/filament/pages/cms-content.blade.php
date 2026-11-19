@@ -20,7 +20,7 @@
 <label>发布状态<select name="is_published"><option value="0" @selected(!old('is_published', $editArticle?->is_published))>草稿 / 撤回</option><option value="1" @selected(old('is_published', $editArticle?->is_published))>发布（未来时间为预约）</option></select></label>
 <label>公开时间<input name="published_at" type="datetime-local" value="{{ old('published_at', $editArticle?->published_at?->format('Y-m-d\TH:i')) }}"><span class="inventory-meta">留空立即发布</span></label>
 @else<input type="hidden" name="is_published" value="0">@endcan
-<label>修改原因<input name="reason" required maxlength="1000"></label><button class="inventory-button">保存文章</button>
+<label>备注（可选）<input name="reason" maxlength="1000" value="{{ old('reason') }}"></label><button class="inventory-button">保存文章</button>
 </form></section>
 @else<p class="inventory-alert">此文章已发布或预约，需发布权限才能编辑或撤回。</p>@endif
 @endcan
@@ -35,12 +35,12 @@
 <label>名称<input name="name" value="{{ $editCategory?->name }}" required maxlength="255"></label><label>URL slug<input name="slug" value="{{ $editCategory?->slug }}" required maxlength="100"></label>
 <label>可见性<select name="is_hidden"><option value="0">公开</option><option value="1" @selected($editCategory?->is_hidden)>隐藏</option></select></label>
 <label>SEO 标题<input name="seo_title" value="{{ $editCategory?->seo_title }}" maxlength="255"></label><label>SEO 关键词<input name="seo_keywords" value="{{ $editCategory?->seo_keywords }}" maxlength="255"></label><label>SEO 描述<input name="seo_description" value="{{ $editCategory?->seo_description }}" maxlength="1000"></label><label>排序<input name="sort_order" type="number" min="0" value="{{ $editCategory?->sort_order ?? 0 }}"></label>
-<label>修改原因<input name="reason" required maxlength="1000"></label><button class="inventory-button">保存栏目</button></form></section>
+<label>备注（可选）<input name="reason" maxlength="1000" value="{{ old('reason') }}"></label><button class="inventory-button">保存栏目</button></form></section>
 @endcan
 <section class="inventory-box"><h2>栏目</h2><ul>@foreach($categories as $category)<li><a href="?category={{ $category->id }}" class="inventory-link">{{ $category->type->value }} / {{ $category->name }}</a> · {{ $category->is_hidden ? '隐藏' : '公开' }}</li>@endforeach</ul></section>
 @can('cms.publish')
 @if($editProduct)<section class="inventory-box"><h2>编辑商品展示 #{{ $editProduct->id }}</h2><p class="inventory-note">仅维护名称、描述与商品可见性；价格、驱动和上游绑定在各产品管理流程维护。SEO 使用名称与描述。</p>
-<form method="post" action="/admin/content/products/{{ $editProduct->id }}" class="inventory-form">@csrf<label>名称<input name="name" value="{{ $editProduct->name }}" required maxlength="255"></label><label style="width:100%">描述<textarea name="description" required maxlength="100000">{{ $editProduct->description }}</textarea></label><label>可见性<select name="is_hidden"><option value="0">上架</option><option value="1" @selected($editProduct->is_hidden)>隐藏</option></select></label><label>修改原因<input name="reason" required maxlength="1000"></label><button class="inventory-button">保存商品展示</button></form></section>@endif
+<form method="post" action="/admin/content/products/{{ $editProduct->id }}" class="inventory-form">@csrf<label>名称<input name="name" value="{{ $editProduct->name }}" required maxlength="255"></label><label style="width:100%">描述<textarea name="description" required maxlength="100000">{{ $editProduct->description }}</textarea></label><label>可见性<select name="is_hidden"><option value="0">上架</option><option value="1" @selected($editProduct->is_hidden)>隐藏</option></select></label><label>备注（可选）<input name="reason" maxlength="1000" value="{{ old('reason') }}"></label><button class="inventory-button">保存商品展示</button></form></section>@endif
 @endcan
 <section class="inventory-box inventory-scroll"><h2>商品展示</h2><table class="inventory-table"><thead><tr><th>分类 / 商品</th><th>可见性</th><th>操作</th></tr></thead><tbody>@foreach($products as $product)<tr><td>{{ $product->category->name }} / {{ $product->name }}</td><td>{{ $product->is_hidden || $product->category->is_hidden ? '隐藏' : '上架' }}</td><td><a href="?product={{ $product->id }}" class="inventory-link">编辑展示</a></td></tr>@endforeach</tbody></table>{{ $products->links() }}</section>
 </x-filament-panels::page>

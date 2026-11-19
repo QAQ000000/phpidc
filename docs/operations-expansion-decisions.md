@@ -121,6 +121,8 @@ affiliate_withdrawals 当前没有申请请求键。payout:{withdrawal_id} 能�
 
 ## 6. 页面、权限与验收
 
+2026-11-19 人工输入调整：用户已批准日常操作使用可选备注及稳定的服务器审计说明，商品范围、领取条件及模板映射使用结构化控件；原资金、权限、事务和审计保证保持。下述“非空管理原因”仍约束审计记录，不再普遍要求人工填写，详见 [操作精简](usability-simplification-2026-11-19.md)。
+
 沿用 Filament `/admin` 与现有 Blade `/console`；新增固定角色和明确权限：promotion-viewer/operator、affiliate-viewer/operator、support-viewer/agent、notification-viewer/operator、download-viewer/operator；提现审批另用 finance.payout，不把既有 finance.refund 自动扩大为打款权。角色授撤继续走上一轮带原因的审计 Action；不会创建默认管理员、授予真实账号或开启万能 super_admin。
 
 客户增加优惠券、推广/佣金/提现、工单页面；下载中心有公开列表和受控下载。管理员增加对应运营页面；全部写操作 CSRF、独立授权、非空管理原因、Action 再校验、事务内审计。页面仅使用安全投影，窄屏单栏操作，普通客户只能查看本人数据。

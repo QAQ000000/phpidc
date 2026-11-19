@@ -93,7 +93,7 @@ it('imports encrypted cards with byte-preserving deduplication and a real actor 
 it('never flashes submitted card plaintext on failed validation or nonlocal product selection', function (): void {
     $this->actingAs(inventoryUser('inventory-operator'));
     $product = Product::factory()->create(['driver_type' => DriverType::ZJMF_API]);
-    $this->from('/admin/inventory/cards')->post('/admin/inventory/import', ['product_id' => $product->id, 'codes' => 'PRIVATE-FAILED-IMPORT'])
+    $this->from('/admin/inventory/cards')->post('/admin/inventory/import', ['product_id' => $product->id, 'codes' => 'PRIVATE-FAILED-IMPORT', 'reason' => str_repeat('x', 1001)])
         ->assertSessionHasErrors('reason')->assertSessionMissing('_old_input.codes');
     $this->from('/admin/inventory/cards')->post('/admin/inventory/import', ['product_id' => $product->id, 'codes' => 'PRIVATE-FAILED-IMPORT', 'reason' => 'Wrong product'])
         ->assertSessionHasErrors('operation')->assertSessionMissing('_old_input.codes');

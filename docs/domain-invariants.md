@@ -328,6 +328,8 @@ Notification recipient expansion preserves user/binding cursors and fixed bounds
 
 **INV-A2 — Shape.** `actor_id, action, subject_type, subject_id, before (json), after (json), reason, ip, request_id, created_at`. `reason` is required for every admin-initiated financial or lifecycle action.
 
+Human-approved usability simplification (2026-11-19, “开始修复”): routine HTTP operations may generate a stable action-specific audit description when the optional operator note is absent or blank. A required audit field does not generally require handwritten input. Preserve the actual actor, subject, request context and change evidence. Explicit keep-service refund waivers under INV-R1 still require the operator's real reason and consent; reversals and uncertain financial/machine/notification outcomes retain their original evidence and release conditions. Generated descriptions used in a durable request identity must remain deterministic for the same operation. See `usability-simplification-2026-11-19.md`.
+
 ---
 
 ## 14. PR checklist
