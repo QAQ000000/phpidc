@@ -162,6 +162,13 @@ class CreateComboInvoiceAction
         return $this->service($user, $instance, InvoiceType::RENEW, [], false, 'epay_wechat', null, automatic: true);
     }
 
+    /** Internal handoff of the row just synchronized by the current lifecycle invocation. */
+    public function automaticRenewalFromLifecycle(User $user, Instance $instance, array $binding, string $accountFingerprint): Invoice
+    {
+        return $this->service($user, $instance, InvoiceType::RENEW, [], false, 'epay_wechat', null, automatic: true,
+            lifecycleSnapshot: ['attributes' => $instance->getRawOriginal(), 'binding' => $binding, 'account_fingerprint' => $accountFingerprint]);
+    }
+
     public function recoverRenewal(User $user, Invoice $parent, string $requestId, string $quoteToken, bool $useCredit, ?string $gateway, ?string $couponCode, string $reason): Invoice
     {
         abort_unless($parent->user_id === $user->id, 403);
@@ -209,7 +216,7 @@ class CreateComboInvoiceAction
         return $this->service($user, $instance, InvoiceType::UPGRADE, $options, $useCredit, $gateway, $requestId);
     }
 
-    private function service(User $user, Instance $instance, InvoiceType $type, array $options, bool $useCredit, ?string $gateway, ?string $requestId, ?string $couponCode = null, ?array $recovery = null, bool $automatic = false): Invoice
+    private function service(User $user, Instance $instance, InvoiceType $type, array $options, bool $useCredit, ?string $gateway, ?string $requestId, ?string $couponCode = null, ?array $recovery = null, bool $automatic = false, ?array $lifecycleSnapshot = null): Invoice
     {
         abort_unless($instance->user_id === $user->id, 403);
         $instance = $instance->fresh();
@@ -229,11 +236,15 @@ class CreateComboInvoiceAction
         if (! $driver instanceof RenewableResource || ! $instance->billing_cycle->isRenewable() || ! $instance->status->isBillable()) {
             throw ValidationException::withMessages(['instance' => 'A live renewable instance is required.']);
         }
-        $snapshot = app(CallUpstreamAction::class)->execute(fn () => $driver->syncInfo($instance));
-        if (! app(ApplyInstanceSnapshotAction::class)->execute($instance, $snapshot)) {
-            throw ValidationException::withMessages(['instance' => 'Instance changed during pre-sync.']);
+        if ($lifecycleSnapshot !== null) {
+            $this->assertLifecycleSnapshot($instance, $lifecycleSnapshot);
+        } else {
+            $snapshot = app(CallUpstreamAction::class)->execute(fn () => $driver->syncInfo($instance));
+            if (! app(ApplyInstanceSnapshotAction::class)->execute($instance, $snapshot)) {
+                throw ValidationException::withMessages(['instance' => 'Instance changed during pre-sync.']);
+            }
+            $instance = $instance->fresh();
         }
-        $instance = $instance->fresh();
         if (! $instance->status->isBillable() || $instance->next_due_at === null || isset($instance->active_config['cancellation'])) {
             throw ValidationException::withMessages(['instance' => 'A known due boundary and uncancelled live service are required.']);
         }
@@ -270,7 +281,7 @@ class CreateComboInvoiceAction
         }
         SettlementCurrency::assertSupported($quote->currency);
 
-        return DB::transaction(function () use ($user, $instance, $product, $type, $key, $quote, $target, $recurring, $boundary, $useCredit, $gateway, $fingerprint, $productFingerprint, $requestId, $couponCode, $recovery, $automatic): Invoice {
+        return DB::transaction(function () use ($user, $instance, $product, $type, $key, $quote, $target, $recurring, $boundary, $useCredit, $gateway, $fingerprint, $productFingerprint, $requestId, $couponCode, $recovery, $automatic, $lifecycleSnapshot): Invoice {
             $user = User::whereKey($user->id)->lockForUpdate()->firstOrFail();
             $recoveryRows = null;
             if ($recovery !== null) {
@@ -300,6 +311,10 @@ class CreateComboInvoiceAction
             }
             $unpaid = Invoice::where('instance_id', $instance->id)->where('status', InvoiceStatus::UNPAID)->lockForUpdate()->exists();
             $locked = Instance::whereKey($instance->id)->lockForUpdate()->firstOrFail();
+            if ($lifecycleSnapshot !== null) {
+                $locked->setRelation('upstreamApi', UpstreamApi::whereKey($locked->upstream_api_id)->lockForUpdate()->first());
+                $this->assertLifecycleSnapshot($locked, $lifecycleSnapshot);
+            }
             SettlementCurrency::assertSupported($locked->currency);
             if ($unpaid || $locked->getRawOriginal() !== $fingerprint || $product->fresh()->getRawOriginal() !== $productFingerprint
                 || FulfillmentTask::where('instance_id', $locked->id)->whereIn('status', [FulfillmentTaskStatus::PENDING, FulfillmentTaskStatus::RUNNING, FulfillmentTaskStatus::FAILED])->exists()) {
@@ -387,6 +402,16 @@ class CreateComboInvoiceAction
 
             return $invoice;
         });
+    }
+
+    private function assertLifecycleSnapshot(Instance $instance, array $snapshot): void
+    {
+        $operation = app(MachineOperation::class);
+        if ($instance->getRawOriginal() !== $snapshot['attributes'] || ! $instance->upstreamApi?->is_active
+            || $operation->binding($instance) !== $snapshot['binding']
+            || $operation->accountFingerprint($instance) !== $snapshot['account_fingerprint']) {
+            throw ValidationException::withMessages(['instance' => 'The lifecycle synchronization is no longer current. Retry the lifecycle check.']);
+        }
     }
 
     private function assertAutomaticSelectionReplay(Invoice $invoice, bool $useCredit, ?string $gateway, ?string $couponCode): void

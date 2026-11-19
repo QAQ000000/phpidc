@@ -12,6 +12,7 @@ use App\Services\DriverManager;
 use App\Services\SettingService;
 use App\Support\MachineOperation;
 use DomainException;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Validation\ValidationException;
 
@@ -43,11 +44,17 @@ class ProcessInstanceLifecycleAction
             $snapshot = app(CallUpstreamAction::class)->execute(fn () => $driver->syncInfo($instance));
             $current = $instance->fresh(['upstreamApi']);
             if (! $current->upstreamApi?->is_active || app(MachineOperation::class)->binding($current) !== $binding
-                || app(MachineOperation::class)->accountFingerprint($current) !== $accountAuth
-                || ! app(ApplyInstanceSnapshotAction::class)->execute($instance, $snapshot)) {
+                || app(MachineOperation::class)->accountFingerprint($current) !== $accountAuth) {
                 return false;
             }
-            $instance = $instance->fresh();
+            // Capture the applied row before releasing its lock: a later change
+            // must invalidate this handoff rather than become part of the snapshot.
+            $instance = DB::transaction(function () use ($instance, $snapshot): ?Instance {
+                return app(ApplyInstanceSnapshotAction::class)->execute($instance, $snapshot) ? $instance->fresh() : null;
+            });
+            if ($instance === null) {
+                return false;
+            }
             if ($instance->status->isTerminal() || $instance->next_due_at === null || isset($instance->active_config['cancellation'])) {
                 return false;
             }
@@ -67,7 +74,7 @@ class ProcessInstanceLifecycleAction
                     if ($instance->next_due_at->lte(now()->addSeconds($seconds))) {
                         // The authenticated boundary is already known; do not re-sync an existing invoice.
                         if (! Invoice::where('billing_period_key', $instance->id.':renew:'.$boundary)->exists()) {
-                            app(CreateComboInvoiceAction::class)->automaticRenewal($instance->user()->firstOrFail(), $instance);
+                            app(CreateComboInvoiceAction::class)->automaticRenewalFromLifecycle($instance->user()->firstOrFail(), $instance, $binding, $accountAuth);
                         }
                     }
                 }
