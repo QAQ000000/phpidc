@@ -56,6 +56,20 @@
 
 验收使用隔离 SQLite、独立 storage 和隔离浏览器站点，没有执行真实支付、开通、出款或业务通知。Feature 使用 `Http::preventStrayRequests()` / `assertNothingSent()`；浏览器仍可能请求 Filament 既有的 `ui-avatars` 默认头像，本记录不将所有外网请求记为零。共享预览与实际业务数据不用于建单或资金实验。
 
+## 截图留档
+
+以下五张为实现提交 `a4265a6` 的原始浏览器验收截图，页面使用隔离测试库中的模拟账单、工单和金额。截图为整页截取，因此图片高度大于验收视口高度；侧栏收起图包含展开的财务分类菜单。文件合计约 898 KiB。
+
+| 场景 | 验收视口 | 整页图片 | 文件 |
+| --- | --- | --- | --- |
+| 桌面浅色 | 1440 × 1000 | 1440 × 1666 | [desktop-light.png](screenshots/admin-dashboard-2026-11-20/desktop-light.png) |
+| 桌面深色 | 1440 × 1000 | 1440 × 1666 | [desktop-dark.png](screenshots/admin-dashboard-2026-11-20/desktop-dark.png) |
+| 手机浅色 | 390 × 844 | 390 × 3178 | [mobile-light.png](screenshots/admin-dashboard-2026-11-20/mobile-light.png) |
+| 手机深色 | 390 × 844 | 390 × 3178 | [mobile-dark.png](screenshots/admin-dashboard-2026-11-20/mobile-dark.png) |
+| 桌面侧栏收起 | 1440 × 1000 | 1440 × 1666 | [sidebar-collapsed.png](screenshots/admin-dashboard-2026-11-20/sidebar-collapsed.png) |
+
+![经营总览桌面浅色验收截图](screenshots/admin-dashboard-2026-11-20/desktop-light.png)
+
 IMPLEMENTED: 后台外壳 / Token 统一、原生桌面收起、六组三十入口图标、品牌返回默认经营总览、按权限的本地指标与最近待办。
 NOT DONE: B1 运营与内容旧页翻新、B2 库存 / 清算 / 运维旧页翻新。
 DECISIONS: 沿用原查看权限与后台准入；退款前商品结算额使用原账单总额且不含充值；保留三十个业务入口，经营总览由品牌首页进入；零迁移、零新增构建链。
