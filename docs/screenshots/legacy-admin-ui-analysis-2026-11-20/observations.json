@@ -1,0 +1,53 @@
+{
+  "scope": "Original compiled frontend served statically on loopback with synthetic menu, language and empty client-list responses. No legacy PHP/database/live business API.",
+  "phpidc_base": "e7f6382570f0a424c5f01cc7c57d99610170d03b",
+  "viewports": [
+    {
+      "width": 1440,
+      "height": 1000
+    },
+    {
+      "width": 390,
+      "height": 844
+    }
+  ],
+  "synthetic_menu_domains": [
+    "客户",
+    "业务",
+    "财务",
+    "工单",
+    "设置"
+  ],
+  "observations": {
+    "desktop": {
+      "header_height": 60,
+      "aside_width": 200,
+      "main_width": 1240,
+      "table_font_px": 12,
+      "table_header_height_px": 34
+    },
+    "mobile_with_advanced_search": {
+      "viewport_width": 390,
+      "body_scroll_width": 390,
+      "main_scroll_width": 390,
+      "aside_rendered": false,
+      "top_navigation_visible": false,
+      "table_header_width": 1025,
+      "table_viewport_width": 307
+    }
+  },
+  "not_verified": [
+    "Production/current legacy menu",
+    "Authenticated legacy customer/instance/invoice/ticket workflows",
+    "Real external requests or writes",
+    "Production latency or performance",
+    "All-pages accessibility/responsiveness"
+  ],
+  "source_sha256": {
+    "public/admin/index.html": "78d964f950efba185cd39c0ef09bfa4624df5197f89df6106806a6d8017d119a",
+    "public/admin/js/app~5a11b65b.94a330a1.js": "0d3d40ab4e88b974a0fbf03f82c0daf9b3ca7ff1d0b04568c3e9de0a6182f6d2",
+    "public/admin/js/Home~f71cff67.2d110421.js": "4662e55c0cf81a95ec90d0c3a59a0026d0a6cd5a5cdf77ba0b26d0d827691055",
+    "public/admin/css/Home~f71cff67.091ec3e2.css": "71dcc76415323ee2e0033a1b1cadb39bc4ee31407c97e9e3ea4061c3d66975d6",
+    "downloads/database/auth_rule.sql": "83c429a1efc57a1c259fe0e99302b4d84d04840ee59d1c0e898cd56108202265"
+  }
+}
