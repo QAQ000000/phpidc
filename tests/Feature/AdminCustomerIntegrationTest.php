@@ -79,7 +79,7 @@ it('keeps the customer management menu scoped and renders one global search cont
     foreach ($links as $link) {
         $urls[] = $link->getAttribute('href');
     }
-    expect(array_values(array_unique($urls)))->toBe(['/admin/customers']);
+    expect(array_values(array_unique($urls)))->toBe(['/admin', '/admin/customers']);
     $this->actingAs(c1IntegrationActor('audit-viewer'));
     $xpath = c1IntegrationXPath($this->get('/admin/audit')->assertOk()->getContent());
     expect($xpath->query('//*[@data-admin-search]'))->toHaveCount(0);

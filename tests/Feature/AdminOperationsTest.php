@@ -98,7 +98,10 @@ it('projects financial metadata without reading payment payloads or service cred
         $sql[] = $query->sql;
     });
     $this->actingAs($viewer)->get('/admin/finance/invoice?invoice_id='.$invoice->id)->assertOk()
-        ->assertSee('100.00 = 钱包 30.00 + 网关 70.00')->assertSee('EXACT-ATTEMPT-42')->assertDontSee('确认全额退款')
+        ->assertSee('100.00 = 钱包 30.00 + 网关 70.00')->assertDontSee('确认全额退款')
+        ->assertDontSee('PRIVATE-SERVICE-PASSWORD')->assertDontSee('PRIVATE-PAYMENT-REQUEST')->assertDontSee('PRIVATE-PAYMENT-SIGN');
+    $this->get('/admin/finance/invoice?invoice_id='.$invoice->id.'&tab=payments')->assertOk()
+        ->assertSee('EXACT-ATTEMPT-42')->assertDontSee('确认全额退款')
         ->assertDontSee('PRIVATE-SERVICE-PASSWORD')->assertDontSee('PRIVATE-PAYMENT-REQUEST')->assertDontSee('PRIVATE-PAYMENT-SIGN');
     Filament::setCurrentPanel(Filament::getPanel('admin'));
     $component = Livewire::withQueryParams(['invoice_id' => $invoice->id])->test(FinanceInvoice::class)->assertOk()->assertSee($invoice->invoice_no)->assertDontSee('PRIVATE-PAYMENT-SIGN');

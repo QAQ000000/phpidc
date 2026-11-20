@@ -150,10 +150,11 @@ it('submits a wallet adjustment with optional note and creates a fresh request o
     $xpath = financialFallbackUiXpath($response->getContent());
     $requestId = $xpath->query('//dialog[@id="customer-wallet-adjust"]//input[@name="request_id"]')->item(0)->getAttribute('value');
     $this->post($path.'/wallet-adjust', ['request_id' => $requestId, 'direction' => 'credit', 'amount' => '1.23', 'currency' => 'CNY', 'confirm' => '1'])
-        ->assertRedirect($path.'#customer-profile')->assertSessionHas('customer_status');
+        ->assertRedirect($path.'?tab=overview#customer-profile')->assertSessionHas('customer_status');
     expect($owner->fresh()->credit)->toBe('6.23')->and($owner->fresh()->frozen_credit)->toBe('3.00')
         ->and($owner->fresh()->wallet_clearance_frozen)->toBe('2.00');
-    $response = $this->get($path)->assertOk()->assertSee('钱包加款')->assertSee('1.23');
+    $response = $this->get($path)->assertOk()->assertSee('6.23');
+    $this->get($path.'?tab=ledger')->assertOk()->assertSee('钱包加款')->assertSee('1.23');
     $newId = financialFallbackUiXpath($response->getContent())->query('//dialog[@id="customer-wallet-adjust"]//input[@name="request_id"]')->item(0)->getAttribute('value');
     expect(Str::isUlid($newId))->toBeTrue()->and($newId)->not->toBe($requestId);
     $this->get('/admin/finance/ledger?user_id='.$owner->id)->assertOk()->assertSee('钱包加款');
@@ -189,6 +190,29 @@ it('regenerates malformed wallet request ids and renders array failures without 
     $response = $this->get($path)->assertOk()->assertDontSee('PRIVATE-C3-ARRAY');
     $id = financialFallbackUiXpath($response->getContent())->query('//dialog[@id="customer-wallet-adjust"]//input[@name="request_id"]')->item(0)->getAttribute('value');
     expect(Str::isUlid($id))->toBeTrue();
+});
+
+it('restores the wallet dialog on a customer history tab without loading a wallet summary', function (): void {
+    $actor = financialFallbackUiActor('customers.view', 'finance.view', 'finance.wallet-adjust', 'upstream.view');
+    $owner = User::factory()->create(['credit' => '45.67']);
+    $path = '/admin/customers/'.$owner->id.'?tab=services&services_page=2';
+    $response = $this->actingAs($actor)->get($path)->assertOk()->assertDontSee('当前可用 45.67')->assertDontSee('data-customer-metric="credit"', false);
+    $xpath = financialFallbackUiXpath($response->getContent());
+    $form = $xpath->query('//dialog[@id="customer-wallet-adjust"]//form')->item(0);
+    $requestId = $xpath->query('.//input[@name="request_id"]', $form)->item(0)->getAttribute('value');
+    $failed = $this->post($form->getAttribute('action'), ['request_id' => $requestId, 'direction' => 'debit',
+        'amount' => '90.12', 'currency' => 'CNY', 'reason' => 'HISTORY-WALLET-NOTE', 'confirm' => '1'])
+        ->assertRedirect()->assertSessionHasErrors('amount');
+    $location = $failed->headers->get('Location');
+    parse_str(parse_url($location, PHP_URL_QUERY), $query);
+    expect($query)->toEqual(['tab' => 'services', 'services_page' => '2']);
+    $response = $this->get($location)->assertOk()->assertDontSee('当前可用 45.67')->assertSee('HISTORY-WALLET-NOTE');
+    $xpath = financialFallbackUiXpath($response->getContent());
+    expect($xpath->query('//nav[@aria-label="客户详情页签"]//a[@data-customer-tab="services"][@aria-current="page"]'))->toHaveCount(1)
+        ->and($xpath->query('//dialog[@id="customer-wallet-adjust"]')->item(0)->getAttribute('x-init'))->toContain('showModal')
+        ->and($xpath->query('//dialog[@id="customer-wallet-adjust"]//input[@name="request_id"]')->item(0)->getAttribute('value'))->toBe($requestId)
+        ->and($owner->fresh()->credit)->toBe('45.67');
+    $this->assertDatabaseCount('financial_transactions', 0);
 });
 
 it('keeps viewers readonly and rejects both new post routes without their special authority', function (): void {
@@ -246,8 +270,8 @@ it('reopens only the rejected offline form and never restores private evidence o
     unset($input['confirm']);
     $input['amount'] = '999.99';
     $input['reason'] = 'C3-OFFLINE-RESTORE';
-    $path = '/admin/finance/invoice?invoice_id='.$invoice->id;
-    $this->actingAs($actor)->from($path)->post('/admin/finance/invoices/'.$invoice->id.'/offline-receipt', $input)
+    $path = '/admin/finance/invoice?invoice_id='.$invoice->id.'&tab=overview';
+    $this->actingAs($actor)->from($path)->post('/admin/finance/invoices/'.$invoice->id.'/offline-receipt?tab=overview', $input)
         ->assertRedirect($path)->assertSessionHasErrors('confirm');
     $response = $this->get($path)->assertOk()->assertSee('C3-OFFLINE-RESTORE')->assertDontSee('PRIVATE-C3-RECEIPT-EVIDENCE')
         ->assertDontSee('value="999.99"', false)->assertDontSee($input['external_reference']);
@@ -313,9 +337,9 @@ it('projects only safe invoice item fields and never returns stored request oper
         ['kind' => 'credential', 'label' => 'PRIVATE-C3-CREDENTIAL', 'qty' => 1, 'unit_price' => '0.00', 'amount' => '0.00'],
         ['kind' => 'setup_fee', 'label' => '<script>html-is-text</script>', 'qty' => [], 'unit_price' => [], 'amount' => 'INVALID'],
     ], 'purchase' => ['encrypted_params' => 'PRIVATE-C3-PARAMS', 'encrypted_request' => 'PRIVATE-C3-REQUEST'], 'encrypted_operation' => 'PRIVATE-C3-OPERATION']]);
-    $response = $this->actingAs($actor)->get('/admin/finance/invoice?invoice_id='.$invoice->id)->assertOk()->assertSee('安全项目')
+    $response = $this->actingAs($actor)->get('/admin/finance/invoice?invoice_id='.$invoice->id.'&tab=items')->assertOk()->assertSee('安全项目')
         ->assertSee('&lt;script&gt;html-is-text&lt;/script&gt;', false)->assertDontSee('PRIVATE-C3');
-    $data = financialFallbackUiData($invoice);
+    $data = financialFallbackUiData($invoice, 'tab=items');
     expect($data['invoiceItems'][0])->toBe(['label' => '安全项目', 'qty' => '1', 'unit_price' => '10.00', 'amount' => '10.00'])
         ->and(array_key_exists('line_items', $data['invoice']->getAttributes()))->toBeFalse()
         ->and($data['invoiceItems'][1]['qty'])->toBe('—')->and($data['invoiceItems'][1]['amount'])->toBe('—');
@@ -338,7 +362,7 @@ it('independently paginates local ledger and tasks and preserves safe context wi
         ->and($data['returnUrl'])->toBe('/admin/finance?user_id='.$invoice->user_id);
     parse_str(parse_url($data['ledger']->url(3), PHP_URL_QUERY), $query);
     expect($query)->toBe(['user_id' => (string) $invoice->user_id, 'invoice_id' => (string) $invoice->id,
-        'attempts_page' => '2', 'tasks_page' => '3', 'ledger_page' => '3']);
+        'attempts_page' => '2', 'tasks_page' => '3', 'tab' => 'payments', 'ledger_page' => '3']);
     foreach ($data['ledger'] as $entry) {
         expect(array_key_exists('meta', $entry->getAttributes()))->toBeFalse();
     }

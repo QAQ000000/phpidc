@@ -25,6 +25,39 @@ final class AdminWorkspaceNavigation
 
     private const INVOICE_PAGES = ['attempts_page', 'callbacks_page', 'ledger_page', 'tasks_page'];
 
+    private const TABS = [
+        'customer' => [
+            'overview' => ['customers.view', []], 'services' => ['upstream.view', ['services_page']],
+            'invoices' => ['finance.view', ['invoices_page']], 'ledger' => ['finance.view', ['ledger_page']],
+            'tickets' => ['support.view', ['tickets_page']], 'identity' => ['customers.view', ['kyc_page']],
+            'notifications' => ['notification.view', ['notifications_page']], 'audit' => ['audit.view', ['audit_page']],
+        ],
+        'instance' => [
+            'overview' => ['upstream.view', []], 'configuration' => ['upstream.view', []],
+            'invoices' => ['finance.view', ['invoices_page']], 'tasks' => ['tasks.view', ['tasks_page']],
+            'tickets' => ['support.view', ['tickets_page']],
+        ],
+        'invoice' => [
+            'overview' => ['finance.view', []], 'items' => ['finance.view', []],
+            'payments' => ['finance.view', ['attempts_page', 'callbacks_page']],
+            'ledger' => ['finance.view', ['ledger_page']], 'tasks' => ['tasks.view', ['tasks_page']],
+            'recovery' => ['finance.view', []],
+        ],
+    ];
+
+    private const SECTION_TABS = [
+        'customer' => ['customer-profile' => 'overview', 'customer-services' => 'services',
+            'customer-invoices' => 'invoices', 'customer-ledger' => 'ledger', 'customer-tickets' => 'tickets',
+            'customer-kyc' => 'identity', 'customer-notifications' => 'notifications', 'customer-audit' => 'audit'],
+        'instance' => ['instance-summary' => 'overview', 'instance-ownership' => 'overview',
+            'instance-configuration' => 'configuration', 'instance-operations' => 'overview',
+            'instance-lifecycle' => 'overview', 'instance-hot-swap' => 'overview',
+            'instance-invoices' => 'invoices', 'instance-tasks' => 'tasks', 'instance-tickets' => 'tickets'],
+        'invoice' => ['invoice-summary' => 'overview', 'invoice-items' => 'items',
+            'invoice-payments' => 'payments', 'invoice-ledger' => 'ledger', 'invoice-tasks' => 'tasks',
+            'invoice-recovery' => 'recovery'],
+    ];
+
     private const SECTIONS = [
         'customer' => ['customer-profile' => 'customers.view', 'customer-services' => 'upstream.view',
             'customer-invoices' => 'finance.view', 'customer-ledger' => 'finance.view',
@@ -32,9 +65,33 @@ final class AdminWorkspaceNavigation
             'customer-notifications' => 'notification.view', 'customer-audit' => 'audit.view'],
         'instance' => ['instance-summary' => 'upstream.view', 'instance-ownership' => 'upstream.view',
             'instance-configuration' => 'upstream.view', 'instance-operations' => 'upstream.view',
+            'instance-lifecycle' => 'upstream.view', 'instance-hot-swap' => 'upstream.view',
             'instance-invoices' => 'finance.view', 'instance-tasks' => 'tasks.view', 'instance-tickets' => 'support.view'],
-        'invoice' => ['invoice-summary' => 'finance.view', 'invoice-tasks' => 'tasks.view', 'invoice-recovery' => 'finance.view'],
+        'invoice' => ['invoice-summary' => 'finance.view', 'invoice-items' => 'finance.view',
+            'invoice-payments' => 'finance.view', 'invoice-ledger' => 'finance.view',
+            'invoice-tasks' => 'tasks.view', 'invoice-recovery' => 'finance.view'],
     ];
+
+    /** Resolve URL tabs without consulting business tables or accepting arbitrary destinations. */
+    public static function tab(string $kind, array $input, ?string $section = null): ?string
+    {
+        $tabs = self::TABS[$kind] ?? [];
+        if ($tabs === []) {
+            return null;
+        }
+        if (array_key_exists('tab', $input)) {
+            return is_string($input['tab']) && isset($tabs[$input['tab']]) ? $input['tab'] : null;
+        }
+        foreach ($tabs as $tab => [, $pages]) {
+            foreach ($pages as $page) {
+                if (isset($input[$page])) {
+                    return $tab;
+                }
+            }
+        }
+
+        return self::SECTION_TABS[$kind][$section ?? ''] ?? 'overview';
+    }
 
     public static function query(User $actor, string $kind, array $input): array
     {
@@ -50,7 +107,7 @@ final class AdminWorkspaceNavigation
     public static function origin(User $actor, string $kind, ?int $id, array $input, ?string $section = null): array
     {
         $source = self::source(['kind' => $kind, 'id' => $id,
-            'query' => self::ownQuery($kind, $input) ?? [], 'section' => $section], $actor);
+            'query' => $input, 'section' => $section], $actor);
 
         return $source === null ? [] : ['from' => $source];
     }
@@ -63,7 +120,7 @@ final class AdminWorkspaceNavigation
             'instance' => '/admin/instances/'.self::objectId($id), 'invoice' => '/admin/finance/invoice',
             default => throw new InvalidArgumentException('未知工作台类型。'),
         };
-        $clean = self::ownQuery($kind, $query) ?? [];
+        $clean = self::ownQuery($kind, $query, $section) ?? [];
         if ($kind === 'instances' && ($selected = self::positiveInteger($query['instance'] ?? null, PHP_INT_MAX)) !== null) {
             $clean['instance'] = $selected;
         }
@@ -76,6 +133,9 @@ final class AdminWorkspaceNavigation
         }
         $section = is_string($section) && (isset(self::SECTIONS[$kind][$section])
             || ($kind === 'instances' && in_array($section, ['instance-lifecycle', 'instance-hot-swap'], true))) ? $section : null;
+        if ($section !== null && isset($clean['tab']) && (self::SECTION_TABS[$kind][$section] ?? null) !== $clean['tab']) {
+            $section = null;
+        }
 
         return $path.($clean === [] ? '' : '?'.http_build_query($clean)).($section === null ? '' : '#'.$section);
     }
@@ -113,8 +173,14 @@ final class AdminWorkspaceNavigation
         if (! is_array($input['query'] ?? []) || (isset($input['section']) && ! is_string($input['section']))) {
             return null;
         }
-        $query = self::ownQuery($kind, $input['query'] ?? []);
+        $section = $input['section'] ?? null;
+        $ability = is_string($section) ? (self::SECTIONS[$kind][$section] ?? null) : null;
+        $section = $ability !== null && ($actor === null || $actor->can($ability)) ? $section : null;
+        $query = self::ownQuery($kind, $input['query'] ?? [], $section);
         if ($query === null) {
+            return null;
+        }
+        if ($actor !== null && isset($query['tab']) && ! $actor->can(self::TABS[$kind][$query['tab']][0])) {
             return null;
         }
         $source = ['kind' => $kind];
@@ -122,16 +188,14 @@ final class AdminWorkspaceNavigation
             $source['id'] = $id;
         }
         $source['query'] = $query;
-        $section = $input['section'] ?? null;
-        $ability = is_string($section) ? (self::SECTIONS[$kind][$section] ?? null) : null;
-        if ($ability !== null && ($actor === null || $actor->can($ability))) {
+        if ($section !== null) {
             $source['section'] = $section;
         }
 
         return $source;
     }
 
-    private static function ownQuery(string $kind, array $input): ?array
+    private static function ownQuery(string $kind, array $input, ?string $section = null): ?array
     {
         $integer = ['nullable', 'integer', 'min:1', 'max:'.PHP_INT_MAX];
         $page = ['nullable', 'integer', 'min:1', 'max:2147483647'];
@@ -153,12 +217,23 @@ final class AdminWorkspaceNavigation
         if ($validator->fails()) {
             return null;
         }
+        $tab = isset(self::TABS[$kind]) ? self::tab($kind, $input, $section) : null;
+        if (isset(self::TABS[$kind]) && $tab === null) {
+            return null;
+        }
         $query = [];
         foreach ($validator->validated() as $key => $value) {
             if ($value === null || $value === '' || (($key === 'page' || str_ends_with($key, '_page')) && (int) $value === 1)) {
                 continue;
             }
+            if ($tab !== null && str_ends_with($key, '_page') && ! in_array($key, self::TABS[$kind][$tab][1], true)) {
+                continue;
+            }
             $query[$key] = $value;
+        }
+        if ($tab !== null && (array_key_exists('tab', $input) || $section !== null
+            || array_intersect(array_keys($input), [...self::CUSTOMER_PAGES, ...self::INSTANCE_PAGES, ...self::INVOICE_PAGES]) !== [])) {
+            $query['tab'] = $tab;
         }
 
         return $query;

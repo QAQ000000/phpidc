@@ -22,6 +22,11 @@ class AdminCustomer extends AdminCustomers
     #[Locked]
     public int $selectedCustomerId;
 
+    public function getHeading(): string
+    {
+        return '';
+    }
+
     public function mount(string $customerId): void
     {
         $id = filter_var($customerId, FILTER_VALIDATE_INT, ['options' => ['min_range' => 1]]);

@@ -1,10 +1,11 @@
 <x-filament-panels::page>
 @include('filament.admin-ui-styles')
-<link rel="stylesheet" href="/css/admin-customers.css?v=20261120-c3">
+<link rel="stylesheet" href="/css/admin-customers.css?v=20261120-u2">
 @php
     $workspaceQuery = \App\Support\AdminWorkspaceNavigation::query(auth()->user(), 'customer', request()->query());
     $workspaceOrigin = fn (?string $section = null): array => \App\Support\AdminWorkspaceNavigation::origin(auth()->user(), 'customer', $customer->id, $workspaceQuery, $section);
     $workspaceAction = fn (string $path): string => $path.($workspaceQuery === [] ? '' : '?'.http_build_query($workspaceQuery));
+    $tabUrl = fn (string $tab): string => \App\Support\AdminWorkspaceNavigation::url('customer', $customer->id, ['tab' => $tab] + (isset($workspaceQuery['from']) ? ['from' => $workspaceQuery['from']] : []));
     $closed = $customer->trashed() || $customer->anonymized_at !== null;
     $disabled = $customer->disabled_at !== null;
     $workspaceReturn = \App\Support\AdminWorkspaceNavigation::returnLink(auth()->user(), $workspaceQuery, '/admin/customers'.($closed ? '?status=closed' : ($disabled ? '?status=disabled' : '')), '返回客户列表');
@@ -31,47 +32,66 @@
 <div class="admin-ui admin-customers-page" x-data>
     @if(session('customer_status'))<p role="status" class="admin-customers-feedback">{{ session('customer_status') }}</p>@endif
     @if($errors->any() && ! $restoreProfile && ! $restoreReset && ! $restoreAccess && ! $restoreWallet)<div role="alert" class="admin-customers-feedback">@foreach($errors->all() as $error)<p>{{ $error }}</p>@endforeach</div>@endif
-    <x-admin.workspace-header :name="$customer->name" :identity="'客户 #'.$customer->id" :status="$closed ? '已注销' : ($disabled ? '已停用' : '正常')" :tone="$closed ? 'neutral' : ($disabled ? 'warning' : 'success')" description="客户资料与本地业务记录，各区块独立分页；管理操作按权限开放。" :return-url="$workspaceReturn['url']" :return-label="$workspaceReturn['label']">
+    <x-admin.workspace-header :name="$customer->name" :identity="'客户 #'.$customer->id" :status="$closed ? '已注销' : ($disabled ? '已停用' : '正常')" :tone="$closed ? 'neutral' : ($disabled ? 'warning' : 'success')" :description="$customer->email" :return-url="$workspaceReturn['url']" :return-label="$workspaceReturn['label']">
+        <x-slot:badges><x-admin.badge :tone="$customer->kyc_verified_at ? 'success' : 'neutral'">{{ $customer->kyc_verified_at ? '实名已认证' : '实名未认证' }}</x-admin.badge></x-slot:badges>
         @if($management['profile'])<button type="button" class="admin-ui-button" aria-haspopup="dialog" aria-controls="customer-profile-editor" x-on:click="document.getElementById('customer-profile-editor').showModal()">编辑资料</button>@endif
-        @if($management['password_reset'])<button type="button" class="admin-ui-button" aria-haspopup="dialog" aria-controls="customer-password-reset" x-on:click="document.getElementById('customer-password-reset').showModal()">发送重置链接</button>@endif
-        @if($management['access'])<button type="button" @class(['admin-ui-button', 'admin-customers-danger' => ! $disabled]) aria-haspopup="dialog" aria-controls="customer-access-editor" x-on:click="document.getElementById('customer-access-editor').showModal()">{{ $disabled ? '恢复账户' : '停用账户' }}</button>@endif
-        @if($permissions['access'] && ! $closed)<a class="admin-ui-button" href="/admin/access?user_id={{ $customer->id }}">账户角色</a>@endif
+        @if($walletAdjustment)<button type="button" class="admin-ui-button admin-ui-button-primary" aria-haspopup="dialog" aria-controls="customer-wallet-adjust" x-on:click="document.getElementById('customer-wallet-adjust').showModal()">钱包加扣款</button>@endif
+        @if($management['password_reset'] || $management['access'] || ($permissions['access'] && ! $closed))
+        <details class="admin-customers-more" x-on:click.outside="$el.removeAttribute('open')" x-on:keydown.escape="$el.removeAttribute('open')"><summary class="admin-ui-button">更多操作</summary><div class="admin-customers-more-menu">
+            @if($management['password_reset'])<button type="button" class="admin-ui-button" aria-haspopup="dialog" aria-controls="customer-password-reset" x-on:click="$el.closest('details').removeAttribute('open'); document.getElementById('customer-password-reset').showModal()">发送重置链接</button>@endif
+            @if($management['access'])<button type="button" @class(['admin-ui-button', 'admin-customers-danger' => ! $disabled]) aria-haspopup="dialog" aria-controls="customer-access-editor" x-on:click="$el.closest('details').removeAttribute('open'); document.getElementById('customer-access-editor').showModal()">{{ $disabled ? '恢复账户' : '停用账户' }}</button>@endif
+            @if($permissions['access'] && ! $closed)<a class="admin-ui-button" href="/admin/access?user_id={{ $customer->id }}">账户角色</a>@endif
+        </div></details>
+        @endif
     </x-admin.workspace-header>
-    <x-admin.card id="customer-profile" title="基本资料">
+
+    @if($closed)<p class="admin-customers-feedback">已注销账户仅保留匿名化资料及历史业务事实。</p>@endif
+    @if($disabled && ! $closed)<div class="admin-customers-feedback"><p>此账户已停用访问，无法登录或发起新的购买、充值和支付。</p><details class="admin-customers-help"><summary>查看保留业务</summary><p>余额、账单和服务保留，已付款履约及自动生命周期继续按原业务处理。</p></details></div>@endif
+
+    <nav class="admin-workspace-tabs" aria-label="客户详情页签">
+        @foreach($tabs as $tab => $label)<a class="admin-workspace-tab" href="{{ $tabUrl($tab) }}" data-customer-tab="{{ $tab }}" @if($currentTab === $tab) aria-current="page" @endif>{{ $label }}</a>@endforeach
+    </nav>
+
+    @if($currentTab === 'overview')
+    <div @class(['admin-customers-overview', 'admin-customers-overview-single' => ! $permissions['finance'] && ! $permissions['services']])>
+    <x-admin.card id="customer-profile" title="账户资料">
         <div class="admin-ui-card-body">
-            <div class="admin-customers-identity"><strong>{{ $customer->name }}</strong><x-admin.badge :tone="$closed ? 'neutral' : ($disabled ? 'warning' : 'success')">{{ $closed ? '已注销' : ($disabled ? '已停用' : '正常') }}</x-admin.badge><x-admin.badge :tone="$customer->kyc_verified_at ? 'success' : 'neutral'">{{ $customer->kyc_verified_at ? '实名已认证' : '实名未认证' }}</x-admin.badge></div>
-            <dl class="admin-ui-facts admin-customers-profile" style="margin-top:20px"><div><dt>邮箱</dt><dd>{{ $customer->email }}<span class="admin-ui-meta">{{ $customer->email_verified_at ? '邮箱已验证' : '邮箱未验证' }}</span></dd></div><div><dt>手机号</dt><dd>{{ $customer->phone ?? '未绑定' }}</dd></div><div><dt>注册时间</dt><dd>{{ $customer->created_at?->format('Y-m-d H:i:s') }}</dd></div></dl>
+            <dl class="admin-ui-facts admin-customers-profile"><div><dt>手机号</dt><dd>{{ $customer->phone ?? '未绑定' }}</dd></div><div><dt>邮箱验证</dt><dd>{{ $customer->email_verified_at ? '邮箱已验证' : '邮箱未验证' }}</dd></div><div><dt>注册时间</dt><dd>{{ $customer->created_at?->format('Y-m-d H:i:s') }}</dd></div><div><dt>实名完成时间</dt><dd>{{ $customer->kyc_verified_at?->format('Y-m-d H:i:s') ?? '未认证' }}</dd></div></dl>
         </div>
-        @if($permissions['finance'] || $permissions['services'])<dl class="admin-customers-metrics">
+    </x-admin.card>
+    @if($permissions['finance'] || $permissions['services'])
+    <x-admin.card title="资金与服务">
+        <dl class="admin-customers-metrics">
             @if($permissions['finance'])<div class="admin-customers-metric"><dt>可用余额</dt><dd data-customer-metric="credit">{{ $customer->credit }}<small>CNY</small></dd></div><div class="admin-customers-metric"><dt>账单冻结</dt><dd data-customer-metric="frozen_credit">{{ $customer->frozen_credit }}<small>CNY</small></dd></div><div class="admin-customers-metric"><dt>结清冻结</dt><dd data-customer-metric="wallet_clearance_frozen">{{ $customer->wallet_clearance_frozen }}<small>CNY</small></dd></div>@endif
             @if($permissions['services'])<div class="admin-customers-metric"><dt>本地有效服务</dt><dd data-customer-metric="active_services">{{ $customer->active_services_count }}</dd></div>@endif
-        </dl>@endif
-        @if($walletAdjustment)<div class="admin-customers-wallet-actions"><button type="button" class="admin-ui-button" aria-haspopup="dialog" aria-controls="customer-wallet-adjust" x-on:click="document.getElementById('customer-wallet-adjust').showModal()">钱包加扣款</button><span>仅调整可用余额，不改变冻结、佣金或既有账单。</span></div>@endif
-        @if($permissions['finance'])<p class="admin-customers-notice">钱包三列保留各自含义；本页未执行应收核验，不据此判断客户是否欠款。</p>@endif
-        @if($closed)<p class="admin-customers-notice">已注销账户仅保留匿名化资料及历史业务事实。</p>@endif
-        @if($disabled && ! $closed)<p class="admin-customers-notice">此账户已停用访问；余额、账单和服务保留，已付款履约及自动生命周期继续按原业务处理。</p>@endif
+        </dl>
+        <div class="admin-customers-summary-links">@if($permissions['services'])<a class="admin-ui-link" href="{{ $tabUrl('services') }}">查看服务记录 →</a>@endif @if($permissions['finance'])<a class="admin-ui-link" href="{{ $tabUrl('invoices') }}">查看账单 →</a><a class="admin-ui-link" href="{{ $tabUrl('ledger') }}">查看流水 →</a>@endif</div>
+        @if($permissions['finance'])<details class="admin-customers-help admin-customers-balance-help"><summary>余额说明</summary><p>可用余额、账单冻结和结清冻结分别保留；本页未执行应收核验，不据此判断客户是否欠款。</p></details>@endif
     </x-admin.card>
+    @endif
+    </div>
+    @endif
 
-    <nav class="admin-customers-jumps" aria-label="客户详情页内定位"><span>跳转：</span><a href="#customer-profile">资料</a>@if($permissions['services'])<a href="#customer-services">服务</a>@endif @if($permissions['finance'])<a href="#customer-invoices">账单</a><a href="#customer-ledger">流水</a>@endif @if($permissions['support'])<a href="#customer-tickets">工单</a>@endif<a href="#customer-kyc">实名</a>@if($permissions['notifications'])<a href="#customer-notifications">通知</a>@endif @if($permissions['audit'])<a href="#customer-audit">审计</a>@endif</nav>
-
-    @if($permissions['services'])
-    <x-admin.card id="customer-services" title="服务记录" description="本地有效服务为运行中或已暂停记录；其他状态作为历史事实保留。">
-        <x-slot:actions><a class="admin-ui-link" href="/admin/upstream-instances?user_id={{ $customer->id }}">查看经典服务列表</a></x-slot:actions>
+    @if($currentTab === 'services')
+    <x-admin.card id="customer-services" title="服务记录">
+        <x-slot:actions><a class="admin-ui-link" href="/admin/upstream-instances?user_id={{ $customer->id }}">查看全部服务</a></x-slot:actions>
         <x-admin.table label="客户服务记录"><x-slot:head><tr><th scope="col">服务 / 名称</th><th scope="col">驱动 / 连接</th><th scope="col">状态</th><th scope="col">主机 / IP</th><th scope="col">到期时间</th><th scope="col" class="admin-ui-row-actions">操作</th></tr></x-slot:head>
-            @forelse($services as $service)<tr data-customer-service="{{ $service->id }}"><td class="admin-customers-name">#{{ $service->id }} · {{ $service->display_name }}</td><td>{{ $service->driver_type->value }}<span class="admin-ui-meta">{{ $service->upstreamApi?->name ?? '本地资源' }}@if($service->upstream_instance_id !== null) · 上游 #{{ $service->upstream_instance_id }}@endif</span></td><td><x-admin.badge :tone="$service->status === \App\Enums\InstanceStatus::ACTIVE ? 'success' : ($service->status === \App\Enums\InstanceStatus::SUSPENDED ? 'warning' : 'neutral')">{{ $instanceLabels[$service->status->value] }}</x-admin.badge></td><td>{{ $service->hostname ?? '—' }}<span class="admin-ui-meta">{{ $service->primary_ip ?? '—' }}</span></td><td class="admin-ui-nowrap">{{ $service->next_due_at?->format('Y-m-d H:i') ?? '—' }}</td><td class="admin-ui-row-actions">@if($service->driver_type === \App\Enums\DriverType::ZJMF_API)<a class="admin-ui-link" href="/admin/upstream-instances?instance={{ $service->id }}">实例详情</a>@else<span class="admin-ui-meta">元数据只读</span>@endif <a class="admin-ui-link" href="{{ \App\Support\AdminWorkspaceNavigation::url('instance', $service->id, $workspaceOrigin('customer-services')) }}">实例工作台</a></td></tr>
+            @forelse($services as $service)<tr data-customer-service="{{ $service->id }}"><td class="admin-customers-name">#{{ $service->id }} · {{ $service->display_name }}</td><td>{{ $service->driver_type->value }}<span class="admin-ui-meta">{{ $service->upstreamApi?->name ?? '本地资源' }}@if($service->upstream_instance_id !== null) · 上游 #{{ $service->upstream_instance_id }}@endif</span></td><td><x-admin.badge :tone="$service->status === \App\Enums\InstanceStatus::ACTIVE ? 'success' : ($service->status === \App\Enums\InstanceStatus::SUSPENDED ? 'warning' : 'neutral')">{{ $instanceLabels[$service->status->value] }}</x-admin.badge></td><td>{{ $service->hostname ?? '—' }}<span class="admin-ui-meta">{{ $service->primary_ip ?? '—' }}</span></td><td class="admin-ui-nowrap">{{ $service->next_due_at?->format('Y-m-d H:i') ?? '—' }}</td><td class="admin-ui-row-actions"><a class="admin-ui-link" href="{{ \App\Support\AdminWorkspaceNavigation::url('instance', $service->id, $workspaceOrigin('customer-services')) }}">实例工作台</a></td></tr>
             @empty<tr><td colspan="6" class="admin-ui-empty"><strong>暂无服务记录</strong></td></tr>@endforelse
         </x-admin.table><x-admin.pagination :paginator="$services" />
     </x-admin.card>
     @endif
 
-    @if($permissions['finance'])
+    @if($currentTab === 'invoices')
     <x-admin.card id="customer-invoices" title="账单记录"><x-slot:actions><a class="admin-ui-link" href="/admin/finance?user_id={{ $customer->id }}">查看全部账单</a></x-slot:actions>
         <x-admin.table label="客户账单记录"><x-slot:head><tr><th scope="col">账单</th><th scope="col">状态</th><th scope="col" class="admin-ui-number">账单总额</th><th scope="col">创建 / 入账时间</th><th scope="col" class="admin-ui-row-actions">操作</th></tr></x-slot:head>
             @forelse($invoices as $invoice)<tr data-customer-invoice="{{ $invoice->id }}"><td>#{{ $invoice->id }}<span class="admin-ui-meta">{{ $invoice->invoice_no }}</span></td><td><x-admin.badge :tone="$invoice->status === \App\Enums\InvoiceStatus::PAID ? 'success' : ($invoice->status === \App\Enums\InvoiceStatus::UNPAID ? 'warning' : 'neutral')">{{ $invoiceLabels[$invoice->status->value] }}</x-admin.badge></td><td class="admin-ui-number admin-ui-nowrap">{{ $invoice->total_amount }} {{ $invoice->currency }}</td><td class="admin-ui-nowrap">{{ $invoice->created_at?->format('Y-m-d H:i') }}<span class="admin-ui-meta">{{ $invoice->paid_at?->format('Y-m-d H:i') ?? '未入账' }}</span></td><td class="admin-ui-row-actions"><a class="admin-ui-link" href="{{ \App\Support\AdminWorkspaceNavigation::url('invoice', $invoice->id, $workspaceOrigin('customer-invoices')) }}">账单详情</a></td></tr>
             @empty<tr><td colspan="5" class="admin-ui-empty"><strong>暂无账单记录</strong></td></tr>@endforelse
         </x-admin.table><x-admin.pagination :paginator="$invoices" />
     </x-admin.card>
-    <x-admin.card id="customer-ledger" title="资金流水" description="仅展示原流水事实，金额方向由流水类型决定。"><x-slot:actions><a class="admin-ui-link" href="/admin/finance/ledger?user_id={{ $customer->id }}">查看全部流水</a></x-slot:actions>
+    @endif
+    @if($currentTab === 'ledger')
+    <x-admin.card id="customer-ledger" title="资金流水"><x-slot:actions><a class="admin-ui-link" href="/admin/finance/ledger?user_id={{ $customer->id }}">查看全部流水</a></x-slot:actions>
         <x-admin.table label="客户资金流水"><x-slot:head><tr><th scope="col">流水 / 时间</th><th scope="col">类型 / 账单</th><th scope="col" class="admin-ui-number">金额</th><th scope="col" class="admin-ui-number">变动后可用 / 账单冻结</th></tr></x-slot:head>
             @forelse($ledger as $entry)<tr data-customer-ledger="{{ $entry->id }}"><td>#{{ $entry->id }}<span class="admin-ui-meta">{{ $entry->created_at?->format('Y-m-d H:i') }}</span></td><td>{{ match($entry->type->value) { 'wallet_adjust_credit' => '钱包加款', 'wallet_adjust_debit' => '钱包扣款', default => $entry->type->value } }}@if($entry->invoice_id)<span class="admin-ui-meta"><a class="admin-ui-link" href="{{ \App\Support\AdminWorkspaceNavigation::url('invoice', $entry->invoice_id, $workspaceOrigin('customer-ledger')) }}">账单 #{{ $entry->invoice_id }}</a></span>@endif</td><td class="admin-ui-number admin-ui-nowrap">{{ $entry->amount }} CNY</td><td class="admin-ui-number admin-ui-nowrap">{{ $entry->balance_after ?? '—' }} / {{ $entry->frozen_after ?? '—' }}</td></tr>
             @empty<tr><td colspan="4" class="admin-ui-empty"><strong>暂无流水记录</strong></td></tr>@endforelse
@@ -79,7 +99,7 @@
     </x-admin.card>
     @endif
 
-    @if($permissions['support'])
+    @if($currentTab === 'tickets')
     <x-admin.card id="customer-tickets" title="工单记录"><x-slot:actions><a class="admin-ui-link" href="/admin/support?user_id={{ $customer->id }}">查看全部工单</a></x-slot:actions>
         <x-admin.table label="客户工单记录"><x-slot:head><tr><th scope="col">工单 / 主题</th><th scope="col">状态</th><th scope="col">更新时间</th><th scope="col" class="admin-ui-row-actions">操作</th></tr></x-slot:head>
             @forelse($tickets as $ticket)<tr data-customer-ticket="{{ $ticket->id }}"><td class="admin-customers-name">#{{ $ticket->id }} · {{ $ticket->subject }}<span class="admin-ui-meta">{{ $ticket->instance_id === null ? '未关联服务' : '服务 #'.$ticket->instance_id }}</span></td><td><x-admin.badge :tone="$ticket->status === 'open' ? 'warning' : 'neutral'">{{ $ticketLabels[$ticket->status] ?? $ticket->status }}</x-admin.badge></td><td class="admin-ui-nowrap">{{ $ticket->updated_at?->format('Y-m-d H:i') }}</td><td class="admin-ui-row-actions"><a class="admin-ui-link" href="/admin/support?user_id={{ $customer->id }}&amp;edit={{ $ticket->id }}">工单详情</a></td></tr>
@@ -88,7 +108,8 @@
     </x-admin.card>
     @endif
 
-    <x-admin.card id="customer-kyc" title="实名历史" description="仅展示已有脱敏摘要与认证状态，不提供人工通过或驳回操作。">
+    @if($currentTab === 'identity')
+    <x-admin.card id="customer-kyc" title="实名历史">
         <x-admin.table label="客户实名历史"><x-slot:head><tr><th scope="col">申请 / 通道</th><th scope="col">脱敏摘要</th><th scope="col">状态</th><th scope="col">申请 / 通过时间</th></tr></x-slot:head>
             @forelse($kycRecords as $record)
                 @php
@@ -102,8 +123,9 @@
             @empty<tr><td colspan="4" class="admin-ui-empty"><strong>暂无实名记录</strong></td></tr>@endforelse
         </x-admin.table><x-admin.pagination :paginator="$kycRecords" />
     </x-admin.card>
+    @endif
 
-    @if($permissions['notifications'])
+    @if($currentTab === 'notifications')
     <x-admin.card id="customer-notifications" title="通知记录" description="仅展示投递元数据；已受理表示通道接受请求，不代表最终送达。"><x-slot:actions><a class="admin-ui-link" href="/admin/notifications?user_id={{ $customer->id }}">查看通知日志</a></x-slot:actions>
         <x-admin.table label="客户通知记录"><x-slot:head><tr><th scope="col">日志 / 事件</th><th scope="col">渠道</th><th scope="col">状态</th><th scope="col">时间</th></tr></x-slot:head>
             @forelse($notifications as $notice)<tr data-customer-notification="{{ $notice->id }}"><td>#{{ $notice->id }}<span class="admin-ui-meta">{{ $notice->event_key }}</span></td><td>{{ $channelLabels[$notice->channel] ?? $notice->channel }}</td><td><x-admin.badge :tone="$notice->status === 'sent' ? 'success' : (in_array($notice->status, ['failed', 'unknown'], true) ? 'warning' : 'neutral')">{{ $deliveryLabels[$notice->status] ?? $notice->status }}</x-admin.badge></td><td class="admin-ui-nowrap">{{ $notice->created_at }}</td></tr>
@@ -112,7 +134,7 @@
     </x-admin.card>
     @endif
 
-    @if($permissions['audit'])
+    @if($currentTab === 'audit')
     <x-admin.card id="customer-audit" title="账户自身审计" description="仅包含以此账户为对象的审计，不代表账单、服务等资源的完整跨域日志。"><x-slot:actions><a class="admin-ui-link" href="/admin/audit?{{ http_build_query(['subject_type' => \App\Models\User::class, 'subject_id' => $customer->id]) }}">查看账户审计</a></x-slot:actions>
         <x-admin.table label="客户账户审计"><x-slot:head><tr><th scope="col">审计 / 时间</th><th scope="col">动作 / 操作者</th><th scope="col">允许的变更字段</th></tr></x-slot:head>
             @forelse($audits as $audit)<tr data-customer-audit="{{ $audit->id }}"><td>#{{ $audit->id }}<span class="admin-ui-meta">{{ $audit->created_at }}</span></td><td>{{ $audit->action }}<span class="admin-ui-meta">{{ $audit->actor_type === 'system' ? '系统' : $audit->actor_type }} {{ $audit->actor_id === null ? '—' : '#'.$audit->actor_id }}</span></td><td class="admin-customers-audit"><details><summary>查看变更字段</summary><p>变更前：{{ $audit->before }}</p><p>变更后：{{ $audit->after }}</p></details></td></tr>
@@ -125,7 +147,7 @@
     <x-admin.dialog id="customer-wallet-adjust" title="客户钱包加扣款" description="用于补差、补偿或纠错，只改变可用余额；不代表充值、退款或应收清偿。扣款不能超过可用余额。" :show-errors="$restoreWallet" x-init="{{ $restoreWallet ? '$nextTick(() => $el.showModal())' : '' }}">
         <form class="admin-customers-form" method="post" action="{{ $workspaceAction('/admin/customers/'.$customer->id.'/wallet-adjust') }}">@csrf
             <input type="hidden" name="_admin_form" value="wallet-adjust"><input type="hidden" name="customer_id" value="{{ $customer->id }}"><input type="hidden" name="request_id" value="{{ $walletRequest }}"><input type="hidden" name="currency" value="CNY">
-            <p class="admin-customers-wide">客户 #{{ $customer->id }} · {{ $customer->name }} · 当前可用 {{ $customer->credit }} CNY</p>
+            <p class="admin-customers-wide">客户 #{{ $customer->id }} · {{ $customer->name }}@if($currentTab === 'overview') · 当前可用 {{ $customer->credit }} CNY @endif</p>
             <label>调整方向<select name="direction" required><option value="credit" @selected($walletValue('direction') !== 'debit')>增加可用余额</option><option value="debit" @selected($walletValue('direction') === 'debit')>扣减可用余额</option></select></label>
             <label>金额（CNY）<input name="amount" type="text" inputmode="decimal" pattern="[0-9]{1,10}\.[0-9]{2}" placeholder="0.00" required maxlength="13" value="{{ $walletValue('amount') }}"></label>
             <label class="admin-customers-wide">备注（可选）<input name="reason" maxlength="255" value="{{ $walletValue('reason') }}"></label>

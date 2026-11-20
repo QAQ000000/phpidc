@@ -163,24 +163,26 @@ it('adds disabled status to customer search without projecting the authenticatio
     expect($data['customer']->getAttributes())->toHaveKey('disabled_at')->not->toHaveKey('auth_revision');
 });
 
-it('uses plain HTML anchors for exactly the visible customer sections', function (array $permissions, array $sections): void {
+it('uses ordinary URL links for exactly the permitted customer tabs and renders only the selected panel', function (array $permissions, array $tabs): void {
     $actor = customerManagementUiActor('customers.view', ...$permissions);
     $owner = User::factory()->create();
     $xpath = customerManagementUiXpath($this->actingAs($actor)->get('/admin/customers/'.$owner->id)->assertOk()->getContent());
-    $anchors = $xpath->query('//main//nav[@aria-label="客户详情页内定位"]//a');
-    expect($anchors)->toHaveCount(count($sections));
+    $anchors = $xpath->query('//main//nav[@aria-label="客户详情页签"]//a');
+    expect($anchors)->toHaveCount(count($tabs));
     foreach ($anchors as $index => $anchor) {
-        expect($anchor->getAttribute('href'))->toBe('#customer-'.$sections[$index])
-            ->and($anchor->hasAttribute('onclick'))->toBeFalse()->and($anchor->hasAttribute('x-on:click'))->toBeFalse();
-        expect($xpath->query('//*[@id="customer-'.$sections[$index].'"]'))->toHaveCount(1);
+        expect($anchor->getAttribute('href'))->toBe('/admin/customers/'.$owner->id.'?tab='.$tabs[$index])
+            ->and($anchor->hasAttribute('onclick'))->toBeFalse()->and($anchor->hasAttribute('x-on:click'))->toBeFalse()
+            ->and($anchor->getAttribute('aria-current'))->toBe($tabs[$index] === 'overview' ? 'page' : '');
     }
-    expect($xpath->query('//main//*[@role="tab" or @role="tablist"]'))->toHaveCount(0);
+    expect($xpath->query('//main//section[@id="customer-profile"]'))->toHaveCount(1)
+        ->and($xpath->query('//main//section[@id="customer-services" or @id="customer-invoices" or @id="customer-ledger" or @id="customer-tickets" or @id="customer-kyc" or @id="customer-notifications" or @id="customer-audit"]'))->toHaveCount(0)
+        ->and($xpath->query('//main//*[@role="tab" or @role="tablist"]'))->toHaveCount(0);
 })->with([
-    'customer only' => [[], ['profile', 'kyc']],
-    'all view domains' => [['finance.view', 'upstream.view', 'support.view', 'notification.view', 'audit.view'], ['profile', 'services', 'invoices', 'ledger', 'tickets', 'kyc', 'notifications', 'audit']],
+    'customer only' => [[], ['overview', 'identity']],
+    'all view domains' => [['finance.view', 'upstream.view', 'support.view', 'notification.view', 'audit.view'], ['overview', 'services', 'invoices', 'ledger', 'tickets', 'identity', 'notifications', 'audit']],
 ]);
 
-it('returns each detail paginator to its own section while retaining independent page parameters', function (): void {
+it('returns each selected detail paginator to its own tab and section without unrelated page parameters', function (): void {
     $actor = customerManagementUiActor('customers.view', 'finance.view', 'upstream.view', 'support.view', 'notification.view', 'audit.view');
     $owner = User::factory()->create();
     Instance::factory()->count(11)->active()->create(['user_id' => $owner->id]);
@@ -188,14 +190,18 @@ it('returns each detail paginator to its own section while retaining independent
     for ($index = 0; $index < 11; $index++) {
         KycVerification::create(['user_id' => $owner->id, 'driver' => 'idcsmartali', 'status' => 'failed', 'masked_summary' => ['name' => '*明', 'id_last4' => '012X']]);
     }
-    $data = app(AdminCustomerQueries::class)->detail($actor, $owner->id, ['kyc_page' => 2]);
-    foreach (['services' => 'services', 'invoices' => 'invoices', 'ledger' => 'ledger', 'tickets' => 'tickets', 'kycRecords' => 'kyc', 'notifications' => 'notifications', 'audits' => 'audit'] as $key => $section) {
-        expect($data[$key]->url(2))->toEndWith('#customer-'.$section)->toContain('kyc_page=2');
+    foreach (['services' => ['services', 'services'], 'invoices' => ['invoices', 'invoices'], 'ledger' => ['ledger', 'ledger'], 'tickets' => ['tickets', 'tickets'], 'identity' => ['kycRecords', 'kyc'], 'notifications' => ['notifications', 'notifications'], 'audit' => ['audits', 'audit']] as $tab => [$key, $section]) {
+        $data = app(AdminCustomerQueries::class)->detail($actor, $owner->id, ['tab' => $tab, 'services_page' => 2, 'invoices_page' => 2, 'kyc_page' => 2]);
+        $url = $data[$key]->url(2);
+        expect($url)->toEndWith('#customer-'.$section)->toContain('tab='.$tab);
+        foreach (['services' => 'services_page', 'invoices' => 'invoices_page', 'identity' => 'kyc_page'] as $otherTab => $page) {
+            expect(str_contains($url, $page.'=2'))->toBe($otherTab === $tab);
+        }
     }
     $xpath = customerManagementUiXpath($this->actingAs($actor)->get('/admin/customers/'.$owner->id.'?kyc_page=2')->assertOk()->getContent());
-    foreach (['services', 'invoices'] as $section) {
-        expect($xpath->query('//section[@id="customer-'.$section.'"]//a[contains(@href,"'.$section.'_page=2#customer-'.$section.'")]'))->toHaveCount(2);
-    }
+    expect($xpath->query('//nav[@aria-label="客户详情页签"]//a[@data-customer-tab="identity"][@aria-current="page"]'))->toHaveCount(1)
+        ->and($xpath->query('//section[@id="customer-kyc"]'))->toHaveCount(1)
+        ->and($xpath->query('//section[@id="customer-services" or @id="customer-invoices"]'))->toHaveCount(0);
 });
 
 it('restores a failed profile only to the original customer editor and preserves all editable contact fields', function (): void {
@@ -220,6 +226,34 @@ it('restores a failed profile only to the original customer editor and preserves
             ->and($xpath->query('ancestor::dialog//*[@role="alert"]', $otherForm))->toHaveCount(0);
     }
     expect($owner->fresh()->phone)->toBe('+8613800000000');
+});
+
+it('preserves the current customer tab its page and a safe source when a profile dialog succeeds or fails', function (): void {
+    $actor = customerManagementUiActor('customers.view', 'customers.manage', 'upstream.view');
+    $owner = User::factory()->create();
+    $input = ['tab' => 'services', 'services_page' => 2, 'kyc_page' => 3,
+        'from' => ['kind' => 'customers', 'query' => ['name' => '目标客户', 'page' => 2]]];
+    $path = '/admin/customers/'.$owner->id;
+    $response = $this->actingAs($actor)->get($path.'?'.http_build_query($input))->assertOk();
+    $xpath = customerManagementUiXpath($response->getContent());
+    $form = $xpath->query('//dialog[@id="customer-profile-editor"]//form')->item(0);
+    $action = $form->getAttribute('action');
+    parse_str(parse_url($action, PHP_URL_QUERY), $formQuery);
+    expect($formQuery)->toEqual(['tab' => 'services', 'services_page' => '2', 'from' => $input['from']]);
+    $payload = ['name' => '保留页签的新姓名', 'email' => 'invalid-email', 'phone' => '', 'reason' => '保留非秘密备注'];
+    $failed = $this->post($action, $payload)->assertRedirect()->assertSessionHasErrors('email');
+    $location = $failed->headers->get('Location');
+    parse_str(parse_url($location, PHP_URL_QUERY), $redirectQuery);
+    expect(parse_url($location, PHP_URL_PATH))->toBe($path)->and($redirectQuery)->toEqual($formQuery);
+    $xpath = customerManagementUiXpath($this->get($location)->assertOk()->getContent());
+    expect($xpath->query('//nav[@aria-label="客户详情页签"]//a[@data-customer-tab="services"][@aria-current="page"]'))->toHaveCount(1)
+        ->and($xpath->query('//section[@id="customer-profile"]'))->toHaveCount(0)
+        ->and($xpath->query('//dialog[@id="customer-profile-editor"]//input[@name="name"]')->item(0)->getAttribute('value'))->toBe('保留页签的新姓名')
+        ->and($xpath->query('//dialog[@id="customer-profile-editor"]')->item(0)->getAttribute('x-init'))->toContain('showModal');
+    $payload['email'] = $owner->email;
+    $saved = $this->post($action, $payload)->assertRedirect()->assertSessionHas('customer_status');
+    parse_str(parse_url($saved->headers->get('Location'), PHP_URL_QUERY), $savedQuery);
+    expect($savedQuery)->toEqual($formQuery)->and($owner->fresh()->name)->toBe('保留页签的新姓名');
 });
 
 it('never copies failed profile input into another customer or an unrecognized form', function (string $kind): void {
@@ -273,13 +307,13 @@ it('submits optional-note profile and access forms and returns feedback to the n
     $actor = customerManagementUiActor('customers.view', 'customers.manage', 'customers.status.manage');
     $owner = User::factory()->create();
     $this->actingAs($actor)->post('/admin/customers/'.$owner->id.'/profile', ['name' => '更新后的姓名', 'email' => $owner->email, 'phone' => ''])
-        ->assertRedirect('/admin/customers/'.$owner->id.'#customer-profile')->assertSessionHas('customer_status');
+        ->assertRedirect('/admin/customers/'.$owner->id.'?tab=overview#customer-profile')->assertSessionHas('customer_status');
     $this->get('/admin/customers/'.$owner->id)->assertOk()->assertSee('更新后的姓名')->assertSee('客户资料已保存');
-    $this->post('/admin/customers/'.$owner->id.'/access', ['disabled' => '1'])->assertRedirect('/admin/customers/'.$owner->id.'#customer-profile');
+    $this->post('/admin/customers/'.$owner->id.'/access', ['disabled' => '1'])->assertRedirect('/admin/customers/'.$owner->id.'?tab=overview#customer-profile');
     $response = $this->get('/admin/customers/'.$owner->id)->assertOk()->assertSee('已停用')->assertSee('恢复账户访问');
     $xpath = customerManagementUiXpath($response->getContent());
     expect(customerManagementUiValue($xpath, customerManagementUiForm($xpath, $owner->id, 'access'), 'disabled'))->toBe('0');
-    $this->post('/admin/customers/'.$owner->id.'/access', ['disabled' => '0'])->assertRedirect('/admin/customers/'.$owner->id.'#customer-profile');
+    $this->post('/admin/customers/'.$owner->id.'/access', ['disabled' => '0'])->assertRedirect('/admin/customers/'.$owner->id.'?tab=overview#customer-profile');
     $this->get('/admin/customers/'.$owner->id)->assertOk()->assertSee('账户访问已恢复');
     expect($owner->fresh()->disabled_at)->toBeNull()->and($owner->fresh()->auth_revision)->toBe(1);
 });

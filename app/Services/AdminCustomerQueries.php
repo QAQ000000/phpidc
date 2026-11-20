@@ -74,40 +74,56 @@ class AdminCustomerQueries
         Gate::forUser($actor)->authorize('customers.view');
         $validator = validator($input, array_fill_keys(self::DETAIL_PAGES, ['nullable', 'integer', 'min:1', 'max:2147483647']));
         abort_if($validator->fails(), 422, '客户明细分页参数无效。');
-        $pages = $validator->validated() + AdminWorkspaceNavigation::query($actor, 'customer', $input);
+        $currentTab = AdminWorkspaceNavigation::tab('customer', $input);
+        abort_if($currentTab === null, 422, '客户页签参数无效。');
+        $tabPermissions = ['overview' => null, 'services' => 'upstream.view', 'invoices' => 'finance.view',
+            'ledger' => 'finance.view', 'tickets' => 'support.view', 'identity' => null,
+            'notifications' => 'notification.view', 'audit' => 'audit.view'];
+        if ($tabPermissions[$currentTab] !== null) {
+            Gate::forUser($actor)->authorize($tabPermissions[$currentTab]);
+        }
+        $pages = AdminWorkspaceNavigation::query($actor, 'customer', $input) + ['tab' => $currentTab];
         $permissions = $this->permissions($actor);
-        $customer = $this->customers($permissions['finance'], $permissions['services'])->findOrFail($customerId);
+        $customer = $this->customers($currentTab === 'overview' && $permissions['finance'], $currentTab === 'overview' && $permissions['services'])->findOrFail($customerId);
         $management = ['profile' => $actor->can('customers.manage'), 'password_reset' => $actor->can('customers.password-reset'), 'access' => $actor->can('customers.status.manage')];
         if (in_array(true, $management, true) && app(AdminCustomerAccess::class)->isManageableTarget($actor, $customer)) {
             $management['password_reset'] = $management['password_reset'] && $customer->disabled_at === null;
         } else {
             $management = array_fill_keys(array_keys($management), false);
         }
+        $tabs = ['overview' => '概览', 'services' => '服务', 'invoices' => '账单', 'ledger' => '流水',
+            'tickets' => '工单', 'identity' => '实名', 'notifications' => '通知', 'audit' => '审计'];
+        $tabs = array_filter($tabs, fn (string $tab): bool => $tabPermissions[$tab] === null || $actor->can($tabPermissions[$tab]), ARRAY_FILTER_USE_KEY);
         $data = ['customer' => $customer, 'permissions' => $permissions, 'management' => $management,
+            'currentTab' => $currentTab, 'tabs' => $tabs,
             'walletAdjustment' => $permissions['finance'] && $actor->can('finance.wallet-adjust')
-                && app(AdminFinancialAccess::class)->isManageableTarget($actor, $customer),
-            'kycRecords' => KycVerification::query()->where('user_id', $customer->id)
-                ->latest('id')->paginate(10, ['id', 'driver', 'status', 'masked_summary', 'verified_at', 'created_at'], 'kyc_page', (int) ($pages['kyc_page'] ?? 1))->appends($pages)->fragment('customer-kyc')];
-        if ($permissions['services']) {
+                && app(AdminFinancialAccess::class)->isManageableTarget($actor, $customer)];
+        if ($currentTab === 'identity') {
+            $data['kycRecords'] = KycVerification::query()->where('user_id', $customer->id)
+                ->latest('id')->paginate(10, ['id', 'driver', 'status', 'masked_summary', 'verified_at', 'created_at'], 'kyc_page', (int) ($pages['kyc_page'] ?? 1))->appends($pages)->fragment('customer-kyc');
+        }
+        if ($currentTab === 'services') {
             $data['services'] = Instance::query()->where('user_id', $customer->id)
                 ->with('upstreamApi:id,name')->latest('id')
                 ->paginate(10, ['id', 'user_id', 'display_name', 'driver_type', 'status', 'hostname', 'primary_ip', 'next_due_at', 'upstream_api_id', 'upstream_instance_id'], 'services_page', (int) ($pages['services_page'] ?? 1))->appends($pages)->fragment('customer-services');
         }
-        if ($permissions['finance']) {
+        if ($currentTab === 'invoices') {
             $data['invoices'] = Invoice::query()->where('user_id', $customer->id)->latest('id')
                 ->paginate(10, ['id', 'invoice_no', 'status', 'type', 'currency', 'total_amount', 'paid_at', 'created_at'], 'invoices_page', (int) ($pages['invoices_page'] ?? 1))->appends($pages)->fragment('customer-invoices');
+        }
+        if ($currentTab === 'ledger') {
             $data['ledger'] = FinancialTransaction::query()->where('user_id', $customer->id)->latest('id')
                 ->paginate(10, ['id', 'invoice_id', 'type', 'amount', 'balance_after', 'frozen_after', 'created_at'], 'ledger_page', (int) ($pages['ledger_page'] ?? 1))->appends($pages)->fragment('customer-ledger');
         }
-        if ($permissions['support']) {
+        if ($currentTab === 'tickets') {
             $data['tickets'] = Ticket::query()->where('user_id', $customer->id)->latest('id')
                 ->paginate(10, ['id', 'instance_id', 'subject', 'status', 'created_at', 'updated_at'], 'tickets_page', (int) ($pages['tickets_page'] ?? 1))->appends($pages)->fragment('customer-tickets');
         }
-        if ($permissions['notifications']) {
+        if ($currentTab === 'notifications') {
             $data['notifications'] = DB::table('notification_logs')->where('user_id', $customer->id)->latest('id')
                 ->paginate(10, ['id', 'event_key', 'channel', 'status', 'created_at'], 'notifications_page', (int) ($pages['notifications_page'] ?? 1))->appends($pages)->fragment('customer-notifications');
         }
-        if ($permissions['audit']) {
+        if ($currentTab === 'audit') {
             $data['audits'] = DB::table('audit_logs')->where('subject_type', User::class)->where('subject_id', $customer->id)->latest('id')
                 ->paginate(10, ['id', 'actor_type', 'actor_id', 'action', 'before', 'after', 'created_at'], 'audit_page', (int) ($pages['audit_page'] ?? 1))->appends($pages)->fragment('customer-audit')
                 ->through(function (object $record): object {

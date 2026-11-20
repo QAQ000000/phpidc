@@ -155,13 +155,16 @@ it('connects customer instance and invoice workbenches with single hop returns',
     $owner = User::factory()->create();
     $instance = Instance::factory()->active()->create(['user_id' => $owner->id, 'display_name' => 'U1 实例']);
     $invoice = Invoice::factory()->paid()->create(['user_id' => $owner->id, 'instance_id' => $instance->id]);
-    $customer = $this->actingAs($actor)->get('/admin/customers/'.$owner->id)->assertOk()->getContent();
+    $customer = $this->actingAs($actor)->get('/admin/customers/'.$owner->id.'?tab=services')->assertOk()->getContent();
     $entry = workspaceLink($customer, '//*[@id="customer-services"]//a[starts-with(@href,"/admin/instances/")]');
     $detail = $this->get($entry)->assertOk()->getContent();
-    expect(workspaceLink($detail, '//*[@data-workspace-return]'))->toBe('/admin/customers/'.$owner->id.'#customer-services');
+    expect(workspaceLink($detail, '//*[@data-workspace-return]'))->toBe('/admin/customers/'.$owner->id.'?tab=services#customer-services');
+    $detailQuery = workspaceQuery($entry);
+    $detailQuery['tab'] = 'invoices';
+    $detail = $this->get(Navigation::url('instance', $instance->id, $detailQuery))->assertOk()->getContent();
     $billEntry = workspaceLink($detail, '//*[@id="instance-invoices"]//a[contains(@href,"invoice_id='.$invoice->id.'")]');
     $bill = $this->get($billEntry)->assertOk()->getContent();
-    expect(workspaceLink($bill, '//*[@data-workspace-return]'))->toBe('/admin/instances/'.$instance->id.'#instance-invoices')
+    expect(workspaceLink($bill, '//*[@data-workspace-return]'))->toBe('/admin/instances/'.$instance->id.'?tab=invoices#instance-invoices')
         ->and(workspaceQuery($billEntry)['from']['query'] ?? [])->not->toHaveKey('from');
     $instanceEntry = workspaceLink($bill, '//*[@id="invoice-summary"]//a[starts-with(@href,"/admin/instances/'.$instance->id.'")]');
     expect(workspaceQuery($instanceEntry)['from']['kind'])->toBe('invoice');
@@ -173,20 +176,20 @@ it('keeps the allowed source across independent customer and instance pagination
     $instance = Instance::factory()->active()->create(['user_id' => $owner->id]);
     Invoice::factory()->count(12)->create(['user_id' => $owner->id, 'instance_id' => $instance->id]);
     $from = Navigation::origin($actor, 'invoices', null, ['user_id' => $owner->id, 'status' => 'Unpaid', 'page' => 2]);
-    $customer = app(AdminCustomerQueries::class)->detail($actor, $owner->id, $from + ['ledger_page' => 3]);
-    $service = app(AdminInstanceQueries::class)->detail($actor, $instance->id, $from + ['tasks_page' => 3]);
+    $customer = app(AdminCustomerQueries::class)->detail($actor, $owner->id, $from + ['tab' => 'invoices', 'ledger_page' => 3]);
+    $service = app(AdminInstanceQueries::class)->detail($actor, $instance->id, $from + ['tab' => 'invoices', 'tasks_page' => 3]);
     foreach ([$customer['invoices'], $service['invoices']] as $paginator) {
         $query = workspaceQuery($paginator->nextPageUrl());
         expect($query['from'])->toEqual($from['from'])->and($query['invoices_page'])->toBe('2');
     }
-    expect(workspaceQuery($customer['invoices']->nextPageUrl())['ledger_page'])->toBe('3')
+    expect(workspaceQuery($customer['invoices']->nextPageUrl()))->toHaveKey('tab', 'invoices')->not->toHaveKey('ledger_page')
         ->and(workspaceQuery($service['invoices']->nextPageUrl())['tasks_page'])->toBe('3');
 });
 
 it('preserves safe source on profile success and validation failure instead of trusting referer', function (): void {
     $actor = workspaceActor(['customers.view', 'customers.manage']);
     $owner = User::factory()->create();
-    $query = Navigation::origin($actor, 'customers', null, ['name' => 'U1', 'page' => 2]) + ['invoices_page' => 3];
+    $query = Navigation::origin($actor, 'customers', null, ['name' => 'U1', 'page' => 2]) + ['tab' => 'overview', 'invoices_page' => 3];
     $target = Navigation::url('customer', $owner->id, $query, 'customer-profile');
     $action = '/admin/customers/'.$owner->id.'/profile?'.http_build_query($query);
     $this->actingAs($actor)->from('https://evil.test')->post($action, ['name' => 'U1 新名称', 'email' => $owner->email, 'phone' => ''])
@@ -201,7 +204,7 @@ it('keeps invoice old list filters and source on offline validation while stripp
     $owner = User::factory()->create();
     $invoice = Invoice::factory()->create(['user_id' => $owner->id]);
     $query = Navigation::origin($actor, 'customer', $owner->id, ['invoices_page' => 2], 'customer-invoices')
-        + ['status' => 'Unpaid', 'page' => 3, 'ledger_page' => 2];
+        + ['tab' => 'overview', 'status' => 'Unpaid', 'page' => 3, 'ledger_page' => 2];
     $target = Navigation::url('invoice', $invoice->id, $query);
     $this->actingAs($actor)->from('https://evil.test')->post('/admin/finance/invoices/'.$invoice->id.'/offline-receipt?'.http_build_query($query), [
         'amount' => 'bad', 'external_reference' => 'PRIVATE-U1-REFERENCE', 'evidence' => 'PRIVATE-U1-EVIDENCE',
@@ -213,7 +216,7 @@ it('keeps invoice old list filters and source on offline validation while stripp
 it('preserves instance source and pagination on explicit sync failure without repeating a remote request', function (): void {
     $actor = workspaceActor(['customers.view', 'upstream.view', 'upstream.sync']);
     $instance = Instance::factory()->active()->create();
-    $query = Navigation::origin($actor, 'customer', $instance->user_id, [], 'customer-services') + ['tasks_page' => 2];
+    $query = Navigation::origin($actor, 'customer', $instance->user_id, [], 'customer-services') + ['tab' => 'overview', 'tasks_page' => 2];
     $this->mock(SyncAdminInstanceAction::class)->shouldReceive('execute')->once()
         ->andThrow(ValidationException::withMessages(['sync' => 'U1 模拟失败']));
     $this->actingAs($actor)->post('/admin/upstream-instances/'.$instance->id.'/sync?'.http_build_query($query), [
@@ -233,7 +236,7 @@ it('keeps source and the other page selectors in invoice payment pagination', fu
     $html = $this->actingAs($actor)->get(Navigation::url('invoice', $invoice->id, $source + ['callbacks_page' => 2]))
         ->assertOk()->assertDontSee('PRIVATE-U1-ATTEMPT')->getContent();
     $next = workspaceLink($html, '//main//a[contains(@href,"attempts_page=2")]');
-    expect(workspaceQuery($next))->toEqual(['invoice_id' => $invoice->id, 'callbacks_page' => 2, 'attempts_page' => 2] + $source);
+    expect(workspaceQuery($next))->toEqual(['invoice_id' => $invoice->id, 'tab' => 'payments', 'callbacks_page' => 2, 'attempts_page' => 2] + $source);
 });
 
 it('drops a forbidden source section while retaining the permitted customer source', function (): void {
@@ -257,3 +260,35 @@ it('keeps legacy lifecycle and hot swap validation in the selected instance when
     'lifecycle' => ['control', 'upstream.lifecycle', 'instance-lifecycle'],
     'hot swap' => ['hot-swap', 'upstream.hotswap', 'instance-hot-swap'],
 ]);
+
+it('retains an explicit selected tab instead of letting an action anchor or another page selector replace it', function (): void {
+    expect(Navigation::tab('customer', ['tab' => 'services', 'invoices_page' => 2]))->toBe('services')
+        ->and(Navigation::url('customer', 9, ['tab' => 'services', 'services_page' => 3, 'invoices_page' => 4], 'customer-profile'))
+        ->toBe('/admin/customers/9?services_page=3&tab=services')
+        ->and(Navigation::tab('invoice', ['callbacks_page' => 2]))->toBe('payments')
+        ->and(Navigation::tab('instance', ['tasks_page' => 2]))->toBe('tasks');
+});
+
+it('maps authorized old record anchors into a selected tab while preserving a single source', function (): void {
+    $actor = workspaceActor();
+    $source = Navigation::origin($actor, 'customer', 9, [], 'customer-invoices');
+    expect($source)->toBe(['from' => ['kind' => 'customer', 'id' => 9,
+        'query' => ['tab' => 'invoices'], 'section' => 'customer-invoices']])
+        ->and(Navigation::returnLink($actor, $source, '/admin/customers', '返回')['url'])
+        ->toBe('/admin/customers/9?tab=invoices#customer-invoices');
+});
+
+it('rejects a malformed object tab and drops an unauthorized source tab without looking up its record', function (): void {
+    $actor = workspaceActor(['customers.view']);
+    $actor->can('customers.view');
+    $queries = [];
+    DB::listen(function ($query) use (&$queries): void {
+        $queries[] = $query->sql;
+    });
+    expect(Navigation::tab('customer', ['tab' => ['services']]))->toBeNull()
+        ->and(Navigation::tab('customer', ['tab' => 'missing']))->toBeNull()
+        ->and(Navigation::returnLink($actor, ['from' => ['kind' => 'customer', 'id' => 999,
+            'query' => ['tab' => 'invoices']]], '/admin/customers', '返回'))
+        ->toBe(['url' => '/admin/customers', 'label' => '返回'])
+        ->and($queries)->toBe([]);
+});

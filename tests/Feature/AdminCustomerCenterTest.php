@@ -18,6 +18,7 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
 use Spatie\Permission\Models\Permission;
 use Spatie\Permission\PermissionRegistrar;
+use Symfony\Component\HttpKernel\Exception\HttpException;
 use Tests\Concerns\InstallsApplication;
 
 uses(InstallsApplication::class);
@@ -80,7 +81,7 @@ it('shows only customer identity and masked KYC to a customer-only viewer withou
     DB::listen(function (QueryExecuted $query) use (&$queries): void {
         $queries[] = $query->sql;
     });
-    $response = $this->actingAs($actor)->get('/admin/customers/'.$owner->id)->assertOk()
+    $response = $this->actingAs($actor)->get('/admin/customers/'.$owner->id.'?tab=identity')->assertOk()
         ->assertSee('只读客户')->assertSee('*明')->assertSee('012X')
         ->assertDontSee('PRIVATE-CERTIFICATE')->assertDontSee('PRIVATE-KYC-FIELD')->assertDontSee('187.63')->assertDontSee('294.52');
     foreach (['instances', 'invoices', 'financial_transactions', 'tickets', 'notification_logs', 'audit_logs', 'affiliate_receivable_settlements'] as $table) {
@@ -99,26 +100,91 @@ it('shows only customer identity and masked KYC to a customer-only viewer withou
     $this->assertDatabaseCount('notification_events', 0);
 });
 
-it('loads only the explicitly granted detail domain before rendering it', function (string $permission, string $table, string $key): void {
+it('loads only the explicitly granted detail domain before rendering it', function (string $permission, string $table, string $key, string $tab): void {
     $actor = customerCenterActor('customers.view', $permission);
     $owner = User::factory()->create();
     $queries = [];
     DB::listen(function (QueryExecuted $query) use (&$queries): void {
         $queries[] = $query->sql;
     });
-    $data = app(AdminCustomerQueries::class)->detail($actor, $owner->id, []);
+    $data = app(AdminCustomerQueries::class)->detail($actor, $owner->id, ['tab' => $tab]);
     expect($data)->toHaveKey($key);
-    foreach (['instances', 'invoices', 'financial_transactions', 'tickets', 'notification_logs', 'audit_logs'] as $domain) {
-        $expected = $permission === 'finance.view' ? in_array($domain, ['invoices', 'financial_transactions'], true) : $domain === $table;
+    foreach (['instances', 'invoices', 'financial_transactions', 'tickets', 'kyc_verifications', 'notification_logs', 'audit_logs'] as $domain) {
+        $expected = $domain === $table;
         expect(collect($queries)->contains(fn (string $sql): bool => preg_match('/\b'.preg_quote($domain, '/').'\b/i', $sql) === 1))->toBe($expected);
     }
 })->with([
-    'finance' => ['finance.view', 'invoices', 'invoices'],
-    'services' => ['upstream.view', 'instances', 'services'],
-    'support' => ['support.view', 'tickets', 'tickets'],
-    'notifications' => ['notification.view', 'notification_logs', 'notifications'],
-    'audit' => ['audit.view', 'audit_logs', 'audits'],
+    'invoices' => ['finance.view', 'invoices', 'invoices', 'invoices'],
+    'ledger' => ['finance.view', 'financial_transactions', 'ledger', 'ledger'],
+    'services' => ['upstream.view', 'instances', 'services', 'services'],
+    'support' => ['support.view', 'tickets', 'tickets', 'tickets'],
+    'identity' => ['customers.view', 'kyc_verifications', 'kycRecords', 'identity'],
+    'notifications' => ['notification.view', 'notification_logs', 'notifications', 'notifications'],
+    'audit' => ['audit.view', 'audit_logs', 'audits', 'audit'],
 ]);
+
+it('does not load history collections for the customer overview even with every view permission', function (): void {
+    $actor = customerCenterActor(...customerCenterAllPermissions());
+    $owner = User::factory()->create(['credit' => '19.18', 'frozen_credit' => '2.00', 'wallet_clearance_frozen' => '3.00']);
+    $actor->getAllPermissions();
+    $queries = [];
+    DB::listen(function (QueryExecuted $query) use (&$queries): void {
+        $queries[] = $query->sql;
+    });
+    $data = app(AdminCustomerQueries::class)->detail($actor, $owner->id, []);
+    expect($data['currentTab'])->toBe('overview')->and($data['customer']->credit)->toBe('19.18')
+        ->and($data['customer']->getAttributes())->toHaveKey('active_services_count');
+    foreach (['services', 'invoices', 'ledger', 'tickets', 'kycRecords', 'notifications', 'audits'] as $key) {
+        expect($data)->not->toHaveKey($key);
+    }
+    foreach (['invoices', 'financial_transactions', 'tickets', 'kyc_verifications', 'notification_logs', 'audit_logs'] as $table) {
+        expect(collect($queries)->contains(fn (string $sql): bool => str_contains($sql, '"'.$table.'"')))->toBeFalse();
+    }
+    expect(collect($queries)->filter(fn (string $sql): bool => str_starts_with($sql, 'select') && str_contains($sql, '"instances"') && ! str_contains($sql, 'from "users"')))->toHaveCount(0);
+});
+
+it('checks a restricted customer tab before looking up even a nonexistent target', function (string $tab): void {
+    $actor = customerCenterActor('customers.view');
+    $actor->getAllPermissions();
+    $queries = [];
+    DB::listen(function (QueryExecuted $query) use (&$queries): void {
+        $queries[] = $query->sql;
+    });
+    expect(fn () => app(AdminCustomerQueries::class)->detail($actor, 999999999, ['tab' => $tab]))->toThrow(AuthorizationException::class);
+    foreach (['users', 'instances', 'invoices', 'financial_transactions', 'tickets', 'kyc_verifications', 'notification_logs', 'audit_logs'] as $table) {
+        expect(collect($queries)->contains(fn (string $sql): bool => str_contains($sql, '"'.$table.'"')))->toBeFalse();
+    }
+    $this->actingAs($actor)->get('/admin/customers/999999999?tab='.$tab)->assertForbidden();
+})->with(['services', 'invoices', 'ledger', 'tickets', 'notifications', 'audit']);
+
+it('rejects malformed customer tabs before querying a customer or history', function (array $input): void {
+    $actor = customerCenterActor(...customerCenterAllPermissions());
+    $actor->getAllPermissions();
+    $queries = [];
+    DB::listen(function (QueryExecuted $query) use (&$queries): void {
+        $queries[] = $query->sql;
+    });
+    try {
+        app(AdminCustomerQueries::class)->detail($actor, 999999999, $input);
+        $this->fail('Invalid tab should stop the query.');
+    } catch (HttpException $exception) {
+        expect($exception->getStatusCode())->toBe(422);
+    }
+    foreach (['users', 'instances', 'invoices', 'financial_transactions', 'tickets', 'kyc_verifications', 'notification_logs', 'audit_logs'] as $table) {
+        expect(collect($queries)->contains(fn (string $sql): bool => str_contains($sql, '"'.$table.'"')))->toBeFalse();
+    }
+    $this->actingAs($actor)->get('/admin/customers/999999999?'.http_build_query($input))->assertStatus(422);
+})->with(['unknown' => [['tab' => 'unknown']], 'array' => [['tab' => ['services']]], 'blank' => [['tab' => '']]]);
+
+it('excludes wallet projections and service totals from every history tab', function (string $tab): void {
+    $actor = customerCenterActor(...customerCenterAllPermissions());
+    $owner = User::factory()->create(['credit' => '914.37']);
+    $data = app(AdminCustomerQueries::class)->detail($actor, $owner->id, ['tab' => $tab]);
+    expect(array_keys($data['customer']->getAttributes()))->toEqualCanonicalizing([
+        'id', 'name', 'email', 'phone', 'email_verified_at', 'kyc_verified_at', 'disabled_at', 'anonymized_at', 'deleted_at', 'created_at',
+    ]);
+    $this->actingAs($actor)->get('/admin/customers/'.$owner->id.'?tab='.$tab)->assertOk()->assertDontSee('914.37');
+})->with(['services', 'invoices', 'ledger', 'tickets', 'identity', 'notifications', 'audit']);
 
 it('preserves the three wallet columns exactly without loading affiliate or receivable balances', function (): void {
     $actor = customerCenterActor('customers.view', 'finance.view');
@@ -147,8 +213,9 @@ it('counts Active and Suspended across every fulfillment driver while retaining 
     }
     Instance::factory()->active()->create();
     $data = app(AdminCustomerQueries::class)->detail($actor, $owner->id, []);
-    expect((int) $data['customer']->active_services_count)->toBe(8)
-        ->and($data['services']->total())->toBe(13)->and($data['services']->count())->toBe(10);
+    expect((int) $data['customer']->active_services_count)->toBe(8)->and($data)->not->toHaveKey('services');
+    $services = app(AdminCustomerQueries::class)->detail($actor, $owner->id, ['tab' => 'services'])['services'];
+    expect($services->total())->toBe(13)->and($services->count())->toBe(10);
     $this->actingAs($actor)->get('/admin/customers?user_id='.$owner->id)->assertOk()->assertSee('data-customer-services="'.$owner->id.'">8', false);
 });
 
@@ -171,8 +238,9 @@ it('keeps closed identities out of the default list and shows retained facts wit
     $owner->delete();
     expect(app(AdminCustomerQueries::class)->listing($actor, ['user_id' => $owner->id])['customers']->total())->toBe(0)
         ->and(app(AdminCustomerQueries::class)->listing($actor, ['user_id' => $owner->id, 'status' => 'closed'])['customers']->pluck('id')->all())->toBe([$owner->id]);
-    $response = $this->actingAs($actor)->get('/admin/customers/'.$owner->id)->assertOk()->assertSee('已注销')->assertSee('CLOSED-HISTORY')
-        ->assertSee('data-customer-service="'.$service->id.'"', false)->assertSee('/admin/finance/invoice?invoice_id='.$invoice->id, false);
+    $response = $this->actingAs($actor)->get('/admin/customers/'.$owner->id.'?tab=invoices')->assertOk()->assertSee('已注销')->assertSee('CLOSED-HISTORY')
+        ->assertSee('/admin/finance/invoice?invoice_id='.$invoice->id, false);
+    $this->get('/admin/customers/'.$owner->id.'?tab=services')->assertOk()->assertSee('已注销')->assertSee('data-customer-service="'.$service->id.'"', false);
     expect(customerCenterXpath($response->getContent())->query('//main//a[@href="/admin/access?user_id='.$owner->id.'"]'))->toHaveCount(0);
 });
 
@@ -210,18 +278,25 @@ it('uses bounded independent pagination and never mixes another customers retain
             DB::table('audit_logs')->insert(['subject_type' => User::class, 'subject_id' => $customer->id, 'actor_type' => 'system', 'action' => 'identity.test.'.$index, 'created_at' => now(), 'updated_at' => now()]);
         }
     }
-    $data = app(AdminCustomerQueries::class)->detail($actor, $owner->id, ['services_page' => 2, 'kyc_page' => 2]);
-    foreach (['services', 'invoices', 'ledger', 'tickets', 'kycRecords', 'notifications', 'audits'] as $key) {
-        expect($data[$key]->total())->toBe(12)->and($data[$key]->perPage())->toBe(10);
-        $secondPage = in_array($key, ['services', 'kycRecords'], true);
-        expect($data[$key]->currentPage())->toBe($secondPage ? 2 : 1)->and($data[$key]->count())->toBe($secondPage ? 2 : 10);
+    foreach (['services' => ['services', 'services_page'], 'invoices' => ['invoices', 'invoices_page'],
+        'ledger' => ['ledger', 'ledger_page'], 'tickets' => ['tickets', 'tickets_page'],
+        'identity' => ['kycRecords', 'kyc_page'], 'notifications' => ['notifications', 'notifications_page'], 'audit' => ['audits', 'audit_page']] as $tab => [$key, $page]) {
+        $data = app(AdminCustomerQueries::class)->detail($actor, $owner->id, ['tab' => $tab, $page => 2]);
+        expect($data[$key]->total())->toBe(12)->and($data[$key]->perPage())->toBe(10)
+            ->and($data[$key]->currentPage())->toBe(2)->and($data[$key]->count())->toBe(2);
+        expect($data[$key]->url(1))->toContain('tab='.$tab)->toContain($page.'=1');
+        foreach (['services', 'invoices', 'ledger', 'tickets', 'kycRecords', 'notifications', 'audits'] as $otherKey) {
+            if ($otherKey !== $key) {
+                expect($data)->not->toHaveKey($otherKey);
+            }
+        }
     }
-    expect($data['invoices']->url(2))->toContain('invoices_page=2')->toContain('services_page=2')->toContain('kyc_page=2');
     $response = $this->actingAs($actor)->get('/admin/customers/'.$owner->id.'?services_page=2&kyc_page=2')->assertOk()->assertDontSee('PRIVATE-RECIPIENT');
     $xpath = customerCenterXpath($response->getContent());
     expect($xpath->query('//*[@data-customer-service]'))->toHaveCount(2)
-        ->and($xpath->query('//*[@data-customer-invoice]'))->toHaveCount(10)
-        ->and($xpath->query('//*[@data-customer-kyc]'))->toHaveCount(2);
+        ->and($xpath->query('//*[@data-customer-invoice]'))->toHaveCount(0)
+        ->and($xpath->query('//*[@data-customer-kyc]'))->toHaveCount(0);
+
 });
 
 it('projects safe service invoice notification and audit metadata with exact account subject matching', function (): void {
@@ -234,27 +309,35 @@ it('projects safe service invoice notification and audit metadata with exact acc
     DB::table('notification_logs')->insert(['user_id' => $owner->id, 'event_key' => 'invoice.paid', 'channel' => 'email', 'target' => 'PRIVATE-TARGET', 'status' => 'failed', 'error_message' => 'PRIVATE-ERROR', 'created_at' => now(), 'updated_at' => now()]);
     $auditId = DB::table('audit_logs')->insertGetId(['subject_type' => User::class, 'subject_id' => $owner->id, 'actor_type' => 'system', 'action' => 'identity.allowed', 'after' => json_encode(['status' => 'verified', 'password' => 'PRIVATE-AUDIT-SECRET']), 'created_at' => now(), 'updated_at' => now()]);
     DB::table('audit_logs')->insert(['subject_type' => Invoice::class, 'subject_id' => $owner->id, 'actor_type' => 'system', 'action' => 'invoice.WRONG-SUBJECT', 'created_at' => now(), 'updated_at' => now()]);
-    $data = app(AdminCustomerQueries::class)->detail($actor, $owner->id, []);
-    expect($data['services']->first()->getAttributes())->not->toHaveKey('encrypted_credentials')->not->toHaveKey('active_config')->not->toHaveKey('custom_field_values')->not->toHaveKey('downstream_token');
-    expect($data['services']->first()->upstreamApi)->toBeNull();
-    expect($data['invoices']->first()->getAttributes())->not->toHaveKey('line_items')->not->toHaveKey('gateway_trade_no');
-    expect(get_object_vars($data['notifications']->first()))->not->toHaveKey('target')->not->toHaveKey('error_message');
-    expect($data['audits']->pluck('id')->all())->toBe([$auditId])->and($data['audits']->first()->after)->toBe('{"status":"verified"}');
-    $response = $this->actingAs($actor)->get('/admin/customers/'.$owner->id)->assertOk();
-    foreach (['BROKEN-CREDENTIAL-CIPHERTEXT', 'PRIVATE-CONFIG', 'PRIVATE-ORDER-SNAPSHOT', 'PRIVATE-TARGET', 'PRIVATE-ERROR', 'PRIVATE-AUDIT-SECRET', 'invoice.WRONG-SUBJECT'] as $secret) {
-        $response->assertDontSee($secret);
+    $query = app(AdminCustomerQueries::class);
+    $services = $query->detail($actor, $owner->id, ['tab' => 'services'])['services'];
+    expect($services->first()->getAttributes())->not->toHaveKey('encrypted_credentials')->not->toHaveKey('active_config')->not->toHaveKey('custom_field_values')->not->toHaveKey('downstream_token');
+    expect($services->first()->upstreamApi)->toBeNull();
+    expect($query->detail($actor, $owner->id, ['tab' => 'invoices'])['invoices']->first()->getAttributes())->not->toHaveKey('line_items')->not->toHaveKey('gateway_trade_no');
+    expect(get_object_vars($query->detail($actor, $owner->id, ['tab' => 'notifications'])['notifications']->first()))->not->toHaveKey('target')->not->toHaveKey('error_message');
+    $audits = $query->detail($actor, $owner->id, ['tab' => 'audit'])['audits'];
+    expect($audits->pluck('id')->all())->toBe([$auditId])->and($audits->first()->after)->toBe('{"status":"verified"}');
+    $responses = [];
+    foreach (['overview', 'services', 'invoices', 'ledger', 'tickets', 'identity', 'notifications', 'audit'] as $tab) {
+        $responses[$tab] = $this->actingAs($actor)->get('/admin/customers/'.$owner->id.'?tab='.$tab)->assertOk();
+        foreach (['BROKEN-CREDENTIAL-CIPHERTEXT', 'PRIVATE-CONFIG', 'PRIVATE-ORDER-SNAPSHOT', 'PRIVATE-TARGET', 'PRIVATE-ERROR', 'PRIVATE-AUDIT-SECRET', 'invoice.WRONG-SUBJECT'] as $secret) {
+            $responses[$tab]->assertDontSee($secret);
+        }
+        $responses[$tab]->assertSee('&lt;script&gt;CLIENT-NAME&lt;/script&gt;', false)->assertDontSee('<script>CLIENT-NAME</script>', false);
+        expect(customerCenterXpath($responses[$tab]->getContent())->query('//main//form[@method="post"]'))->toHaveCount(0);
     }
-    $response->assertSee('&lt;script&gt;CLIENT-NAME&lt;/script&gt;', false)->assertDontSee('<script>CLIENT-NAME</script>', false);
-    $xpath = customerCenterXpath($response->getContent());
-    expect($xpath->query('//main//a[@href="/admin/upstream-instances?instance='.$classic->id.'"]'))->toHaveCount(1)
-        ->and($xpath->query('//main//a[@href="/admin/upstream-instances?instance='.$local->id.'"]'))->toHaveCount(0)
-        ->and($xpath->query('//main//section[@id="customer-services"]'))->toHaveCount(1)
-        ->and($xpath->query('//main//form[@method="post"]'))->toHaveCount(0);
-    foreach (['/admin/finance?user_id=', '/admin/finance/ledger?user_id=', '/admin/upstream-instances?user_id=', '/admin/support?user_id=', '/admin/notifications?user_id=', '/admin/access?user_id='] as $path) {
-        expect($xpath->query('//main//a[@href="'.$path.$owner->id.'"]'))->toHaveCount(1);
+    $xpath = customerCenterXpath($responses['services']->getContent());
+    foreach ([$classic, $local] as $service) {
+        expect($xpath->query('//main//a[starts-with(@href,"/admin/instances/'.$service->id.'?")]'))->toHaveCount(1)
+            ->and($xpath->query('//main//a[@href="/admin/upstream-instances?instance='.$service->id.'"]'))->toHaveCount(0);
+    }
+    expect($xpath->query('//main//section[@id="customer-services"]'))->toHaveCount(1);
+    foreach (['invoices' => '/admin/finance?user_id=', 'ledger' => '/admin/finance/ledger?user_id=', 'services' => '/admin/upstream-instances?user_id=', 'tickets' => '/admin/support?user_id=', 'notifications' => '/admin/notifications?user_id=', 'overview' => '/admin/access?user_id='] as $tab => $path) {
+        expect(customerCenterXpath($responses[$tab]->getContent())->query('//main//a[@href="'.$path.$owner->id.'"]'))->toHaveCount(1);
     }
     $auditUrl = '/admin/audit?'.http_build_query(['subject_type' => User::class, 'subject_id' => $owner->id]);
-    expect($xpath->query('//main//a[@href="'.$auditUrl.'"]'))->toHaveCount(1);
+    expect(customerCenterXpath($responses['audit']->getContent())->query('//main//a[@href="'.$auditUrl.'"]'))->toHaveCount(1);
+
 });
 
 it('paginates twenty customers with constant query count and no per-customer business collection loads', function (): void {
@@ -293,7 +376,7 @@ it('keeps notification acceptance simulation and inactive statuses clear in Chin
     $actor = customerCenterActor('customers.view', 'notification.view');
     $owner = User::factory()->create();
     DB::table('notification_logs')->insert(['user_id' => $owner->id, 'event_key' => 'invoice.paid', 'channel' => $channel, 'target' => 'PRIVATE-DELIVERY-TARGET', 'status' => $status, 'created_at' => now(), 'updated_at' => now()]);
-    $this->actingAs($actor)->get('/admin/customers/'.$owner->id)->assertOk()->assertSee('邮件')->assertSee($label)
+    $this->actingAs($actor)->get('/admin/customers/'.$owner->id.'?tab=notifications')->assertOk()->assertSee('邮件')->assertSee($label)
         ->assertSee('已受理表示通道接受请求，不代表最终送达')->assertDontSee('PRIVATE-DELIVERY-TARGET');
 })->with([
     'legacy mail acceptance' => ['mail', 'sent', '已受理'],

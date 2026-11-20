@@ -60,9 +60,11 @@ it('renders every native group and item icon while keeping navigation permission
     app()->instance('request', $request);
     app()->instance('originalRequest', $request);
     $groups = Filament::getPanel('admin')->buildNavigation();
-    expect($groups)->toHaveCount(6);
+    expect($groups)->toHaveCount(7);
     foreach ($groups as $group) {
-        expect($group->getIcon())->toStartWith('heroicon-o-');
+        if ($group->getLabel() !== null) {
+            expect($group->getIcon())->toStartWith('heroicon-o-');
+        }
         foreach ($group->getItems() as $item) {
             expect($item->getIcon())->toStartWith('heroicon-o-');
         }
@@ -80,8 +82,11 @@ it('renders every native group and item icon while keeping navigation permission
     foreach ($xpath->query('.//a[@href]', $sidebars->item(0)) as $link) {
         $urls[] = $link->getAttribute('href');
     }
-    expect(array_unique($urls))->toHaveCount(8);
+    expect(array_unique($urls))->toHaveCount(9);
     foreach ($urls as $url) {
+        if ($url === '/admin') {
+            continue;
+        }
         expect($url)->toStartWith('/admin/settings?tab=');
     }
     Http::assertNothingSent();

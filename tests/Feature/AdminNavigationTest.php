@@ -61,9 +61,10 @@ it('keeps every operational area and settings destination in one flat global nav
     $items = navigationItems($groups);
     $urls = array_map(fn (NavigationItem $item): ?string => $item->getUrl(), $items);
 
-    expect($groups)->toHaveCount(6)
-        ->and($urls)->toHaveCount(31)->toHaveCount(count(array_unique($urls)))
+    expect($groups)->toHaveCount(7)
+        ->and($urls)->toHaveCount(32)->toHaveCount(count(array_unique($urls)))
         ->toEqualCanonicalizing([
+            '/admin',
             '/admin/inventory', '/admin/inventory/cards', '/admin/fulfillment', '/admin/upstreams',
             '/admin/upstream-instances', '/admin/finance', '/admin/finance/ledger', '/admin/finance/receivables',
             '/admin/wallet-clearances', '/admin/external-payouts', '/admin/payouts', '/admin/coupons',
@@ -78,6 +79,11 @@ it('keeps every operational area and settings destination in one flat global nav
         expect($item->getChildItems())->toBeEmpty();
     }
     foreach ($groups as $group) {
+        if ($group->getLabel() === null) {
+            expect($group->getItems())->toHaveCount(1)->and($group->getItems()[0]->getUrl())->toBe('/admin');
+
+            continue;
+        }
         expect($group->isCollapsible())->toBeTrue()
             ->and($group->isCollapsed())->toBe(! $group->isActive());
     }
@@ -87,9 +93,9 @@ it('uses existing page authorization and removes groups with no accessible optio
     $this->actingAs(navigationOperator(['upstream.view']));
     $groups = navigationForPath('/admin/upstreams');
     expect(array_map(fn (NavigationGroup $group): ?string => $group->getLabel(), $groups))
-        ->toEqualCanonicalizing(['商品与服务', '系统运维']);
+        ->toEqualCanonicalizing([null, '商品与服务', '财务']);
     expect(array_map(fn (NavigationItem $item): ?string => $item->getUrl(), navigationItems($groups)))
-        ->toEqualCanonicalizing(['/admin/upstreams', '/admin/upstream-instances', '/admin/reconciliations']);
+        ->toEqualCanonicalizing(['/admin', '/admin/upstreams', '/admin/upstream-instances', '/admin/reconciliations']);
 
     $this->actingAs(navigationOperator());
     expect(navigationForPath('/admin/settings'))->toBeEmpty();
@@ -99,8 +105,11 @@ it('shows all settings sections to settings viewers without granting access to o
     $this->actingAs(navigationOperator(['settings.view']));
     $groups = navigationForPath('/admin/settings?tab=site');
     $items = navigationItems($groups);
-    expect($groups)->toHaveCount(3)->and($items)->toHaveCount(8);
+    expect($groups)->toHaveCount(2)->and($items)->toHaveCount(9);
     foreach ($items as $item) {
+        if ($item->getUrl() === '/admin') {
+            continue;
+        }
         expect($item->getUrl())->toStartWith('/admin/settings?tab=');
     }
     // The approved dashboard UI makes /admin the panel home for every admitted role.
@@ -113,10 +122,14 @@ it('highlights only the owning menu item for configuration and record details', 
     $active = array_values(array_filter(navigationItems($groups), fn (NavigationItem $item): bool => $item->isActive()));
     expect($active)->toHaveCount(1)->and($active[0]->getUrl())->toBe($activeUrl);
     foreach ($groups as $group) {
+        if ($group->getLabel() === null) {
+            continue;
+        }
         expect($group->isCollapsible())->toBeTrue()
             ->and($group->isCollapsed())->toBe(! $group->isActive());
     }
 })->with([
+    ['/admin', '/admin'],
     ['/admin/settings', '/admin/settings?tab=payment-plugins'],
     ['/admin/settings?tab=site', '/admin/settings?tab=site'],
     ['/admin/settings?tab=payment', '/admin/settings?tab=payment-plugins'],
@@ -157,15 +170,28 @@ it('renders the registered menu once in the panel sidebar without exposing recor
     // Filament pre-renders the same approved menu for expanded and collapsed desktop modes.
     foreach ([
         './/ul[contains(concat(" ", normalize-space(@class), " "), " fi-sidebar-group-items ")]//a[@href]',
-        './/div[contains(concat(" ", normalize-space(@class), " "), " fi-dropdown-panel ")]//a[@href]',
+        './/div[contains(concat(" ", normalize-space(@class), " "), " fi-dropdown-panel ")]//a[@href] | .//ul[contains(concat(" ", normalize-space(@class), " "), " fi-sidebar-group-items ")]//a[@href="/admin"]',
     ] as $mode) {
         $links = $xpath->query($mode, $navigation->item(0));
         $urls = [];
         foreach ($links as $link) {
             $urls[] = $link->getAttribute('href');
         }
-        expect($urls)->toHaveCount(31)->toHaveCount(count(array_unique($urls)))
+        expect($urls)->toHaveCount(32)->toHaveCount(count(array_unique($urls)))
             ->not->toContain('/admin/finance/invoice', '/admin/machine-operation-review');
     }
     Http::assertNothingSent();
+});
+
+it('places overview first and exposes all original global modules in business order', function (): void {
+    $this->actingAs(navigationOperator(navigationViewPermissions()));
+    $groups = array_values(navigationForPath('/admin/customers/8?tab=services'));
+    expect(array_map(fn (NavigationGroup $group): ?string => $group->getLabel(), $groups))
+        ->toBe([null, '客户与客服', '商品与服务', '财务', '运营', '系统配置', '通知与运维'])
+        ->and($groups[0]->getItems()[0]->getUrl())->toBe('/admin')
+        ->and($groups[1]->getItems()[0]->getUrl())->toBe('/admin/customers')
+        ->and($groups[1]->isCollapsed())->toBeFalse();
+    foreach (array_slice($groups, 2) as $group) {
+        expect($group->isCollapsed())->toBeTrue();
+    }
 });
