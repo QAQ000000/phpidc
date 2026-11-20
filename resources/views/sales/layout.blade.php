@@ -33,6 +33,7 @@
     <title>{{ $pageTitle }} · {{ $sitePresentation['site.name'] }}</title>
     <link rel="icon" href="/favicon.svg" type="image/svg+xml">
     <link rel="stylesheet" href="/css/customer-console.css?v=20261120">
+    @yield('styles')
     @unless(request()->is('admin/content/articles/*/preview'))
         <script src="/js/customer-console.js?v=20261120" defer></script>
     @endunless
@@ -68,5 +69,6 @@
     <div class="console-content">@yield('content')</div>
     <footer class="console-footer"><span>{{ $sitePresentation['site.copyright'] !== '' ? $sitePresentation['site.copyright'] : $sitePresentation['site.name'] }}</span>@if($sitePresentation['site.icp_number'] !== '')<a href="https://beian.miit.gov.cn/" rel="noopener noreferrer">{{ $sitePresentation['site.icp_number'] }}</a>@endif</footer>
 </main>
+@yield('scripts')
 </body>
 </html>
