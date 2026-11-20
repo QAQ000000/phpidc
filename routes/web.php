@@ -2,6 +2,7 @@
 
 declare(strict_types=1);
 
+use App\Http\Controllers\AdminCustomerController;
 use App\Http\Controllers\AdminOperationsController;
 use App\Http\Controllers\AdminSearchController;
 use App\Http\Controllers\AffiliateReceivableController;
@@ -88,6 +89,9 @@ Route::middleware('auth')->group(function (): void {
 });
 Route::middleware('auth')->group(function (): void {
     Route::get('/admin/search', AdminSearchController::class);
+    Route::post('/admin/customers/{customer}/profile', [AdminCustomerController::class, 'profile']);
+    Route::post('/admin/customers/{customer}/password-reset', [AdminCustomerController::class, 'passwordReset'])->middleware('throttle:admin-customer-reset');
+    Route::post('/admin/customers/{customer}/access', [AdminCustomerController::class, 'access']);
     Route::get('/console', [CustomerSalesController::class, 'index']);
     Route::get('/console/wallet', [WalletTopupController::class, 'index']);
     Route::post('/console/wallet/topups', [WalletTopupController::class, 'store'])->middleware('throttle:wallet-topup');

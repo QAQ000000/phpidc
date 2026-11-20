@@ -6,15 +6,19 @@ namespace App\Providers;
 
 use App\Actions\RunMaintenanceBatchAction;
 use App\Contracts\MaintenanceBatchWork;
+use App\Http\Middleware\EnsureAccountAccess;
 use App\Models\Invoice;
 use App\Models\User;
 use App\Services\SettingService;
 use App\Services\UpstreamOperationBuffer;
 use App\Support\InstallationState;
 use App\Support\WebRateLimits;
+use Illuminate\Auth\Events\Login;
 use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\ServiceProvider;
+use Livewire\Livewire;
 
 class AppServiceProvider extends ServiceProvider
 {
@@ -31,6 +35,12 @@ class AppServiceProvider extends ServiceProvider
     public function boot(): void
     {
         WebRateLimits::register();
+        Livewire::addPersistentMiddleware([EnsureAccountAccess::class]);
+        Event::listen(Login::class, function (Login $event): void {
+            if ($event->guard === 'web' && $event->user instanceof User && request()->hasSession()) {
+                request()->session()->put(EnsureAccountAccess::REVISION_KEY, (int) $event->user->auth_revision);
+            }
+        });
         // Register a lazy, invoice-scoped authority without touching storage before installation.
         Gate::define('refund-invoice', fn (User $actor, ?Invoice $invoice = null): bool => $actor->exists && ! $actor->trashed()
             && $invoice?->exists && $actor->can('finance.view') && $actor->can('finance.refund'));

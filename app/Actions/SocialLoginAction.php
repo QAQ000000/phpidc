@@ -89,7 +89,7 @@ class SocialLoginAction
         try {
             return DB::transaction(function () use ($userId, $provider, $subject, $intent): User {
                 $user = User::whereKey($userId)->lockForUpdate()->first();
-                if ($user === null) {
+                if ($user === null || ! $user->isAccessEnabled()) {
                     throw new DomainException('账户不可用。');
                 }
                 $linked = UserOauthAccount::where('provider', $provider)->where('provider_subject', $subject)->lockForUpdate()->first();

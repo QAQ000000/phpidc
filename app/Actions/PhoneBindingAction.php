@@ -42,6 +42,9 @@ class PhoneBindingAction
             RateLimiter::hit($throttleKey, 60);
             Cache::forget('phone-binding:'.$user->id);
             $fresh = User::findOrFail($user->id);
+            if (! $fresh->isAccessEnabled()) {
+                throw ValidationException::withMessages(['phone' => '账户不可用，请重新登录后操作。']);
+            }
             $code = (string) random_int(100000, 999999);
             $template = app(SettingService::class)->get('sms.binding_template', '') ?? '';
             if ($template === '' || ! app(DriverManager::class)->sms()->sendTemplate($phone, $template, ['code' => $code, 'minutes' => '10'])) {
@@ -51,11 +54,13 @@ class PhoneBindingAction
             // closure/password rotation cannot be followed by a newly persisted stale proof.
             DB::transaction(function () use ($user, $phone, $code, $fresh): void {
                 $locked = User::whereKey($user->id)->lockForUpdate()->firstOrFail();
-                if ($locked->anonymized_at !== null || ! hash_equals($fresh->getAuthPassword(), $locked->getAuthPassword())) {
+                if (! $locked->isAccessEnabled() || (int) $fresh->auth_revision !== (int) $locked->auth_revision
+                    || ! hash_equals($fresh->getAuthPassword(), $locked->getAuthPassword())) {
                     throw ValidationException::withMessages(['phone' => '账户已改变，请重新登录后发送验证码。']);
                 }
                 Cache::put('phone-binding:'.$user->id, ['phone' => $phone, 'hash' => Hash::make($code),
-                    'password_hash' => $locked->getAuthPassword(), 'attempts' => 0, 'expires' => now()->addMinutes(10)->timestamp], now()->addMinutes(10));
+                    'password_hash' => $locked->getAuthPassword(), 'auth_revision' => (int) $locked->auth_revision,
+                    'attempts' => 0, 'expires' => now()->addMinutes(10)->timestamp], now()->addMinutes(10));
             });
 
             return true;
@@ -88,7 +93,8 @@ class PhoneBindingAction
             try {
                 DB::transaction(function () use ($user, $phone, $challenge): void {
                     $locked = User::whereKey($user->id)->lockForUpdate()->firstOrFail();
-                    if (! hash_equals($challenge['password_hash'], $locked->getAuthPassword())) {
+                    if (! $locked->isAccessEnabled() || (int) ($challenge['auth_revision'] ?? 0) !== (int) $locked->auth_revision
+                        || ! hash_equals($challenge['password_hash'], $locked->getAuthPassword())) {
                         throw ValidationException::withMessages(['code' => '账户已改变，请重新发送验证码。']);
                     }
                     if (User::withTrashed()->where('phone', $phone)->whereKeyNot($locked->id)->exists()) {

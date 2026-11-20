@@ -52,6 +52,7 @@ class CreateComboInvoiceAction
         if (($existing = app(FindPurchaseRequestAction::class)->execute($user->id, $requestId, $snapshot)) !== null) {
             return $existing;
         }
+        $this->assertCustomerAccess($user->fresh());
         $product = $product->fresh();
         SettlementCurrency::assertSupported($product->currency);
         app(ClassicPurchaseAdmission::class)->assertAllowed($product, $billingCycle->value);
@@ -77,6 +78,7 @@ class CreateComboInvoiceAction
             if (($existing = app(FindPurchaseRequestAction::class)->execute($user->id, $requestId, $snapshot, lock: true)) !== null) {
                 return $existing;
             }
+            $this->assertCustomerAccess($user);
             $product = Product::findOrFail($product->id);
             SettlementCurrency::assertSupported($product->currency);
             app(ClassicPurchaseAdmission::class)->assertAllowed($product, $billingCycle->value);
@@ -193,6 +195,7 @@ class CreateComboInvoiceAction
 
             return $existing;
         }
+        $this->assertCustomerAccess($user->fresh());
         try {
             $confirmed = json_decode(Crypt::decryptString($quoteToken), true, flags: JSON_THROW_ON_ERROR);
         } catch (DecryptException) {
@@ -238,6 +241,9 @@ class CreateComboInvoiceAction
                 return $existing;
             }
         }
+        if (! $automatic) {
+            $this->assertCustomerAccess($user->fresh());
+        }
         $instance = $instance->fresh();
         if ($type === InvoiceType::UPGRADE) {
             app(UpgradeCalculatorAction::class)->assertSupportedConfigurations($instance);
@@ -279,6 +285,9 @@ class CreateComboInvoiceAction
         }
         $fingerprint = $instance->getRawOriginal();
         $productFingerprint = $product->getRawOriginal();
+        if (! $automatic) {
+            $this->assertCustomerAccess($user->fresh());
+        }
         if ($type === InvoiceType::RENEW) {
             $quote = app(CallUpstreamAction::class)->execute(fn () => $driver->quoteRenewal($instance, $instance->billing_cycle->value));
         } elseif ($driver instanceof LiveQuotable) {
@@ -318,6 +327,9 @@ class CreateComboInvoiceAction
                 return $type === InvoiceType::RENEW
                     ? $this->existingRenewal($user, $instance, app(RenewalRecovery::class)->current($existing, true), $useCredit, $gateway, $requestId, $couponCode)
                     : $existing;
+            }
+            if (! $automatic) {
+                $this->assertCustomerAccess($user);
             }
             $unpaid = Invoice::where('instance_id', $instance->id)->where('status', InvoiceStatus::UNPAID)->lockForUpdate()->exists();
             $locked = Instance::whereKey($instance->id)->lockForUpdate()->firstOrFail();
@@ -464,6 +476,7 @@ class CreateComboInvoiceAction
 
                 return $invoice;
             }
+            $this->assertCustomerAccess($user);
             $attempts = PaymentAttempt::where('invoice_id', $invoice->id)->lockForUpdate()->get();
             $locked = Instance::whereKey($instance->id)->lockForUpdate()->firstOrFail();
             if ($locked->upstream_api_id !== null) {
@@ -520,6 +533,13 @@ class CreateComboInvoiceAction
 
             return $invoice;
         });
+    }
+
+    private function assertCustomerAccess(?User $user): void
+    {
+        if (! $user?->isAccessEnabled()) {
+            throw ValidationException::withMessages(['account' => '账户当前无法发起新业务，请联系管理员。']);
+        }
     }
 
     private function assertWalletAllocation(User $user, string $credit, string $gatewayAmount): void

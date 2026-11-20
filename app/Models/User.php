@@ -16,15 +16,20 @@ use Illuminate\Notifications\Notifiable;
 use Spatie\Permission\Traits\HasRoles;
 
 #[Fillable(['name', 'email', 'phone', 'password'])]
-#[Hidden(['password', 'remember_token'])]
+#[Hidden(['password', 'remember_token', 'auth_revision'])]
 class User extends Authenticatable implements FilamentUser
 {
     /** @use HasFactory<UserFactory> */
     use HasFactory, HasRoles, Notifiable, SoftDeletes;
 
+    public function isAccessEnabled(): bool
+    {
+        return ! $this->trashed() && $this->anonymized_at === null && $this->disabled_at === null;
+    }
+
     public function canAccessPanel(Panel $panel): bool
     {
-        return $panel->getId() === 'admin' && ! $this->trashed() && collect([
+        return $panel->getId() === 'admin' && $this->isAccessEnabled() && collect([
             'customers.view', 'promotion.view', 'affiliate.view', 'support.view', 'notification.view', 'download.view',
             'inventory.view', 'upstream.view', 'cms.view', 'finance.view', 'tasks.view', 'audit.view', 'access.view', 'settings.view',
         ])->contains(fn (string $permission): bool => $this->can($permission));
@@ -42,6 +47,8 @@ class User extends Authenticatable implements FilamentUser
             'email_verified_at' => 'datetime',
             'kyc_verified_at' => 'datetime',
             'anonymized_at' => 'datetime',
+            'disabled_at' => 'datetime',
+            'auth_revision' => 'integer',
             'password' => 'hashed',
             'credit' => 'decimal:2',
             'frozen_credit' => 'decimal:2',

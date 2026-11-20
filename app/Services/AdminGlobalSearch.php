@@ -16,7 +16,7 @@ class AdminGlobalSearch
 {
     public function authorize(User $actor): void
     {
-        abort_if($actor->trashed() || $actor->anonymized_at !== null, 403);
+        abort_unless($actor->isAccessEnabled(), 403);
         abort_unless(Gate::forUser($actor)->any(['customers.view', 'finance.view', 'upstream.view']), 403);
     }
 
@@ -34,12 +34,12 @@ class AdminGlobalSearch
             $items = [];
             // Deliberately includes retained, anonymized identities; never resolves old PII.
             if ($id !== null || str_contains($term, '@')) {
-                $rows = DB::table('users')->select(['id', 'name', 'email', 'deleted_at', 'anonymized_at'])
+                $rows = DB::table('users')->select(['id', 'name', 'email', 'disabled_at', 'deleted_at', 'anonymized_at'])
                     ->when($id !== null, fn (Builder $query) => $query->where('id', $id), fn (Builder $query) => $query->where('email', $term))
                     ->orderByDesc('id')->limit(5)->get();
                 foreach ($rows as $row) {
                     $items[] = ['id' => (int) $row->id, 'label' => $row->name.' · '.$row->email,
-                        'description' => '客户 #'.$row->id.($row->deleted_at !== null || $row->anonymized_at !== null ? ' · 已注销' : ''),
+                        'description' => '客户 #'.$row->id.($row->deleted_at !== null || $row->anonymized_at !== null ? ' · 已注销' : ($row->disabled_at !== null ? ' · 已停用' : '')),
                         'url' => '/admin/customers/'.$row->id];
                 }
             }

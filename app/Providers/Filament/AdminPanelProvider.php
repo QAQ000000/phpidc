@@ -34,6 +34,7 @@ use App\Filament\Pages\SystemSettings;
 use App\Filament\Pages\UpstreamAccounts;
 use App\Filament\Pages\UpstreamInstances;
 use App\Filament\Pages\WalletClearances;
+use App\Http\Middleware\EnsureAccountAccess;
 use App\Http\Middleware\EnsureInstalledMiddleware;
 use App\Support\AdminNavigation;
 use Filament\Http\Middleware\Authenticate;
@@ -69,7 +70,7 @@ class AdminPanelProvider extends PanelProvider
             ->middleware([EncryptCookies::class, AddQueuedCookiesToResponse::class, StartSession::class,
                 AuthenticateSession::class, ShareErrorsFromSession::class, PreventRequestForgery::class,
                 SubstituteBindings::class, DisableBladeIconComponents::class, DispatchServingFilamentEvent::class,
-                EnsureInstalledMiddleware::class])
+                EnsureInstalledMiddleware::class, EnsureAccountAccess::class])
             ->authMiddleware([Authenticate::class]);
     }
 }

@@ -11,6 +11,7 @@ class AdminRoles
     {
         return [
             'customer-viewer' => ['customers.view'],
+            'customer-operator' => ['customers.view', 'customers.manage', 'customers.password-reset', 'customers.status.manage'],
             'settings-viewer' => ['settings.view'],
             'settings-payment' => ['settings.view', 'settings.payment.manage'],
             'settings-notification' => ['settings.view', 'settings.notification.manage'],
@@ -68,6 +69,7 @@ class AdminRoles
     {
         return [
             'customer-viewer' => '客户资料查看',
+            'customer-operator' => '客户基础管理',
             'settings-viewer' => '系统配置查看', 'settings-payment' => '支付接口配置',
             'settings-notification' => '邮件与短信接口配置', 'settings-identity' => '实名与登录接口配置',
             'settings-site' => '站点信息配置', 'settings-billing' => '计费与调度参数配置',
@@ -96,7 +98,7 @@ class AdminRoles
     public static function presets(): array
     {
         return [
-            'operations' => ['label' => '日常运营', 'roles' => ['customer-viewer', 'inventory-operator', 'cms-publisher', 'promotion-operator',
+            'operations' => ['label' => '日常运营', 'roles' => ['customer-operator', 'inventory-operator', 'cms-publisher', 'promotion-operator',
                 'affiliate-operator', 'support-agent', 'notification-operator', 'download-operator', 'task-viewer']],
             'finance_readonly' => ['label' => '财务只读', 'roles' => ['customer-viewer', 'finance-viewer', 'affiliate-viewer', 'audit-viewer']],
             'upstream' => ['label' => '上游运维', 'roles' => ['upstream-operator', 'upstream-lifecycle', 'task-viewer']],

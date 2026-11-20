@@ -8,13 +8,14 @@ use App\Models\User;
 use App\Models\UserNotificationBinding;
 use App\Services\DriverManager;
 use App\Services\SettingService;
+use App\Support\AdminCustomerAccess;
 use App\Support\CustomerEmailLookup;
+use App\Support\OperationsAudit;
 use App\Support\RetryableNotificationException;
 use App\Support\UncertainNotificationException;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Password;
 use Illuminate\Support\Facades\URL;
-use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
 use Symfony\Component\Mailer\Exception\TransportExceptionInterface;
 
@@ -34,19 +35,60 @@ class CustomerIdentityAction
         // Lock before creating/replacing a token, so concurrent requests cannot bypass broker throttle.
         $pending = DB::transaction(function () use ($email): ?array {
             $user = app(CustomerEmailLookup::class)->lockUnique($email);
-            $tokens = Password::broker()->getRepository();
-            if ($user === null || $tokens->recentlyCreatedToken($user)) {
+            if ($user === null || ! $user->isAccessEnabled()) {
                 return null;
             }
 
-            return [$user, $tokens->create($user)];
+            return $this->preparePasswordReset($user);
         });
         if ($pending !== null) {
             [$user, $token] = $pending;
-            $url = $this->publicUrl('/reset-password/'.$token.'?'.http_build_query(['email' => $user->email]));
-            $delivery = $this->sendMail($user, '重置密码', "请在 60 分钟内打开以下链接重置密码：\n".$url."\n如果不是你发起的请求，请忽略。");
+            $delivery = $this->deliverPasswordReset($user, $token);
             DB::transaction(fn () => $this->audit($user, $delivery === 'sent' ? 'identity.password_reset_sent' : 'identity.password_reset_delivery_failed', $delivery));
         }
+    }
+
+    /** @return 'sent'|'throttled'|'retryable'|'rejected'|'uncertain' */
+    public function requestAdminPasswordReset(User $target, User $actor, ?string $reason = null): string
+    {
+        validator(['reason' => $reason], ['reason' => ['nullable', 'string', 'max:255']])->validate();
+        $note = trim($reason ?? '') ?: '发送客户标准密码重置链接';
+        $prepared = DB::transaction(function () use ($target, $actor, $note): array {
+            ['actor' => $operator, 'target' => $locked] = app(AdminCustomerAccess::class)->lock($target, $actor, 'customers.password-reset');
+            abort_unless($locked->isAccessEnabled(), 403);
+            $this->requireMail();
+            $pending = $this->preparePasswordReset($locked);
+            OperationsAudit::record($operator, 'customer.password_reset_requested', User::class, $locked->id, $note, [],
+                ['delivery_status' => $pending === null ? 'throttled' : 'prepared']);
+
+            return ['actor' => $operator, 'target' => $locked, 'pending' => $pending];
+        });
+        if ($prepared['pending'] === null) {
+            return 'throttled';
+        }
+        [$user, $token] = $prepared['pending'];
+        $delivery = $this->deliverPasswordReset($user, $token);
+        // This records the observed result under the original initiating identity, even if access changed in flight.
+        DB::transaction(fn () => OperationsAudit::record($prepared['actor'], 'customer.password_reset_delivery', User::class,
+            $prepared['target']->id, $note, [], ['delivery_status' => $delivery]));
+
+        return $delivery;
+    }
+
+    /** @return array{User, string}|null */
+    private function preparePasswordReset(User $locked): ?array
+    {
+        $tokens = Password::broker()->getRepository();
+
+        return $tokens->recentlyCreatedToken($locked) ? null : [$locked, $tokens->create($locked)];
+    }
+
+    /** @return 'sent'|'rejected'|'retryable'|'uncertain' */
+    private function deliverPasswordReset(User $user, string $token): string
+    {
+        $url = $this->publicUrl('/reset-password/'.$token.'?'.http_build_query(['email' => $user->email]));
+
+        return $this->sendMail($user, '重置密码', "请在 60 分钟内打开以下链接重置密码：\n".$url."\n如果不是你发起的请求，请忽略。");
     }
 
     public function resetPassword(string $email, string $token, string $password): void
@@ -54,14 +96,12 @@ class CustomerIdentityAction
         validator(['password' => $password], ['password' => ['required', 'string', 'min:12', 'max:255']])->validate();
         DB::transaction(function () use ($email, $token, $password): void {
             $user = app(CustomerEmailLookup::class)->lockUnique($email);
-            if ($user === null || ! Password::broker()->tokenExists($user, $token)) {
+            if ($user === null || ! $user->isAccessEnabled() || ! Password::broker()->tokenExists($user, $token)) {
                 throw ValidationException::withMessages(['token' => '重置链接无效或已过期。']);
             }
             $user->password = $password;
-            $user->remember_token = Str::random(60);
-            $user->save();
+            app(AdminCustomerAccess::class)->revokeSessions($user);
             Password::broker()->deleteToken($user);
-            DB::table('sessions')->where('user_id', $user->id)->delete();
             $this->audit($user, 'identity.password_reset');
         });
     }

@@ -57,9 +57,10 @@ it('admits the fixed customer viewer without adding unrelated permissions or cha
         ->and($viewer->canAccessPanel(Filament::getPanel('admin')))->toBeTrue()
         ->and($viewer->getAllPermissions()->pluck('name')->all())->toBe(['customers.view'])
         ->and($existing->fresh()->can('customers.view'))->toBeFalse();
-    foreach (['operations', 'finance_readonly', 'all_business'] as $preset) {
+    foreach (['finance_readonly', 'all_business'] as $preset) {
         expect(AdminRoles::presets()[$preset]['roles'])->toContain('customer-viewer');
     }
+    expect(AdminRoles::presets()['operations']['roles'])->toContain('customer-operator');
     $this->actingAs($viewer)->get('/admin/customers')->assertOk();
     foreach (['/admin/finance', '/admin/upstream-instances', '/admin/audit', '/admin/access'] as $path) {
         $this->get($path)->assertForbidden();

@@ -1,0 +1,842 @@
+{
+  "batch": "C2",
+  "date": "2026-11-20",
+  "baseline": "2a5a5c8",
+  "fixture": "isolated SQLite with loopback SMTP, simulated customer data only",
+  "gates": {
+    "pest_passed": 2751,
+    "assertions": 24629,
+    "phpstan_errors": 0,
+    "pint": "PASS",
+    "node_syntax": "PASS",
+    "diff_check": "PASS"
+  },
+  "browser": {
+    "layoutChecks": 32,
+    "checks": [
+      {
+        "name": "customers",
+        "width": 1440,
+        "theme": "light",
+        "status": 200,
+        "overflow": false,
+        "dark": false,
+        "secret": false,
+        "postForms": 0,
+        "openDialogs": 0,
+        "localNav": 0
+      },
+      {
+        "name": "disabled-list",
+        "width": 1440,
+        "theme": "light",
+        "status": 200,
+        "overflow": false,
+        "dark": false,
+        "secret": false,
+        "postForms": 0,
+        "openDialogs": 0,
+        "localNav": 0
+      },
+      {
+        "name": "closed-list",
+        "width": 1440,
+        "theme": "light",
+        "status": 200,
+        "overflow": false,
+        "dark": false,
+        "secret": false,
+        "postForms": 0,
+        "openDialogs": 0,
+        "localNav": 0
+      },
+      {
+        "name": "customer-detail",
+        "width": 1440,
+        "theme": "light",
+        "status": 200,
+        "overflow": false,
+        "dark": false,
+        "secret": false,
+        "postForms": 3,
+        "openDialogs": 0,
+        "localNav": 0
+      },
+      {
+        "name": "disabled-detail",
+        "width": 1440,
+        "theme": "light",
+        "status": 200,
+        "overflow": false,
+        "dark": false,
+        "secret": false,
+        "postForms": 2,
+        "openDialogs": 0,
+        "localNav": 0
+      },
+      {
+        "name": "closed-detail",
+        "width": 1440,
+        "theme": "light",
+        "status": 200,
+        "overflow": false,
+        "dark": false,
+        "secret": false,
+        "postForms": 0,
+        "openDialogs": 0,
+        "localNav": 0
+      },
+      {
+        "name": "protected-detail",
+        "width": 1440,
+        "theme": "light",
+        "status": 200,
+        "overflow": false,
+        "dark": false,
+        "secret": false,
+        "postForms": 0,
+        "openDialogs": 0,
+        "localNav": 0
+      },
+      {
+        "name": "pagination",
+        "width": 1440,
+        "theme": "light",
+        "status": 200,
+        "overflow": false,
+        "dark": false,
+        "secret": false,
+        "postForms": 3,
+        "openDialogs": 0,
+        "localNav": 0
+      },
+      {
+        "name": "customers",
+        "width": 1440,
+        "theme": "dark",
+        "status": 200,
+        "overflow": false,
+        "dark": true,
+        "secret": false,
+        "postForms": 0,
+        "openDialogs": 0,
+        "localNav": 0
+      },
+      {
+        "name": "disabled-list",
+        "width": 1440,
+        "theme": "dark",
+        "status": 200,
+        "overflow": false,
+        "dark": true,
+        "secret": false,
+        "postForms": 0,
+        "openDialogs": 0,
+        "localNav": 0
+      },
+      {
+        "name": "closed-list",
+        "width": 1440,
+        "theme": "dark",
+        "status": 200,
+        "overflow": false,
+        "dark": true,
+        "secret": false,
+        "postForms": 0,
+        "openDialogs": 0,
+        "localNav": 0
+      },
+      {
+        "name": "customer-detail",
+        "width": 1440,
+        "theme": "dark",
+        "status": 200,
+        "overflow": false,
+        "dark": true,
+        "secret": false,
+        "postForms": 3,
+        "openDialogs": 0,
+        "localNav": 0
+      },
+      {
+        "name": "disabled-detail",
+        "width": 1440,
+        "theme": "dark",
+        "status": 200,
+        "overflow": false,
+        "dark": true,
+        "secret": false,
+        "postForms": 2,
+        "openDialogs": 0,
+        "localNav": 0
+      },
+      {
+        "name": "closed-detail",
+        "width": 1440,
+        "theme": "dark",
+        "status": 200,
+        "overflow": false,
+        "dark": true,
+        "secret": false,
+        "postForms": 0,
+        "openDialogs": 0,
+        "localNav": 0
+      },
+      {
+        "name": "protected-detail",
+        "width": 1440,
+        "theme": "dark",
+        "status": 200,
+        "overflow": false,
+        "dark": true,
+        "secret": false,
+        "postForms": 0,
+        "openDialogs": 0,
+        "localNav": 0
+      },
+      {
+        "name": "pagination",
+        "width": 1440,
+        "theme": "dark",
+        "status": 200,
+        "overflow": false,
+        "dark": true,
+        "secret": false,
+        "postForms": 3,
+        "openDialogs": 0,
+        "localNav": 0
+      },
+      {
+        "name": "customers",
+        "width": 390,
+        "theme": "light",
+        "status": 200,
+        "overflow": false,
+        "dark": false,
+        "secret": false,
+        "postForms": 0,
+        "openDialogs": 0,
+        "localNav": 0
+      },
+      {
+        "name": "disabled-list",
+        "width": 390,
+        "theme": "light",
+        "status": 200,
+        "overflow": false,
+        "dark": false,
+        "secret": false,
+        "postForms": 0,
+        "openDialogs": 0,
+        "localNav": 0
+      },
+      {
+        "name": "closed-list",
+        "width": 390,
+        "theme": "light",
+        "status": 200,
+        "overflow": false,
+        "dark": false,
+        "secret": false,
+        "postForms": 0,
+        "openDialogs": 0,
+        "localNav": 0
+      },
+      {
+        "name": "customer-detail",
+        "width": 390,
+        "theme": "light",
+        "status": 200,
+        "overflow": false,
+        "dark": false,
+        "secret": false,
+        "postForms": 3,
+        "openDialogs": 0,
+        "localNav": 0
+      },
+      {
+        "name": "disabled-detail",
+        "width": 390,
+        "theme": "light",
+        "status": 200,
+        "overflow": false,
+        "dark": false,
+        "secret": false,
+        "postForms": 2,
+        "openDialogs": 0,
+        "localNav": 0
+      },
+      {
+        "name": "closed-detail",
+        "width": 390,
+        "theme": "light",
+        "status": 200,
+        "overflow": false,
+        "dark": false,
+        "secret": false,
+        "postForms": 0,
+        "openDialogs": 0,
+        "localNav": 0
+      },
+      {
+        "name": "protected-detail",
+        "width": 390,
+        "theme": "light",
+        "status": 200,
+        "overflow": false,
+        "dark": false,
+        "secret": false,
+        "postForms": 0,
+        "openDialogs": 0,
+        "localNav": 0
+      },
+      {
+        "name": "pagination",
+        "width": 390,
+        "theme": "light",
+        "status": 200,
+        "overflow": false,
+        "dark": false,
+        "secret": false,
+        "postForms": 3,
+        "openDialogs": 0,
+        "localNav": 0
+      },
+      {
+        "name": "customers",
+        "width": 390,
+        "theme": "dark",
+        "status": 200,
+        "overflow": false,
+        "dark": true,
+        "secret": false,
+        "postForms": 0,
+        "openDialogs": 0,
+        "localNav": 0
+      },
+      {
+        "name": "disabled-list",
+        "width": 390,
+        "theme": "dark",
+        "status": 200,
+        "overflow": false,
+        "dark": true,
+        "secret": false,
+        "postForms": 0,
+        "openDialogs": 0,
+        "localNav": 0
+      },
+      {
+        "name": "closed-list",
+        "width": 390,
+        "theme": "dark",
+        "status": 200,
+        "overflow": false,
+        "dark": true,
+        "secret": false,
+        "postForms": 0,
+        "openDialogs": 0,
+        "localNav": 0
+      },
+      {
+        "name": "customer-detail",
+        "width": 390,
+        "theme": "dark",
+        "status": 200,
+        "overflow": false,
+        "dark": true,
+        "secret": false,
+        "postForms": 3,
+        "openDialogs": 0,
+        "localNav": 0
+      },
+      {
+        "name": "disabled-detail",
+        "width": 390,
+        "theme": "dark",
+        "status": 200,
+        "overflow": false,
+        "dark": true,
+        "secret": false,
+        "postForms": 2,
+        "openDialogs": 0,
+        "localNav": 0
+      },
+      {
+        "name": "closed-detail",
+        "width": 390,
+        "theme": "dark",
+        "status": 200,
+        "overflow": false,
+        "dark": true,
+        "secret": false,
+        "postForms": 0,
+        "openDialogs": 0,
+        "localNav": 0
+      },
+      {
+        "name": "protected-detail",
+        "width": 390,
+        "theme": "dark",
+        "status": 200,
+        "overflow": false,
+        "dark": true,
+        "secret": false,
+        "postForms": 0,
+        "openDialogs": 0,
+        "localNav": 0
+      },
+      {
+        "name": "pagination",
+        "width": 390,
+        "theme": "dark",
+        "status": 200,
+        "overflow": false,
+        "dark": true,
+        "secret": false,
+        "postForms": 3,
+        "openDialogs": 0,
+        "localNav": 0
+      }
+    ],
+    "dialogChecks": 12,
+    "dialogs": [
+      {
+        "width": 1440,
+        "theme": "light",
+        "id": "customer-profile-editor",
+        "open": true,
+        "left": 310,
+        "right": 1130,
+        "hasPassword": false
+      },
+      {
+        "width": 1440,
+        "theme": "light",
+        "id": "customer-password-reset",
+        "open": true,
+        "left": 310,
+        "right": 1130,
+        "hasPassword": false
+      },
+      {
+        "width": 1440,
+        "theme": "light",
+        "id": "customer-access-editor",
+        "open": true,
+        "left": 310,
+        "right": 1130,
+        "hasPassword": false
+      },
+      {
+        "width": 1440,
+        "theme": "dark",
+        "id": "customer-profile-editor",
+        "open": true,
+        "left": 310,
+        "right": 1130,
+        "hasPassword": false
+      },
+      {
+        "width": 1440,
+        "theme": "dark",
+        "id": "customer-password-reset",
+        "open": true,
+        "left": 310,
+        "right": 1130,
+        "hasPassword": false
+      },
+      {
+        "width": 1440,
+        "theme": "dark",
+        "id": "customer-access-editor",
+        "open": true,
+        "left": 310,
+        "right": 1130,
+        "hasPassword": false
+      },
+      {
+        "width": 390,
+        "theme": "light",
+        "id": "customer-profile-editor",
+        "open": true,
+        "left": 16,
+        "right": 374,
+        "hasPassword": false
+      },
+      {
+        "width": 390,
+        "theme": "light",
+        "id": "customer-password-reset",
+        "open": true,
+        "left": 16,
+        "right": 374,
+        "hasPassword": false
+      },
+      {
+        "width": 390,
+        "theme": "light",
+        "id": "customer-access-editor",
+        "open": true,
+        "left": 16,
+        "right": 374,
+        "hasPassword": false
+      },
+      {
+        "width": 390,
+        "theme": "dark",
+        "id": "customer-profile-editor",
+        "open": true,
+        "left": 16,
+        "right": 374,
+        "hasPassword": false
+      },
+      {
+        "width": 390,
+        "theme": "dark",
+        "id": "customer-password-reset",
+        "open": true,
+        "left": 16,
+        "right": 374,
+        "hasPassword": false
+      },
+      {
+        "width": 390,
+        "theme": "dark",
+        "id": "customer-access-editor",
+        "open": true,
+        "left": 16,
+        "right": 374,
+        "hasPassword": false
+      }
+    ],
+    "anchorChecks": 8,
+    "anchors": [
+      {
+        "href": "#customer-profile",
+        "exists": true,
+        "top": 90,
+        "hash": "#customer-profile"
+      },
+      {
+        "href": "#customer-services",
+        "exists": true,
+        "top": 90.09375,
+        "hash": "#customer-services"
+      },
+      {
+        "href": "#customer-invoices",
+        "exists": true,
+        "top": 90.125,
+        "hash": "#customer-invoices"
+      },
+      {
+        "href": "#customer-ledger",
+        "exists": true,
+        "top": 89.875,
+        "hash": "#customer-ledger"
+      },
+      {
+        "href": "#customer-tickets",
+        "exists": true,
+        "top": 90.421875,
+        "hash": "#customer-tickets"
+      },
+      {
+        "href": "#customer-kyc",
+        "exists": true,
+        "top": 90.171875,
+        "hash": "#customer-kyc"
+      },
+      {
+        "href": "#customer-notifications",
+        "exists": true,
+        "top": 89.71875,
+        "hash": "#customer-notifications"
+      },
+      {
+        "href": "#customer-audit",
+        "exists": true,
+        "top": 136.265625,
+        "hash": "#customer-audit"
+      }
+    ],
+    "paginationFragment": true,
+    "roleChecks": 15,
+    "roles": [
+      {
+        "who": "viewer",
+        "id": 3,
+        "status": 200,
+        "forms": 0
+      },
+      {
+        "who": "viewer",
+        "id": 32,
+        "status": 200,
+        "forms": 0
+      },
+      {
+        "who": "viewer",
+        "id": 6,
+        "status": 200,
+        "forms": 0
+      },
+      {
+        "who": "viewer",
+        "operation": "profile",
+        "status": 403
+      },
+      {
+        "who": "viewer",
+        "operation": "password-reset",
+        "status": 403
+      },
+      {
+        "who": "viewer",
+        "operation": "access",
+        "status": 403
+      },
+      {
+        "who": "finance",
+        "id": 3,
+        "status": 403,
+        "forms": 0
+      },
+      {
+        "who": "finance",
+        "id": 32,
+        "status": 403,
+        "forms": 0
+      },
+      {
+        "who": "finance",
+        "id": 6,
+        "status": 403,
+        "forms": 0
+      },
+      {
+        "who": "upstream",
+        "id": 3,
+        "status": 403,
+        "forms": 0
+      },
+      {
+        "who": "upstream",
+        "id": 32,
+        "status": 403,
+        "forms": 0
+      },
+      {
+        "who": "upstream",
+        "id": 6,
+        "status": 403,
+        "forms": 0
+      },
+      {
+        "who": "customer",
+        "id": 3,
+        "status": 403,
+        "forms": 0
+      },
+      {
+        "who": "customer",
+        "id": 32,
+        "status": 403,
+        "forms": 0
+      },
+      {
+        "who": "customer",
+        "id": 6,
+        "status": 403,
+        "forms": 0
+      }
+    ],
+    "pageErrors": [],
+    "externalOrigins": [
+      "https://ui-avatars.com"
+    ]
+  },
+  "workflow": {
+    "checks": 44,
+    "results": [
+      "real CSRF rejects missing token",
+      "protected backend target 1 profile",
+      "protected backend target 1 password-reset",
+      "protected backend target 1 access",
+      "protected backend target 2 profile",
+      "protected backend target 2 password-reset",
+      "protected backend target 2 access",
+      "closed route target remains unavailable",
+      "operation redirect",
+      "failed profile reopens only matching dialog",
+      "nonsecret name restored",
+      "optional note restored",
+      "server fixes submitted target marker",
+      "failed form never restores on another customer",
+      "operation redirect",
+      "array validation renders without 500",
+      "login accepted redirect customer@example.test",
+      "login accepted redirect customer@example.test",
+      "operation redirect",
+      "name-only edit preserves customer session",
+      "operation redirect",
+      "reset reports channel acceptance",
+      "reset token and URL absent from response",
+      "operation redirect",
+      "repeat reset preserves broker throttle",
+      "operation redirect",
+      "contact update normalizes email",
+      "email verification reset",
+      "contact edit revokes existing JSON session",
+      "contact edit revokes independent file session",
+      "login accepted redirect customer-updated@example.test",
+      "login accepted redirect customer-updated@example.test",
+      "new contact permits fresh login",
+      "operation redirect",
+      "disabled account visible in retained customer detail",
+      "disabled target hides password reset",
+      "disable revokes used customer session",
+      "login accepted redirect customer-updated@example.test",
+      "disabled password cannot establish access",
+      "operation redirect",
+      "restored account returns active state",
+      "restoring never revives an untouched old session",
+      "login accepted redirect customer-updated@example.test",
+      "fresh login succeeds after restore"
+    ],
+    "pageErrors": []
+  },
+  "read_only_database": {
+    "tables": 58,
+    "changed": []
+  },
+  "write_database": {
+    "business_tables_checked": 58,
+    "changed_tables": [
+      "audit_logs",
+      "user_notification_bindings",
+      "users"
+    ],
+    "historical_business_unchanged": true,
+    "wallet_three_columns_unchanged": true,
+    "kyc_unchanged": true,
+    "email_and_sms_verification_invalidated": true,
+    "reset_tokens_cleared_after_contact_change": true,
+    "final_auth_revision": 2,
+    "audit_actual_actor_and_safe_payload": true,
+    "smtp_final_workflow_messages": 1,
+    "smtp_repeat_reset_messages": 0,
+    "smtp_total_with_initial_check": 2
+  },
+  "preview": {
+    "migration": "2026_11_20_000019_add_customer_access_state_to_users",
+    "preserved_business_tables": 57,
+    "existing_business_tables_changed": [],
+    "migration_registry_updated": true,
+    "old_users_enabled_by_default": true,
+    "role_deployment": {
+      "only_added_assignment": {
+        "user_id": 3,
+        "role": "customer-operator"
+      },
+      "admin2_customer_readonly_preserved": true,
+      "other_assignments_unchanged": true,
+      "users_wallets_invoices_instances_ledger_unchanged": true,
+      "audit_recorded": true
+    },
+    "health": {
+      "http_checks": {
+        "/up": 200,
+        "/admin/login": 200,
+        "/admin/customers": 302,
+        "anonymous_search": 401,
+        "viewer_/admin/customers": 200,
+        "viewer_/admin/customers/1": 200
+      },
+      "viewer_customer_forms": 0,
+      "real_customer_mutations": 0,
+      "real_reset_mail_sends": 0
+    }
+  },
+  "screenshots": [
+    {
+      "file": "customer-detail-1440-light.png",
+      "width": 1440,
+      "height": 6248,
+      "sha256": "23eb4cedb1ddb784b3b4877e2ddfbbd5dfe2642c74da55263d64b6798f157e1d"
+    },
+    {
+      "file": "customer-detail-390-dark.png",
+      "width": 390,
+      "height": 844,
+      "sha256": "64dc258994ba888e522a8b3ae1ce13a17d47fbabb8f5542f47b3b1f5c62256ff"
+    },
+    {
+      "file": "customers-1440-light.png",
+      "width": 1440,
+      "height": 1148,
+      "sha256": "392f3300022e5fe0b0dddab702df9312f3ca9087435cad593b38a4d406f58d60"
+    },
+    {
+      "file": "disable-390-dark.png",
+      "width": 390,
+      "height": 844,
+      "sha256": "4bf3b8f885e23940f2754af8e1e1709e0260c536ae5d628ffe080686af2b2121"
+    },
+    {
+      "file": "disabled-after-action-390-dark.png",
+      "width": 390,
+      "height": 844,
+      "sha256": "2bf7814ac4f1e75746797d12e5d077e25b812b06aa9cc861b77cb4c765ca8747"
+    },
+    {
+      "file": "disabled-detail-1440-dark.png",
+      "width": 1440,
+      "height": 2959,
+      "sha256": "1322aec4eb7905f8ea8cbf91f72044be8f0043b21cb34190c90c0cf56b97f01a"
+    },
+    {
+      "file": "disabled-list-390-dark.png",
+      "width": 390,
+      "height": 933,
+      "sha256": "7d54404fae12dab83b8852260e528afe6eff8418599398134b586ac3d03f1105"
+    },
+    {
+      "file": "password-reset-390-dark.png",
+      "width": 390,
+      "height": 844,
+      "sha256": "4ec73b7e1cf244a3bef618887a690e8ebac327bb6cee03e0879a3023a4593035"
+    },
+    {
+      "file": "profile-1440-light.png",
+      "width": 1440,
+      "height": 1000,
+      "sha256": "8ea56b4dbdcfce5ff8013dc439636e397ece66b0c178ff5f3f2e1b9538ba6795"
+    },
+    {
+      "file": "profile-recovery-390-dark.png",
+      "width": 390,
+      "height": 844,
+      "sha256": "d0e4ead5647f85dc7b8cef246dfceb696925403536ec08eea4f483da4a09da59"
+    },
+    {
+      "file": "protected-detail-1440-dark.png",
+      "width": 1440,
+      "height": 3426,
+      "sha256": "5ecc2be6b1f7ee45dce53b0ff0822ee45532324940f626a59fcaa9fc3efc3076"
+    }
+  ],
+  "limits": [
+    "Browser observed the existing ui-avatars.com avatar request; no upstream supplier requests or external SMTP were performed.",
+    "Loopback SMTP acceptance does not prove external mail delivery.",
+    "Some validation messages retain Laravel default English text.",
+    "C3/C4, impersonation and manual KYC approval are outside this batch."
+  ],
+  "cleanup": {
+    "c2_http_stopped": true,
+    "c2_smtp_stopped": true,
+    "temporary_database_storage_and_credential_metadata_removed": true,
+    "shared_preview_health": 200
+  }
+}

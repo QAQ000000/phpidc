@@ -12,6 +12,7 @@ use App\Models\KycVerification;
 use App\Models\Ticket;
 use App\Models\User;
 use App\Support\AdminAuditProjection;
+use App\Support\AdminCustomerAccess;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Gate;
@@ -20,7 +21,7 @@ use Illuminate\Validation\Rule;
 /** Local, bounded projections only; no identity or financial business actions. */
 class AdminCustomerQueries
 {
-    private const BASIC_COLUMNS = ['id', 'name', 'email', 'phone', 'email_verified_at', 'kyc_verified_at', 'anonymized_at', 'deleted_at', 'created_at'];
+    private const BASIC_COLUMNS = ['id', 'name', 'email', 'phone', 'email_verified_at', 'kyc_verified_at', 'disabled_at', 'anonymized_at', 'deleted_at', 'created_at'];
 
     private const WALLET_COLUMNS = ['credit', 'frozen_credit', 'wallet_clearance_frozen'];
 
@@ -34,7 +35,7 @@ class AdminCustomerQueries
             'email' => ['nullable', 'string', 'email', 'max:255'],
             'name' => ['nullable', 'string', 'max:100'],
             'kyc' => ['nullable', Rule::in(['verified', 'unverified'])],
-            'status' => ['nullable', Rule::in(['active', 'closed'])],
+            'status' => ['nullable', Rule::in(['active', 'disabled', 'closed'])],
             'page' => ['nullable', 'integer', 'min:1', 'max:2147483647'],
         ]);
         abort_if($validator->fails(), 422, '客户筛选或分页参数无效。');
@@ -46,6 +47,7 @@ class AdminCustomerQueries
             $query->where(fn (Builder $closed) => $closed->whereNotNull('deleted_at')->orWhereNotNull('anonymized_at'));
         } else {
             $query->whereNull('deleted_at')->whereNull('anonymized_at');
+            $filters['status'] === 'disabled' ? $query->whereNotNull('disabled_at') : $query->whereNull('disabled_at');
         }
         if ($filters['user_id'] !== '') {
             $query->whereKey((int) $filters['user_id']);
@@ -73,31 +75,37 @@ class AdminCustomerQueries
         $pages = $validator->validated();
         $permissions = $this->permissions($actor);
         $customer = $this->customers($permissions['finance'], $permissions['services'])->findOrFail($customerId);
-        $data = ['customer' => $customer, 'permissions' => $permissions,
+        $management = ['profile' => $actor->can('customers.manage'), 'password_reset' => $actor->can('customers.password-reset'), 'access' => $actor->can('customers.status.manage')];
+        if (in_array(true, $management, true) && app(AdminCustomerAccess::class)->isManageableTarget($actor, $customer)) {
+            $management['password_reset'] = $management['password_reset'] && $customer->disabled_at === null;
+        } else {
+            $management = array_fill_keys(array_keys($management), false);
+        }
+        $data = ['customer' => $customer, 'permissions' => $permissions, 'management' => $management,
             'kycRecords' => KycVerification::query()->where('user_id', $customer->id)
-                ->latest('id')->paginate(10, ['id', 'driver', 'status', 'masked_summary', 'verified_at', 'created_at'], 'kyc_page', (int) ($pages['kyc_page'] ?? 1))->appends($pages)];
+                ->latest('id')->paginate(10, ['id', 'driver', 'status', 'masked_summary', 'verified_at', 'created_at'], 'kyc_page', (int) ($pages['kyc_page'] ?? 1))->appends($pages)->fragment('customer-kyc')];
         if ($permissions['services']) {
             $data['services'] = Instance::query()->where('user_id', $customer->id)
                 ->with('upstreamApi:id,name')->latest('id')
-                ->paginate(10, ['id', 'user_id', 'display_name', 'driver_type', 'status', 'hostname', 'primary_ip', 'next_due_at', 'upstream_api_id', 'upstream_instance_id'], 'services_page', (int) ($pages['services_page'] ?? 1))->appends($pages);
+                ->paginate(10, ['id', 'user_id', 'display_name', 'driver_type', 'status', 'hostname', 'primary_ip', 'next_due_at', 'upstream_api_id', 'upstream_instance_id'], 'services_page', (int) ($pages['services_page'] ?? 1))->appends($pages)->fragment('customer-services');
         }
         if ($permissions['finance']) {
             $data['invoices'] = Invoice::query()->where('user_id', $customer->id)->latest('id')
-                ->paginate(10, ['id', 'invoice_no', 'status', 'type', 'currency', 'total_amount', 'paid_at', 'created_at'], 'invoices_page', (int) ($pages['invoices_page'] ?? 1))->appends($pages);
+                ->paginate(10, ['id', 'invoice_no', 'status', 'type', 'currency', 'total_amount', 'paid_at', 'created_at'], 'invoices_page', (int) ($pages['invoices_page'] ?? 1))->appends($pages)->fragment('customer-invoices');
             $data['ledger'] = FinancialTransaction::query()->where('user_id', $customer->id)->latest('id')
-                ->paginate(10, ['id', 'invoice_id', 'type', 'amount', 'balance_after', 'frozen_after', 'created_at'], 'ledger_page', (int) ($pages['ledger_page'] ?? 1))->appends($pages);
+                ->paginate(10, ['id', 'invoice_id', 'type', 'amount', 'balance_after', 'frozen_after', 'created_at'], 'ledger_page', (int) ($pages['ledger_page'] ?? 1))->appends($pages)->fragment('customer-ledger');
         }
         if ($permissions['support']) {
             $data['tickets'] = Ticket::query()->where('user_id', $customer->id)->latest('id')
-                ->paginate(10, ['id', 'instance_id', 'subject', 'status', 'created_at', 'updated_at'], 'tickets_page', (int) ($pages['tickets_page'] ?? 1))->appends($pages);
+                ->paginate(10, ['id', 'instance_id', 'subject', 'status', 'created_at', 'updated_at'], 'tickets_page', (int) ($pages['tickets_page'] ?? 1))->appends($pages)->fragment('customer-tickets');
         }
         if ($permissions['notifications']) {
             $data['notifications'] = DB::table('notification_logs')->where('user_id', $customer->id)->latest('id')
-                ->paginate(10, ['id', 'event_key', 'channel', 'status', 'created_at'], 'notifications_page', (int) ($pages['notifications_page'] ?? 1))->appends($pages);
+                ->paginate(10, ['id', 'event_key', 'channel', 'status', 'created_at'], 'notifications_page', (int) ($pages['notifications_page'] ?? 1))->appends($pages)->fragment('customer-notifications');
         }
         if ($permissions['audit']) {
             $data['audits'] = DB::table('audit_logs')->where('subject_type', User::class)->where('subject_id', $customer->id)->latest('id')
-                ->paginate(10, ['id', 'actor_type', 'actor_id', 'action', 'before', 'after', 'created_at'], 'audit_page', (int) ($pages['audit_page'] ?? 1))->appends($pages)
+                ->paginate(10, ['id', 'actor_type', 'actor_id', 'action', 'before', 'after', 'created_at'], 'audit_page', (int) ($pages['audit_page'] ?? 1))->appends($pages)->fragment('customer-audit')
                 ->through(function (object $record): object {
                     $record->before = AdminAuditProjection::json($record->before);
                     $record->after = AdminAuditProjection::json($record->after);

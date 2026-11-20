@@ -88,7 +88,7 @@ it('shows only customer identity and masked KYC to a customer-only viewer withou
     }
     $data = app(AdminCustomerQueries::class)->detail($actor, $owner->id, []);
     expect(array_keys($data['customer']->getAttributes()))->toEqualCanonicalizing([
-        'id', 'name', 'email', 'phone', 'email_verified_at', 'kyc_verified_at', 'anonymized_at', 'deleted_at', 'created_at',
+        'id', 'name', 'email', 'phone', 'email_verified_at', 'kyc_verified_at', 'disabled_at', 'anonymized_at', 'deleted_at', 'created_at',
     ]);
     $xpath = customerCenterXpath($response->getContent());
     expect($xpath->query('//main//form[@method="post"]'))->toHaveCount(0)

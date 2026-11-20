@@ -1,8 +1,10 @@
 <?php
 
+use App\Http\Middleware\EnsureAccountAccess;
 use App\Http\Middleware\EnsureInstalledMiddleware;
 use App\Http\Middleware\InventoryNoStore;
 use App\Support\IdentitySettings;
+use Illuminate\Contracts\Auth\Middleware\AuthenticatesRequests;
 use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
 use Illuminate\Foundation\Configuration\Middleware;
@@ -18,6 +20,8 @@ return Application::configure(basePath: dirname(__DIR__))
     )
     ->withMiddleware(function (Middleware $middleware): void {
         $middleware->prepend(InventoryNoStore::class);
+        // Revoke sessions before Filament's authentication middleware can return a bare 403.
+        $middleware->prependToPriorityList(AuthenticatesRequests::class, EnsureAccountAccess::class);
         $middleware->redirectGuestsTo(fn (Request $request): string => $request->is('admin', 'admin/*') ? '/admin/login' : '/login');
         $middleware->redirectUsersTo('/console');
         $secretInputs = array_map(fn (string $key): string => 'settings.'.$key,
@@ -27,6 +31,7 @@ return Application::configure(basePath: dirname(__DIR__))
         $middleware->web(append: [
             EnsureInstalledMiddleware::class,
             AuthenticateSession::class,
+            EnsureAccountAccess::class,
         ]);
     })
     ->withExceptions(function (Exceptions $exceptions): void {

@@ -34,6 +34,9 @@ class CreateWalletTopupInvoiceAction
         if ($existing !== null) {
             return $this->replay($existing, $request['request']);
         }
+        if (! $user->fresh()?->isAccessEnabled()) {
+            throw ValidationException::withMessages(['account' => '账户当前无法发起新业务，请联系管理员。']);
+        }
 
         return DB::transaction(function () use ($user, $request, $intent): Invoice {
             $configuration = app(ConfigureWalletTopupAction::class);
@@ -45,6 +48,9 @@ class CreateWalletTopupInvoiceAction
             $existing = Invoice::where('user_id', $locked->id)->where('topup_request_id', $request['id'])->lockForUpdate()->first();
             if ($existing !== null) {
                 return $this->replay($existing, $request['request']);
+            }
+            if (! $locked->isAccessEnabled()) {
+                throw ValidationException::withMessages(['account' => '账户当前无法发起新业务，请联系管理员。']);
             }
             $amount = $request['request']['amount'];
             if (! $configuration->enabled()) {

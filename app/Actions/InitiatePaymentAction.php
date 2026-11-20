@@ -28,6 +28,9 @@ class InitiatePaymentAction
     public function execute(Invoice $invoice, User $actor): GatewayChargeResult
     {
         abort_unless($invoice->user_id === $actor->id, 403);
+        if (! $actor->fresh()?->isAccessEnabled()) {
+            throw ValidationException::withMessages(['account' => '账户当前无法发起新业务，请联系管理员。']);
+        }
         SettlementCurrency::assertSupported($invoice->currency);
         [$attempt, $gateway] = DB::transaction(function () use ($invoice, $actor): array {
             $configuration = app(ConfigureEpayAction::class);
@@ -41,6 +44,9 @@ class InitiatePaymentAction
             $user = User::whereKey($actor->id)->whereNull('anonymized_at')->lockForUpdate()->first();
             if ($user === null) {
                 throw ValidationException::withMessages(['account' => 'An active account is required.']);
+            }
+            if (! $user->isAccessEnabled()) {
+                throw ValidationException::withMessages(['account' => '账户当前无法发起新业务，请联系管理员。']);
             }
             $family = $invoice->type === InvoiceType::RENEW ? app(RenewalRecovery::class)->rows($invoice, true) : null;
             $locked = $family === null ? Invoice::whereKey($invoice->id)->lockForUpdate()->firstOrFail() : $family->firstWhere('id', $invoice->id);
