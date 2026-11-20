@@ -23,6 +23,8 @@ class AdminRoles
             'upstream-viewer' => ['upstream.view'],
             'upstream-operator' => ['upstream.view', 'upstream.configure', 'upstream.import'],
             'upstream-lifecycle' => ['upstream.view', 'upstream.lifecycle'],
+            'upstream-machine-operator' => ['upstream.view', 'upstream.machine-control'],
+            'upstream-sync-operator' => ['upstream.view', 'upstream.sync'],
             'upstream-migrator' => ['upstream.view', 'upstream.hotswap'],
             'upstream-mapping-reviewer' => ['upstream.view', 'upstream.mapping-review'],
             'upstream-orphan-reviewer' => ['upstream.view', 'upstream.orphan-reconcile'],
@@ -78,6 +80,7 @@ class AdminRoles
             'inventory-viewer' => '库存查看', 'inventory-operator' => '库存操作',
             'upstream-viewer' => '上游查看', 'upstream-operator' => '上游配置与导入',
             'upstream-lifecycle' => '服务暂停与终止', 'upstream-migrator' => '服务换绑',
+            'upstream-machine-operator' => '管理员机器操作', 'upstream-sync-operator' => '服务上游事实同步',
             'upstream-mapping-reviewer' => '配置映射核准', 'upstream-orphan-reviewer' => '旧资源结案',
             'cms-viewer' => '内容查看', 'cms-editor' => '内容编辑', 'cms-publisher' => '内容发布',
             'finance-viewer' => '财务查看', 'finance-operator' => '全额退款', 'finance-payout' => '佣金转钱包审批',
@@ -104,7 +107,7 @@ class AdminRoles
             'operations' => ['label' => '日常运营', 'roles' => ['customer-operator', 'inventory-operator', 'cms-publisher', 'promotion-operator',
                 'affiliate-operator', 'support-agent', 'notification-operator', 'download-operator', 'task-viewer']],
             'finance_readonly' => ['label' => '财务只读', 'roles' => ['customer-viewer', 'finance-viewer', 'affiliate-viewer', 'audit-viewer']],
-            'upstream' => ['label' => '上游运维', 'roles' => ['upstream-operator', 'upstream-lifecycle', 'task-viewer']],
+            'upstream' => ['label' => '上游运维', 'roles' => ['upstream-operator', 'upstream-lifecycle', 'upstream-machine-operator', 'upstream-sync-operator', 'task-viewer']],
             'all_business' => ['label' => '全部业务权限（含退款和出款）', 'roles' => self::webAssignable()],
         ];
     }

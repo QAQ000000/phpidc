@@ -154,6 +154,8 @@ class AdminNavigation
         }
 
         if ($path === '/admin/machine-operation-review'
+            || preg_match('#^/admin/instances/[1-9][0-9]*(?:/tasks/[1-9][0-9]*/retry)?$#', $path) === 1
+            || preg_match('#^/admin/upstream-instances/[1-9][0-9]*/(?:machine(?:/command)?|power-status|sync)$#', $path) === 1
             || preg_match('#^/admin/upstream-instances/[^/]+/mapping-review(?:/check)?$#', $path) === 1) {
             return '/admin/upstream-instances';
         }

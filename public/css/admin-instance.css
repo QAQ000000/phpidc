@@ -1,0 +1,13 @@
+.admin-instance-workbench .admin-instance-actions{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+.admin-instance-workbench .admin-instance-actions form{margin:0}
+.admin-instance-workbench .admin-instance-form{display:grid;gap:16px;min-width:0}
+.admin-instance-workbench .admin-instance-form label{display:grid;gap:6px;min-width:0}
+.admin-instance-workbench .admin-instance-form-actions{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+.admin-instance-workbench .admin-instance-notice{margin-top:14px;border-left:3px solid var(--admin-warning,#d97706);padding:10px 14px;background:var(--admin-soft);overflow-wrap:anywhere}
+.admin-instance-workbench .admin-ui-facts dd{overflow-wrap:anywhere}
+.admin-instance-workbench .admin-ui-dialog .inventory-alert{margin-bottom:16px}
+.admin-instance-workbench .admin-machine-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:16px;margin-top:20px}
+.admin-instance-workbench .admin-machine-command{padding:16px;border:1px solid var(--admin-border);border-radius:8px;display:grid;gap:12px;align-content:start}
+.admin-instance-workbench .admin-machine-command h3{font-weight:600;margin:0}
+.admin-instance-workbench [data-os-selector]{display:grid;gap:16px}
+@media(max-width:640px){.admin-instance-workbench .admin-instance-actions{align-items:stretch}.admin-instance-workbench .admin-instance-actions>*{width:100%}.admin-instance-workbench .admin-instance-actions .admin-ui-button{width:100%;justify-content:center}.admin-instance-workbench .admin-instance-form-actions>*{flex:1}}

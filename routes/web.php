@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 use App\Http\Controllers\AdminCustomerController;
 use App\Http\Controllers\AdminFinancialFallbackController;
+use App\Http\Controllers\AdminInstanceOperationsController;
 use App\Http\Controllers\AdminOperationsController;
 use App\Http\Controllers\AdminSearchController;
 use App\Http\Controllers\AffiliateReceivableController;
@@ -142,6 +143,12 @@ Route::middleware('auth')->group(function (): void {
     Route::post('/admin/upstream-tasks/{task}/retry', [ClassicOperationsController::class, 'retry']);
     Route::post('/admin/upstreams/{product}/sync', [ClassicOperationsController::class, 'sync']);
     Route::post('/admin/upstream-instances/{instance}/control', [ClassicOperationsController::class, 'control']);
+    Route::post('/admin/upstream-instances/{instance}/machine', [AdminInstanceOperationsController::class, 'controls'])->middleware('throttle:admin-machine-read');
+    Route::post('/admin/upstream-instances/{instance}/machine/command', [AdminInstanceOperationsController::class, 'command'])->middleware('throttle:admin-machine-command');
+    Route::post('/admin/upstream-instances/{instance}/power-status', [AdminInstanceOperationsController::class, 'power'])->middleware('throttle:admin-power-status');
+    Route::post('/admin/upstream-instances/{instance}/sync', [AdminInstanceOperationsController::class, 'sync'])->middleware('throttle:admin-instance-sync');
+    Route::post('/admin/instances/{instance}/tasks/{task}/retry', [AdminInstanceOperationsController::class, 'retry']);
+    Route::get('/admin/instances/{instance}/vnc', [AdminInstanceOperationsController::class, 'vnc'])->middleware('signed:relative')->name('admin.instance.vnc');
     Route::post('/admin/upstream-instances/{instance}/machine-review', [MachineOperationReviewController::class, 'inspect'])->middleware('throttle:machine-review');
     Route::post('/admin/upstream-instances/{instance}/machine-reconcile', [MachineOperationReviewController::class, 'store'])->middleware('throttle:machine-reconcile');
     Route::post('/admin/upstream-instances/{instance}/hot-swap', [ClassicOperationsController::class, 'hotSwap']);

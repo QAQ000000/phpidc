@@ -26,6 +26,7 @@
             </td><td>{{ $actionLabels[$task->action] ?? $task->action }}<span class="admin-ui-meta"><x-admin.badge :tone="match($task->status->value) { 'success' => 'success', 'running' => 'warning', 'failed' => 'danger', default => 'neutral' }">{{ $statusLabels[$task->status->value] ?? $task->status->value }}</x-admin.badge></span></td>
                 <td>{{ $task->attempts }} / {{ $task->max_attempts }}<span class="admin-ui-meta">可执行 {{ $task->available_at ?? '—' }}<br>租约到期 {{ $task->lease_expires_at ?? '—' }}<br>完成 {{ $task->executed_at ?? '—' }}</span></td>
                 <td class="admin-ui-row-actions">
+                    @if($task->instance_id)@can('upstream.view')<a class="admin-ui-link" href="/admin/instances/{{ $task->instance_id }}">实例工作台</a>@endcan @endif
                     @if($task->driver_type === \App\Enums\DriverType::ZJMF_API)@can('upstream.view')<a class="admin-ui-link" href="/admin/upstream-instances">上游核查</a>@endcan
                     @elseif($task->upstream_api_id === null)@can('inventory.view')<a class="admin-ui-link" href="/admin/fulfillment">缺货核查与补货</a>@endcan
 @endif

@@ -25,14 +25,22 @@ class RetryFulfillmentTaskAction
     {
         $candidate = FulfillmentTask::findOrFail($task->id);
         $classic = $candidate->driver_type === DriverType::ZJMF_API;
-        if ($actor !== null) {
-            Gate::forUser($actor)->authorize($classic ? 'upstream.lifecycle' : 'inventory.retry');
-            Gate::forUser($actor)->authorize($classic ? 'upstream.view' : 'inventory.view');
-        }
-        if (trim($reason) === '') {
-            throw new DomainException('An operator reason is required.');
+        if (trim($reason) === '' || mb_strlen($reason) > 255) {
+            throw new DomainException('An operator reason of 1–255 characters is required.');
         }
         DB::transaction(function () use ($candidate, $reason, $actor, $classic): void {
+            $users = User::withTrashed()->whereKey(array_filter([$candidate->user_id, $actor?->id]))
+                ->orderBy('id')->lockForUpdate()->get()->keyBy('id');
+            $owner = $users->get($candidate->user_id);
+            $operator = $actor === null ? null : $users->get($actor->id);
+            if ($actor !== null) {
+                abort_unless($operator !== null && $operator->isAccessEnabled(), 403);
+                Gate::forUser($operator)->authorize($classic ? 'upstream.lifecycle' : 'inventory.retry');
+                Gate::forUser($operator)->authorize($classic ? 'upstream.view' : 'inventory.view');
+            }
+            if ($owner === null || $owner->trashed() || $owner->anonymized_at !== null) {
+                throw new DomainException('A closed original owner cannot start another fulfillment attempt.');
+            }
             // Serialize with refund before locking the instance (INV-L1); retained services may still be active.
             $invoice = $candidate->invoice_id === null ? null : Invoice::whereKey($candidate->invoice_id)->lockForUpdate()->firstOrFail();
             if ($invoice?->status === InvoiceStatus::REFUNDED) {
@@ -41,7 +49,10 @@ class RetryFulfillmentTaskAction
             $instance = Instance::whereKey($candidate->instance_id)->lockForUpdate()->firstOrFail();
             $locked = FulfillmentTask::whereKey($candidate->id)->lockForUpdate()->firstOrFail();
             if ($locked->status !== FulfillmentTaskStatus::FAILED || $instance->status->isTerminal()
+                || $locked->user_id !== $owner->id || $instance->user_id !== $owner->id
+                || ($invoice !== null && ($invoice->user_id !== $owner->id || $invoice->instance_id !== $instance->id))
                 || $locked->invoice_id !== $candidate->invoice_id || $locked->instance_id !== $candidate->instance_id
+                || $locked->driver_type !== $candidate->driver_type || $locked->upstream_api_id !== $candidate->upstream_api_id
                 || $instance->driver_type !== $locked->driver_type || $instance->upstream_api_id !== $locked->upstream_api_id) {
                 throw new DomainException('Only a failed task on the current live binding can be retried.');
             }
@@ -63,7 +74,7 @@ class RetryFulfillmentTaskAction
             }
             $locked->update(['status' => FulfillmentTaskStatus::PENDING, 'attempts' => 0, 'available_at' => now(),
                 'locked_by' => null, 'locked_at' => null, 'lease_expires_at' => null, 'error_message' => null]);
-            DB::table('audit_logs')->insert(['actor_type' => $actor === null ? 'system' : 'user', 'actor_id' => $actor?->id, 'action' => 'fulfillment.retry', 'subject_type' => Instance::class,
+            DB::table('audit_logs')->insert(['actor_type' => $operator === null ? 'system' : 'user', 'actor_id' => $operator?->id, 'action' => 'fulfillment.retry', 'subject_type' => Instance::class,
                 ...AdminAuditContext::fields($actor !== null),
                 'subject_id' => $instance->id, 'reason' => $reason, 'before' => json_encode(['status' => $before, ...$taskBefore]),
                 'after' => json_encode(['status' => $instance->status->value, 'task_id' => $locked->id,

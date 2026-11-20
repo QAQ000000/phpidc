@@ -88,6 +88,7 @@ class UpstreamInstances extends Page
             'selectedInstance' => $selectedInstance,
             'detailReturnUrl' => '/admin/upstream-instances'.($query === [] ? '' : '?'.http_build_query($query)),
             'tasks' => FulfillmentTask::where('driver_type', DriverType::ZJMF_API)
+                ->when($userId !== '', fn (Builder $tasks) => $tasks->where('user_id', $userId))
                 ->when($selectedInstance !== null, fn (Builder $tasks) => $tasks->where('instance_id', $selectedInstance->id))
                 ->latest('id')->limit(40)->get(['id', 'instance_id', 'invoice_id', 'action', 'status', 'error_message', 'attempts'])];
     }

@@ -24,7 +24,7 @@
                         <td><x-admin.badge :title="$instance->status->value" :tone="match($instance->status) { \App\Enums\InstanceStatus::ACTIVE => 'success', \App\Enums\InstanceStatus::PENDING, \App\Enums\InstanceStatus::SUSPENDED => 'warning', \App\Enums\InstanceStatus::FRAUD, \App\Enums\InstanceStatus::PROVISION_FAILED => 'danger', default => 'neutral' }">{{ $statusLabels[$instance->status->value] }}</x-admin.badge></td>
                         <td class="admin-ui-nowrap">{{ $instance->next_due_at?->format('Y-m-d H:i') ?? '未设置' }}</td>
                         <td class="admin-ui-number"><span class="admin-ui-nowrap">{{ $instance->recurring_amount }} <small>{{ $instance->currency }}</small></span><span class="admin-ui-meta">{{ $instance->billing_cycle->label() }}</span></td>
-                        <td class="admin-ui-row-actions"><div><a class="admin-ui-link" href="{{ $detailUrl }}">实例详情</a><a class="admin-ui-link" href="/admin/machine-operation-review?instance_id={{ $instance->id }}">命令核对</a></div></td>
+                        <td class="admin-ui-row-actions"><div><a class="admin-ui-link" href="{{ $detailUrl }}">实例详情</a><a class="admin-ui-link" href="/admin/instances/{{ $instance->id }}">实例工作台</a><a class="admin-ui-link" href="/admin/machine-operation-review?instance_id={{ $instance->id }}">命令核对</a></div></td>
                     </tr>
                 @empty
                     <tr><td colspan="6" class="admin-ui-empty"><strong>{{ $hasFilters ? '没有匹配实例' : '暂无经典魔方服务' }}</strong><p>{{ $hasFilters ? '调整筛选条件或重置后重试。' : '经典魔方服务建立后会显示在这里。' }}</p>@if($hasFilters)<a class="admin-ui-button" href="/admin/upstream-instances">重置筛选</a>@endif</td></tr>

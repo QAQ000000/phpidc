@@ -1,0 +1,984 @@
+{
+  "date": "2026-11-20",
+  "baseline": "1f0d38c",
+  "scope": "C4 independent instance workbench, actual-administrator existing machine protocol, explicit sync and Paid failed-task retry",
+  "gates": {
+    "pest_passed": 3159,
+    "pest_assertions": 27784,
+    "pest_duration_seconds": "207.99",
+    "phpstan_errors": 0,
+    "pint": "PASS",
+    "node_machine_controls": "PASS",
+    "specifications_changed": 0,
+    "new_migrations": 0
+  },
+  "browser": {
+    "layoutChecks": 36,
+    "dialogChecks": 20,
+    "roleChecks": 31,
+    "pageErrors": [],
+    "workbench_matrix": {
+      "layoutChecks": 32,
+      "checks": [
+        {
+          "name": "active",
+          "width": 1440,
+          "theme": "light",
+          "status": 200,
+          "overflow": false,
+          "dark": false,
+          "private": false,
+          "openDialogs": 0,
+          "sidebars": 1
+        },
+        {
+          "name": "classic-failed",
+          "width": 1440,
+          "theme": "light",
+          "status": 200,
+          "overflow": false,
+          "dark": false,
+          "private": false,
+          "openDialogs": 0,
+          "sidebars": 1
+        },
+        {
+          "name": "unknown",
+          "width": 1440,
+          "theme": "light",
+          "status": 200,
+          "overflow": false,
+          "dark": false,
+          "private": false,
+          "openDialogs": 0,
+          "sidebars": 1
+        },
+        {
+          "name": "disabled-owner",
+          "width": 1440,
+          "theme": "light",
+          "status": 200,
+          "overflow": false,
+          "dark": false,
+          "private": false,
+          "openDialogs": 0,
+          "sidebars": 1
+        },
+        {
+          "name": "closed-owner",
+          "width": 1440,
+          "theme": "light",
+          "status": 200,
+          "overflow": false,
+          "dark": false,
+          "private": false,
+          "openDialogs": 0,
+          "sidebars": 1
+        },
+        {
+          "name": "local",
+          "width": 1440,
+          "theme": "light",
+          "status": 200,
+          "overflow": false,
+          "dark": false,
+          "private": false,
+          "openDialogs": 0,
+          "sidebars": 1
+        },
+        {
+          "name": "sub2api",
+          "width": 1440,
+          "theme": "light",
+          "status": 200,
+          "overflow": false,
+          "dark": false,
+          "private": false,
+          "openDialogs": 0,
+          "sidebars": 1
+        },
+        {
+          "name": "pve",
+          "width": 1440,
+          "theme": "light",
+          "status": 200,
+          "overflow": false,
+          "dark": false,
+          "private": false,
+          "openDialogs": 0,
+          "sidebars": 1
+        },
+        {
+          "name": "active",
+          "width": 1440,
+          "theme": "dark",
+          "status": 200,
+          "overflow": false,
+          "dark": true,
+          "private": false,
+          "openDialogs": 0,
+          "sidebars": 1
+        },
+        {
+          "name": "classic-failed",
+          "width": 1440,
+          "theme": "dark",
+          "status": 200,
+          "overflow": false,
+          "dark": true,
+          "private": false,
+          "openDialogs": 0,
+          "sidebars": 1
+        },
+        {
+          "name": "unknown",
+          "width": 1440,
+          "theme": "dark",
+          "status": 200,
+          "overflow": false,
+          "dark": true,
+          "private": false,
+          "openDialogs": 0,
+          "sidebars": 1
+        },
+        {
+          "name": "disabled-owner",
+          "width": 1440,
+          "theme": "dark",
+          "status": 200,
+          "overflow": false,
+          "dark": true,
+          "private": false,
+          "openDialogs": 0,
+          "sidebars": 1
+        },
+        {
+          "name": "closed-owner",
+          "width": 1440,
+          "theme": "dark",
+          "status": 200,
+          "overflow": false,
+          "dark": true,
+          "private": false,
+          "openDialogs": 0,
+          "sidebars": 1
+        },
+        {
+          "name": "local",
+          "width": 1440,
+          "theme": "dark",
+          "status": 200,
+          "overflow": false,
+          "dark": true,
+          "private": false,
+          "openDialogs": 0,
+          "sidebars": 1
+        },
+        {
+          "name": "sub2api",
+          "width": 1440,
+          "theme": "dark",
+          "status": 200,
+          "overflow": false,
+          "dark": true,
+          "private": false,
+          "openDialogs": 0,
+          "sidebars": 1
+        },
+        {
+          "name": "pve",
+          "width": 1440,
+          "theme": "dark",
+          "status": 200,
+          "overflow": false,
+          "dark": true,
+          "private": false,
+          "openDialogs": 0,
+          "sidebars": 1
+        },
+        {
+          "name": "active",
+          "width": 390,
+          "theme": "light",
+          "status": 200,
+          "overflow": false,
+          "dark": false,
+          "private": false,
+          "openDialogs": 0,
+          "sidebars": 1
+        },
+        {
+          "name": "classic-failed",
+          "width": 390,
+          "theme": "light",
+          "status": 200,
+          "overflow": false,
+          "dark": false,
+          "private": false,
+          "openDialogs": 0,
+          "sidebars": 1
+        },
+        {
+          "name": "unknown",
+          "width": 390,
+          "theme": "light",
+          "status": 200,
+          "overflow": false,
+          "dark": false,
+          "private": false,
+          "openDialogs": 0,
+          "sidebars": 1
+        },
+        {
+          "name": "disabled-owner",
+          "width": 390,
+          "theme": "light",
+          "status": 200,
+          "overflow": false,
+          "dark": false,
+          "private": false,
+          "openDialogs": 0,
+          "sidebars": 1
+        },
+        {
+          "name": "closed-owner",
+          "width": 390,
+          "theme": "light",
+          "status": 200,
+          "overflow": false,
+          "dark": false,
+          "private": false,
+          "openDialogs": 0,
+          "sidebars": 1
+        },
+        {
+          "name": "local",
+          "width": 390,
+          "theme": "light",
+          "status": 200,
+          "overflow": false,
+          "dark": false,
+          "private": false,
+          "openDialogs": 0,
+          "sidebars": 1
+        },
+        {
+          "name": "sub2api",
+          "width": 390,
+          "theme": "light",
+          "status": 200,
+          "overflow": false,
+          "dark": false,
+          "private": false,
+          "openDialogs": 0,
+          "sidebars": 1
+        },
+        {
+          "name": "pve",
+          "width": 390,
+          "theme": "light",
+          "status": 200,
+          "overflow": false,
+          "dark": false,
+          "private": false,
+          "openDialogs": 0,
+          "sidebars": 1
+        },
+        {
+          "name": "active",
+          "width": 390,
+          "theme": "dark",
+          "status": 200,
+          "overflow": false,
+          "dark": true,
+          "private": false,
+          "openDialogs": 0,
+          "sidebars": 1
+        },
+        {
+          "name": "classic-failed",
+          "width": 390,
+          "theme": "dark",
+          "status": 200,
+          "overflow": false,
+          "dark": true,
+          "private": false,
+          "openDialogs": 0,
+          "sidebars": 1
+        },
+        {
+          "name": "unknown",
+          "width": 390,
+          "theme": "dark",
+          "status": 200,
+          "overflow": false,
+          "dark": true,
+          "private": false,
+          "openDialogs": 0,
+          "sidebars": 1
+        },
+        {
+          "name": "disabled-owner",
+          "width": 390,
+          "theme": "dark",
+          "status": 200,
+          "overflow": false,
+          "dark": true,
+          "private": false,
+          "openDialogs": 0,
+          "sidebars": 1
+        },
+        {
+          "name": "closed-owner",
+          "width": 390,
+          "theme": "dark",
+          "status": 200,
+          "overflow": false,
+          "dark": true,
+          "private": false,
+          "openDialogs": 0,
+          "sidebars": 1
+        },
+        {
+          "name": "local",
+          "width": 390,
+          "theme": "dark",
+          "status": 200,
+          "overflow": false,
+          "dark": true,
+          "private": false,
+          "openDialogs": 0,
+          "sidebars": 1
+        },
+        {
+          "name": "sub2api",
+          "width": 390,
+          "theme": "dark",
+          "status": 200,
+          "overflow": false,
+          "dark": true,
+          "private": false,
+          "openDialogs": 0,
+          "sidebars": 1
+        },
+        {
+          "name": "pve",
+          "width": 390,
+          "theme": "dark",
+          "status": 200,
+          "overflow": false,
+          "dark": true,
+          "private": false,
+          "openDialogs": 0,
+          "sidebars": 1
+        }
+      ],
+      "dialogChecks": 8,
+      "dialogs": [
+        {
+          "name": "active",
+          "width": 1440,
+          "theme": "light",
+          "open": true,
+          "left": 310,
+          "right": 1130,
+          "checked": 0
+        },
+        {
+          "name": "classic-failed",
+          "width": 1440,
+          "theme": "light",
+          "open": true,
+          "left": 310,
+          "right": 1130,
+          "checked": 0
+        },
+        {
+          "name": "active",
+          "width": 1440,
+          "theme": "dark",
+          "open": true,
+          "left": 310,
+          "right": 1130,
+          "checked": 0
+        },
+        {
+          "name": "classic-failed",
+          "width": 1440,
+          "theme": "dark",
+          "open": true,
+          "left": 310,
+          "right": 1130,
+          "checked": 0
+        },
+        {
+          "name": "active",
+          "width": 390,
+          "theme": "light",
+          "open": true,
+          "left": 16,
+          "right": 374,
+          "checked": 0
+        },
+        {
+          "name": "classic-failed",
+          "width": 390,
+          "theme": "light",
+          "open": true,
+          "left": 16,
+          "right": 374,
+          "checked": 0
+        },
+        {
+          "name": "active",
+          "width": 390,
+          "theme": "dark",
+          "open": true,
+          "left": 16,
+          "right": 374,
+          "checked": 0
+        },
+        {
+          "name": "classic-failed",
+          "width": 390,
+          "theme": "dark",
+          "open": true,
+          "left": 16,
+          "right": 374,
+          "checked": 0
+        }
+      ],
+      "roleChecks": 31,
+      "roles": [
+        {
+          "who": "viewer",
+          "status": 200,
+          "buttons": 0,
+          "finance": 0,
+          "tasks": 0,
+          "support": 0
+        },
+        {
+          "who": "viewer",
+          "post": "/machine",
+          "status": 403
+        },
+        {
+          "who": "viewer",
+          "post": "/machine/command",
+          "status": 403
+        },
+        {
+          "who": "viewer",
+          "post": "/power-status",
+          "status": 403
+        },
+        {
+          "who": "viewer",
+          "post": "/sync",
+          "status": 403
+        },
+        {
+          "who": "machine-only",
+          "status": 200,
+          "buttons": 1,
+          "finance": 0,
+          "tasks": 0,
+          "support": 0
+        },
+        {
+          "who": "machine-only",
+          "post": "/sync",
+          "status": 403
+        },
+        {
+          "who": "sync-only",
+          "status": 200,
+          "buttons": 1,
+          "finance": 0,
+          "tasks": 0,
+          "support": 0
+        },
+        {
+          "who": "sync-only",
+          "post": "/machine",
+          "status": 403
+        },
+        {
+          "who": "sync-only",
+          "post": "/machine/command",
+          "status": 403
+        },
+        {
+          "who": "sync-only",
+          "post": "/power-status",
+          "status": 403
+        },
+        {
+          "who": "lifecycle-only",
+          "status": 200,
+          "buttons": 0,
+          "finance": 0,
+          "tasks": 0,
+          "support": 0
+        },
+        {
+          "who": "lifecycle-only",
+          "post": "/machine",
+          "status": 403
+        },
+        {
+          "who": "lifecycle-only",
+          "post": "/machine/command",
+          "status": 403
+        },
+        {
+          "who": "lifecycle-only",
+          "post": "/power-status",
+          "status": 403
+        },
+        {
+          "who": "lifecycle-only",
+          "post": "/sync",
+          "status": 403
+        },
+        {
+          "who": "task-viewer",
+          "status": 200,
+          "buttons": 0,
+          "finance": 0,
+          "tasks": 1,
+          "support": 0
+        },
+        {
+          "who": "task-viewer",
+          "post": "/machine",
+          "status": 403
+        },
+        {
+          "who": "task-viewer",
+          "post": "/machine/command",
+          "status": 403
+        },
+        {
+          "who": "task-viewer",
+          "post": "/power-status",
+          "status": 403
+        },
+        {
+          "who": "task-viewer",
+          "post": "/sync",
+          "status": 403
+        },
+        {
+          "who": "finance-viewer",
+          "status": 200,
+          "buttons": 0,
+          "finance": 1,
+          "tasks": 0,
+          "support": 0
+        },
+        {
+          "who": "finance-viewer",
+          "post": "/machine",
+          "status": 403
+        },
+        {
+          "who": "finance-viewer",
+          "post": "/machine/command",
+          "status": 403
+        },
+        {
+          "who": "finance-viewer",
+          "post": "/power-status",
+          "status": 403
+        },
+        {
+          "who": "finance-viewer",
+          "post": "/sync",
+          "status": 403
+        },
+        {
+          "who": "customer",
+          "status": 403,
+          "buttons": 0,
+          "finance": 0,
+          "tasks": 0,
+          "support": 0
+        },
+        {
+          "who": "customer",
+          "post": "/machine",
+          "status": 403
+        },
+        {
+          "who": "customer",
+          "post": "/machine/command",
+          "status": 403
+        },
+        {
+          "who": "customer",
+          "post": "/power-status",
+          "status": 403
+        },
+        {
+          "who": "customer",
+          "post": "/sync",
+          "status": 403
+        }
+      ],
+      "pageErrors": []
+    },
+    "machine_matrix": {
+      "layoutChecks": 4,
+      "checks": [
+        {
+          "width": 1440,
+          "theme": "light",
+          "overflow": false,
+          "private": false,
+          "sidebars": 1,
+          "forms": 8
+        },
+        {
+          "width": 1440,
+          "theme": "dark",
+          "overflow": false,
+          "private": false,
+          "sidebars": 1,
+          "forms": 8
+        },
+        {
+          "width": 390,
+          "theme": "light",
+          "overflow": false,
+          "private": false,
+          "sidebars": 1,
+          "forms": 8
+        },
+        {
+          "width": 390,
+          "theme": "dark",
+          "overflow": false,
+          "private": false,
+          "sidebars": 1,
+          "forms": 8
+        }
+      ],
+      "dialogChecks": 12,
+      "dialogs": [
+        {
+          "width": 1440,
+          "theme": "light",
+          "button": "重装系统",
+          "inBounds": true,
+          "confirmationClear": true
+        },
+        {
+          "width": 1440,
+          "theme": "light",
+          "button": "救援系统",
+          "inBounds": true,
+          "confirmationClear": true
+        },
+        {
+          "width": 1440,
+          "theme": "light",
+          "button": "硬重启",
+          "inBounds": true,
+          "confirmationClear": true
+        },
+        {
+          "width": 1440,
+          "theme": "dark",
+          "button": "重装系统",
+          "inBounds": true,
+          "confirmationClear": true
+        },
+        {
+          "width": 1440,
+          "theme": "dark",
+          "button": "救援系统",
+          "inBounds": true,
+          "confirmationClear": true
+        },
+        {
+          "width": 1440,
+          "theme": "dark",
+          "button": "硬重启",
+          "inBounds": true,
+          "confirmationClear": true
+        },
+        {
+          "width": 390,
+          "theme": "light",
+          "button": "重装系统",
+          "inBounds": true,
+          "confirmationClear": true
+        },
+        {
+          "width": 390,
+          "theme": "light",
+          "button": "救援系统",
+          "inBounds": true,
+          "confirmationClear": true
+        },
+        {
+          "width": 390,
+          "theme": "light",
+          "button": "硬重启",
+          "inBounds": true,
+          "confirmationClear": true
+        },
+        {
+          "width": 390,
+          "theme": "dark",
+          "button": "重装系统",
+          "inBounds": true,
+          "confirmationClear": true
+        },
+        {
+          "width": 390,
+          "theme": "dark",
+          "button": "救援系统",
+          "inBounds": true,
+          "confirmationClear": true
+        },
+        {
+          "width": 390,
+          "theme": "dark",
+          "button": "硬重启",
+          "inBounds": true,
+          "confirmationClear": true
+        }
+      ],
+      "pageErrors": []
+    },
+    "action_assertions_completed": 8,
+    "actions": [
+      "reinstall with OS and backup accepted",
+      "invalid rescue rejected without reflecting password",
+      "valid rescue accepted without reflecting password",
+      "unknown prior operation blocks another command",
+      "explicit sync successful",
+      "sync failure restores bounded note in its own dialog",
+      "original Paid failed classic task queued",
+      "original Paid failed local task queued"
+    ],
+    "pagination": {
+      "paginationChecks": 1,
+      "invoicesOnPage": 3,
+      "tasksOnPage": 3,
+      "otherPageRetained": true
+    },
+    "workflow_note": "The eight action assertions completed before a navigation wait in the pagination harness. Pagination was then awaited and verified separately; original-task and privacy state also checked in SQLite."
+  },
+  "readonly_database": {
+    "unchanged_business_tables": 60,
+    "get_business_rows_unchanged": true
+  },
+  "workflow_database": {
+    "unchanged_business_tables": 55,
+    "changed_tables": [
+      "audit_logs",
+      "fulfillment_tasks",
+      "instances",
+      "jobs",
+      "upstream_operations"
+    ],
+    "original_paid_tasks_pending_attempts_zero": 2,
+    "financial_transactions": 0,
+    "payment_attempts": 0,
+    "payment_callbacks": 0,
+    "notification_events": 0,
+    "recurring_price_unchanged": true,
+    "rescue_secrets_not_persisted": true,
+    "browser_workflows_completed_before_pagination_wait": 8
+  },
+  "http": {
+    "httpInteractionChecks": 18,
+    "checks": [
+      "csrf required /machine",
+      "csrf required /machine/command",
+      "csrf required /power-status",
+      "csrf required /sync",
+      "vnc private redirect",
+      "vnc only fragment contains connection",
+      "vnc html 200",
+      "vnc html has no raw secret",
+      "vnc security headers",
+      "vnc tampered rejected",
+      "vnc other administrator rejected",
+      "closed owner command rejected",
+      "closed owner no supplier request",
+      "disabled owner maintenance accepted",
+      "status normalized",
+      "unknown intent sync accepted",
+      "unknown intent preserved",
+      "actual administrator audit identity"
+    ],
+    "real_wss_rfb_handshake": false,
+    "real_supplier_calls": 0
+  },
+  "preview": {
+    "deployment": {
+      "schema_migrations": 26,
+      "new_migrations": 0,
+      "only_added_assignments": {
+        "user_id": 3,
+        "roles": [
+          "upstream-machine-operator",
+          "upstream-sync-operator"
+        ]
+      },
+      "admin2_roles_preserved": true,
+      "other_assignments_unchanged": true,
+      "business_tables_unchanged": 55,
+      "users_wallets_invoices_instances_ledger_unchanged": true,
+      "two_audits_recorded": true,
+      "sqlite_integrity": "ok",
+      "preview_instance_ids": [
+        1,
+        2,
+        3,
+        4
+      ],
+      "real_supplier_operations": 0
+    },
+    "health": {
+      "http_checks": {
+        "/up": 200,
+        "/admin/login": 200,
+        "/admin/instances/4": 302,
+        "anonymous_json": 401,
+        "viewer_/admin/instances/1": 200,
+        "viewer_/admin/instances/2": 200,
+        "viewer_/admin/instances/3": 200,
+        "viewer_/admin/instances/4": 200,
+        "viewer_denied_/machine": 403,
+        "viewer_denied_/machine/command": 403,
+        "viewer_denied_/power-status": 403,
+        "viewer_denied_/sync": 403
+      },
+      "viewer_mutation_forms": 0,
+      "real_supplier_operations": 0,
+      "jobs": 0,
+      "failed_jobs": 0
+    },
+    "queue_services_refreshed": true
+  },
+  "boundary": {
+    "isolated_sqlite_storage_random_key": true,
+    "loopback_supplier_only": true,
+    "real_supplier_mutations": 0,
+    "real_funds_or_notification_sends": 0,
+    "real_wss_tls_rfb_handshake": "NOT RUN",
+    "manual_due_date_price_transfer": "NOT IMPLEMENTED"
+  },
+  "images": [
+    {
+      "file": "workbench-active-1440-light.png",
+      "size": [
+        1440,
+        3779
+      ],
+      "sha256": "a562d442e26ddc7a4e87c71c614a83c641baefbd48518ebf137ec8a9336cb2fa"
+    },
+    {
+      "file": "workbench-active-1440-dark.png",
+      "size": [
+        1440,
+        3779
+      ],
+      "sha256": "d14284f745680e2ad2c59390bbdc315ff89bce68ec4062ab54c5da7da776e3cd"
+    },
+    {
+      "file": "workbench-active-390-dark.png",
+      "size": [
+        390,
+        844
+      ],
+      "sha256": "5c4055f362798eb0c03cb79cf5067083d6ea42f3640b80e47520f104fc0db643"
+    },
+    {
+      "file": "workbench-local-1440-dark.png",
+      "size": [
+        1440,
+        2194
+      ],
+      "sha256": "688e3e87ae1d75c0b06b5cf8e57ee075448ff69b111b68b0a75cc00ddbf78387"
+    },
+    {
+      "file": "instance-sync-390-dark.png",
+      "size": [
+        390,
+        844
+      ],
+      "sha256": "e6fe555b1963018647b3b37178fb7324a26580f18ba6d096e55ddb7c655d9cc5"
+    },
+    {
+      "file": "instance-task-retry-1-390-dark.png",
+      "size": [
+        390,
+        844
+      ],
+      "sha256": "9b0b68657a2ca79e43efa4808cd09a37f19eeb99d7e121ac3b9c059245f98f1c"
+    },
+    {
+      "file": "machine-1440-light.png",
+      "size": [
+        1440,
+        1000
+      ],
+      "sha256": "833203719e22420b4966b98f9ad3fc5f7e95734d9db84c3b949a23e6d15f9f97"
+    },
+    {
+      "file": "machine-1440-dark.png",
+      "size": [
+        1440,
+        1000
+      ],
+      "sha256": "5b9ed16b363cfd31ba9cb38886883507fb7c45b295258ec059d7dc0c93261a87"
+    },
+    {
+      "file": "machine-390-dark.png",
+      "size": [
+        390,
+        844
+      ],
+      "sha256": "c12741befd3875c7c089898b439601f143c3db3d5fd3cc1ca9c024bbeb42647b"
+    },
+    {
+      "file": "machine-reinstall-390-dark.png",
+      "size": [
+        390,
+        844
+      ],
+      "sha256": "49b6232d50bfe8b978ceca1f0f224ea04fcd9492238ab010a33dd06623c7ceb6"
+    },
+    {
+      "file": "machine-rescueSystem-390-dark.png",
+      "size": [
+        390,
+        844
+      ],
+      "sha256": "1087169120a4323adb30aa36b23fba07b2ddec0b823e5221ff0a0439b9982dcd"
+    },
+    {
+      "file": "sync-recovery-390-dark.png",
+      "size": [
+        390,
+        844
+      ],
+      "sha256": "b6f519b82312e66d77ebf9e2502b165292655fbe1d354ad1950c17b7968edcb6"
+    }
+  ],
+  "cleanup": {
+    "isolated_php_and_supplier_pids_gone": true,
+    "ports_50371_38129_closed": true,
+    "isolated_sqlite_storage_deleted": true,
+    "private_password_cookie_metadata_deleted": true,
+    "playwright_session_closed": true,
+    "shared_preview_preserved": true
+  }
+}

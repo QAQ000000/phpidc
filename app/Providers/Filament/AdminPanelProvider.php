@@ -9,6 +9,8 @@ use App\Filament\Pages\AdminAudit;
 use App\Filament\Pages\AdminCustomer;
 use App\Filament\Pages\AdminCustomers;
 use App\Filament\Pages\AdminDashboard;
+use App\Filament\Pages\AdminInstance;
+use App\Filament\Pages\AdminInstanceMachine;
 use App\Filament\Pages\AdminTasks;
 use App\Filament\Pages\AffiliateOperations;
 use App\Filament\Pages\AffiliatePayouts;
@@ -65,7 +67,7 @@ class AdminPanelProvider extends PanelProvider
             ->renderHook(PanelsRenderHook::SCRIPTS_AFTER, fn (): string => Blade::render('@livewireScripts'))
             ->renderHook(PanelsRenderHook::TOPBAR_START, fn (): View => view('filament.admin-global-search'))
             ->navigation(fn (NavigationBuilder $builder): NavigationBuilder => app(AdminNavigation::class)->build($builder))
-            ->pages([AdminDashboard::class, AdminCustomers::class, AdminCustomer::class, PromotionCoupons::class, AffiliateOperations::class, AffiliatePayouts::class, SupportTickets::class, NotificationOperations::class, NotificationOutbox::class, DownloadOperations::class, InventoryOverview::class, InventoryCards::class, FulfillmentQueue::class, UpstreamAccounts::class, UpstreamInstances::class, ClassicCatalog::class, MachineOperationReview::class, InstanceMappingReview::class, CmsContent::class,
+            ->pages([AdminDashboard::class, AdminCustomers::class, AdminCustomer::class, AdminInstance::class, AdminInstanceMachine::class, PromotionCoupons::class, AffiliateOperations::class, AffiliatePayouts::class, SupportTickets::class, NotificationOperations::class, NotificationOutbox::class, DownloadOperations::class, InventoryOverview::class, InventoryCards::class, FulfillmentQueue::class, UpstreamAccounts::class, UpstreamInstances::class, ClassicCatalog::class, MachineOperationReview::class, InstanceMappingReview::class, CmsContent::class,
                 FinanceInvoices::class, FinanceInvoice::class, FinanceLedger::class, FinanceReceivables::class, ExternalAffiliatePayouts::class, WalletClearances::class, ReconciliationCases::class, AdminTasks::class, AdminAccess::class, AdminAudit::class, SystemSettings::class])
             ->middleware([EncryptCookies::class, AddQueuedCookiesToResponse::class, StartSession::class,
                 AuthenticateSession::class, ShareErrorsFromSession::class, PreventRequestForgery::class,
