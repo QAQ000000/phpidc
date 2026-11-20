@@ -12,14 +12,14 @@
 @php($increase = \App\Support\Money::gte($snapshot['new_recurring_amount'], $snapshot['original_recurring_amount']))
 @php($difference = $increase ? \App\Support\Money::sub($snapshot['new_recurring_amount'], $snapshot['original_recurring_amount']) : \App\Support\Money::sub($snapshot['original_recurring_amount'], $snapshot['new_recurring_amount']))
 <p>周期：{{ $instance->billing_cycle->label() }}。已按目标商品和全部实际配置计算；有效至 {{ $preview['expires_at'] }}。</p>
-<table><thead><tr><th>项目</th><th>CNY</th></tr></thead><tbody>
+<div class="table-scroll" role="region" aria-label="未来续费价格明细" tabindex="0"><table><thead><tr><th scope="col">项目</th><th scope="col">CNY</th></tr></thead><tbody>
 <tr><td>原未来续费价格</td><td>{{ $snapshot['original_recurring_amount'] }}</td></tr>
 <tr><td>商品基础价</td><td>{{ $snapshot['base_price'] }}</td></tr>
 @foreach($snapshot['resolved_pairs'] as $pair)<tr><td>{{ $pair['label'] }}：{{ $pair['unit_price'] }} × {{ $pair['qty'] }}</td><td>{{ \App\Support\Money::mul($pair['unit_price'], $pair['qty']) }}</td></tr>@endforeach
 <tr><td><strong>确认后的未来续费价格</strong></td><td><strong>{{ $snapshot['new_recurring_amount'] }}</strong></td></tr>
 <tr><td>{{ $increase ? '增加' : '减少' }}</td><td>{{ $difference }}</td></tr>
 <tr><td>供应商目录成本 / 当前续费成本（独立核对项）</td><td>{{ $snapshot['catalog_cost'] }} / {{ $snapshot['renewal_cost'] }}</td></tr>
-</tbody></table>
+</tbody></table></div>
 <p>确认仅应用未来续费价格，不产生本期扣款或退款。原账单、到期日和远程配置保留。</p>
 <form method="post" action="/console/instances/{{ $instance->id }}/mapping-price">@csrf
 <input type="hidden" name="request_id" value="{{ $preview['request_id'] }}"><input type="hidden" name="review_token" value="{{ $preview['review_token'] }}">
