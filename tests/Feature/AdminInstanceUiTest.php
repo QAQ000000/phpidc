@@ -167,13 +167,14 @@ it('keeps existing control swap review and retry form contracts in the selected 
         'suspend_reason' => '<b>Diagnostic reason</b>']);
     $task = FulfillmentTask::factory()->create(['instance_id' => $instance->id, 'status' => FulfillmentTaskStatus::FAILED]);
     $response = $this->actingAs(instanceUiActor(['upstream-lifecycle', 'upstream-migrator', 'upstream-mapping-reviewer']))
-        ->get('/admin/upstream-instances?q=Missing&page=2&instance='.$instance->id)->assertOk()
-        ->assertSee('node.example.test')->assertSee('192.0.2.22')->assertSee('客户 #'.$instance->user_id.' / 商品 #'.$instance->product_id)
+        ->get('/admin/instances/'.$instance->id)->assertOk()
+        ->assertSee('node.example.test')->assertSee('192.0.2.22')->assertSee('客户 #'.$instance->user_id)->assertSee('商品 #'.$instance->product_id)
         ->assertSee('<b>Diagnostic reason</b>')->assertDontSee('<b>Diagnostic reason</b>', false);
     $xpath = instanceUiXPath($response->getContent());
-    $control = '//form[@method="post"][@action="/admin/upstream-instances/'.$instance->id.'/control"]';
-    $swap = '//form[@method="post"][@action="/admin/upstream-instances/'.$instance->id.'/hot-swap"]';
+    $control = '//form[@method="post"][@action="/admin/upstream-instances/'.$instance->id.'/control?tab=overview"]';
+    $swap = '//form[@method="post"][@action="/admin/upstream-instances/'.$instance->id.'/hot-swap?tab=overview"]';
     $retry = '//form[@method="post"][@action="/admin/upstream-tasks/'.$task->id.'/retry"]';
+    $retryXpath = instanceUiXPath($this->get('/admin/upstream-instances')->assertOk()->getContent());
     expect($xpath->query($control.'//input[@name="_token"]'))->toHaveCount(1)
         ->and(Str::isUlid($xpath->query($control.'//input[@name="request_id"]')->item(0)->getAttribute('value')))->toBeTrue()
         ->and($xpath->query($control.'//select[@name="action"]/option'))->toHaveCount(3)
@@ -187,23 +188,24 @@ it('keeps existing control swap review and retry form contracts in the selected 
         ->and($xpath->query($swap.'//input[@name="reason"][@required][@maxlength="255"]'))->toHaveCount(1)
         ->and($xpath->query($swap.'//input[@name="confirm"][@required][not(@checked)]'))->toHaveCount(1)
         ->and($xpath->query($swap.'//input[@name="pid"]'))->toHaveCount(0)
-        ->and($xpath->query($retry.'//input[@name="_token"]'))->toHaveCount(1)
-        ->and($xpath->query($retry.'//input[@name="reason"][@required]'))->toHaveCount(1)
-        ->and($xpath->query($retry.'//input[@name="confirm"][@required][not(@checked)]'))->toHaveCount(1)
+        ->and($retryXpath->query($retry.'//input[@name="_token"]'))->toHaveCount(1)
+        ->and($retryXpath->query($retry.'//input[@name="reason"][@required]'))->toHaveCount(1)
+        ->and($retryXpath->query($retry.'//input[@name="confirm"][@required][not(@checked)]'))->toHaveCount(1)
         ->and($xpath->query('//a[@href="/admin/upstream-instances/'.$instance->id.'/mapping-review"]'))->toHaveCount(1)
-        ->and($xpath->query('//a[@href="/admin/upstream-instances?q=Missing&page=2"][normalize-space(.)="返回实例列表"]'))->toHaveCount(1);
+        ->and($xpath->query('//a[@href="/admin/upstream-instances"][normalize-space(.)="返回经典服务列表"]'))->toHaveCount(1);
 });
 
 it('isolates operation forms and mapping links by their original business permission', function (string $role, bool $control, bool $swap, bool $mapping): void {
     $instance = instanceUiService(UpstreamApi::factory()->create());
     $task = FulfillmentTask::factory()->create(['instance_id' => $instance->id, 'status' => FulfillmentTaskStatus::FAILED]);
     $success = FulfillmentTask::factory()->create(['instance_id' => $instance->id, 'status' => FulfillmentTaskStatus::SUCCESS]);
-    $response = $this->actingAs(instanceUiActor([$role]))->get('/admin/upstream-instances?instance='.$instance->id)->assertOk();
+    $response = $this->actingAs(instanceUiActor([$role]))->get('/admin/instances/'.$instance->id)->assertOk();
     $xpath = instanceUiXPath($response->getContent());
-    expect($xpath->query('//form[@action="/admin/upstream-instances/'.$instance->id.'/control"]'))->toHaveCount($control ? 1 : 0)
-        ->and($xpath->query('//form[@action="/admin/upstream-instances/'.$instance->id.'/hot-swap"]'))->toHaveCount($swap ? 1 : 0)
-        ->and($xpath->query('//form[@action="/admin/upstream-tasks/'.$task->id.'/retry"]'))->toHaveCount($control ? 1 : 0)
-        ->and($xpath->query('//form[@action="/admin/upstream-tasks/'.$success->id.'/retry"]'))->toHaveCount(0)
+    $queueXpath = instanceUiXPath($this->get('/admin/upstream-instances')->assertOk()->getContent());
+    expect($xpath->query('//form[@action="/admin/upstream-instances/'.$instance->id.'/control?tab=overview"]'))->toHaveCount($control ? 1 : 0)
+        ->and($xpath->query('//form[@action="/admin/upstream-instances/'.$instance->id.'/hot-swap?tab=overview"]'))->toHaveCount($swap ? 1 : 0)
+        ->and($queueXpath->query('//form[@action="/admin/upstream-tasks/'.$task->id.'/retry"]'))->toHaveCount($control ? 1 : 0)
+        ->and($queueXpath->query('//form[@action="/admin/upstream-tasks/'.$success->id.'/retry"]'))->toHaveCount(0)
         ->and($xpath->query('//a[@href="/admin/upstream-instances/'.$instance->id.'/mapping-review"]'))->toHaveCount($mapping ? 1 : 0);
 })->with([
     ['upstream-viewer', false, false, false], ['upstream-lifecycle', true, false, false],
@@ -212,7 +214,7 @@ it('isolates operation forms and mapping links by their original business permis
 
 it('reopens a failed control with the original valid request id while keeping confirmation and unrelated forms clear', function (): void {
     $instance = instanceUiService(UpstreamApi::factory()->create());
-    $url = '/admin/upstream-instances?instance='.$instance->id;
+    $url = '/admin/instances/'.$instance->id.'?tab=overview';
     $requestId = (string) Str::ulid();
     $this->actingAs(instanceUiActor(['upstream-lifecycle', 'upstream-migrator']))->from($url)
         ->post('/admin/upstream-instances/'.$instance->id.'/control', [
@@ -222,13 +224,13 @@ it('reopens a failed control with the original valid request id while keeping co
     $error = session('errors')->first('confirm');
     $response = $this->get($url)->assertOk()->assertSee($error);
     $xpath = instanceUiXPath($response->getContent());
-    $control = '//form[@action="/admin/upstream-instances/'.$instance->id.'/control"]';
-    $swap = '//form[@action="/admin/upstream-instances/'.$instance->id.'/hot-swap"]';
-    expect($xpath->query($control.'/ancestor::details[@open]'))->toHaveCount(1)
+    $control = '//form[@action="/admin/upstream-instances/'.$instance->id.'/control?tab=overview"]';
+    $swap = '//form[@action="/admin/upstream-instances/'.$instance->id.'/hot-swap?tab=overview"]';
+    expect($xpath->query($control.'/ancestor::dialog[starts-with(@x-init,"$nextTick")]'))->toHaveCount(1)
         ->and($xpath->query($control.'//input[@name="request_id"][@value="'.$requestId.'"]'))->toHaveCount(1)
         ->and($xpath->query($control.'//select[@name="action"]/option[@value="terminate"][@selected]'))->toHaveCount(1)
         ->and($xpath->query($control.'//input[@name="reason"][@value="Needs renewed confirmation"]'))->toHaveCount(1)
-        ->and($xpath->query($swap.'/ancestor::details[@open]'))->toHaveCount(0)
+        ->and($xpath->query($swap.'/ancestor::dialog[starts-with(@x-init,"$nextTick")]'))->toHaveCount(0)
         ->and($xpath->query($swap.'//input[@name="reason"][@value=""]'))->toHaveCount(1)
         ->and($xpath->query('//input[@name="confirm"][@checked]'))->toHaveCount(0);
     $this->assertDatabaseCount('fulfillment_tasks', 0);
@@ -238,7 +240,7 @@ it('reopens only a failed swap with its nonsecret inputs and requires confirmati
     $account = UpstreamApi::factory()->create();
     $target = UpstreamApi::factory()->create();
     $instance = instanceUiService($account);
-    $url = '/admin/upstream-instances?instance='.$instance->id;
+    $url = '/admin/instances/'.$instance->id.'?tab=overview';
     $unrelatedRequest = (string) Str::ulid();
     $this->actingAs(instanceUiActor(['upstream-lifecycle', 'upstream-migrator']))->from($url)
         ->post('/admin/upstream-instances/'.$instance->id.'/hot-swap', [
@@ -248,14 +250,14 @@ it('reopens only a failed swap with its nonsecret inputs and requires confirmati
         ])->assertRedirect($url)->assertSessionHasErrors('confirm');
     $response = $this->get($url)->assertOk();
     $xpath = instanceUiXPath($response->getContent());
-    $swap = '//form[@action="/admin/upstream-instances/'.$instance->id.'/hot-swap"]';
-    $control = '//form[@action="/admin/upstream-instances/'.$instance->id.'/control"]';
-    expect($xpath->query($swap.'/ancestor::details[@open]'))->toHaveCount(1)
+    $swap = '//form[@action="/admin/upstream-instances/'.$instance->id.'/hot-swap?tab=overview"]';
+    $control = '//form[@action="/admin/upstream-instances/'.$instance->id.'/control?tab=overview"]';
+    expect($xpath->query($swap.'/ancestor::dialog[starts-with(@x-init,"$nextTick")]'))->toHaveCount(1)
         ->and($xpath->query($swap.'//select[@name="account_id"]/option[@value="'.$target->id.'"][@selected]'))->toHaveCount(1)
         ->and($xpath->query($swap.'//input[@name="host_id"][@value="7788"]'))->toHaveCount(1)
         ->and($xpath->query($swap.'//select[@name="disposition"]/option[@value="terminate"][@selected]'))->toHaveCount(1)
         ->and($xpath->query($swap.'//input[@name="reason"][@value="Unsaved swap evidence"]'))->toHaveCount(1)
-        ->and($xpath->query($control.'/ancestor::details[@open]'))->toHaveCount(0)
+        ->and($xpath->query($control.'/ancestor::dialog[starts-with(@x-init,"$nextTick")]'))->toHaveCount(0)
         ->and($xpath->query($control.'//input[@name="reason"][@value=""]'))->toHaveCount(1)
         ->and($xpath->query($control.'//input[@name="request_id"][@value="'.$unrelatedRequest.'"]'))->toHaveCount(0)
         ->and($xpath->query('//input[@name="confirm"][@checked]'))->toHaveCount(0);
@@ -284,7 +286,7 @@ it('restores a failed retry to its own task without checking confirmation or fil
 
 it('safely falls back from malformed operation inputs instead of reflecting arrays or reusing invalid request ids', function (string $operation): void {
     $instance = instanceUiService(UpstreamApi::factory()->create());
-    $url = '/admin/upstream-instances?instance='.$instance->id;
+    $url = '/admin/instances/'.$instance->id.'?tab=overview';
     $this->actingAs(instanceUiActor(['upstream-lifecycle', 'upstream-migrator']))->from($url)
         ->post('/admin/upstream-instances/'.$instance->id.'/'.$operation, [
             'ui_form' => 'instance-'.($operation === 'control' ? 'control' : 'hotswap').'-'.$instance->id,
@@ -293,8 +295,8 @@ it('safely falls back from malformed operation inputs instead of reflecting arra
         ])->assertRedirect($url)->assertSessionHasErrors('reason');
     $response = $this->get($url)->assertOk();
     $xpath = instanceUiXPath($response->getContent());
-    $control = '//form[@action="/admin/upstream-instances/'.$instance->id.'/control"]';
-    $swap = '//form[@action="/admin/upstream-instances/'.$instance->id.'/hot-swap"]';
+    $control = '//form[@action="/admin/upstream-instances/'.$instance->id.'/control?tab=overview"]';
+    $swap = '//form[@action="/admin/upstream-instances/'.$instance->id.'/hot-swap?tab=overview"]';
     expect(Str::isUlid($xpath->query($control.'//input[@name="request_id"]')->item(0)->getAttribute('value')))->toBeTrue()
         ->and($xpath->query($control.'//input[@name="reason"][@value=""]'))->toHaveCount(1)
         ->and($xpath->query($control.'//select[@name="action"]/option[@value="suspend"][@selected]'))->toHaveCount(1)
@@ -312,10 +314,10 @@ it('does not copy failed operation input to another instance detail', function (
             'ui_form' => 'instance-hotswap-'.$instance->id, 'account_id' => $account->id,
             'host_id' => '8899', 'disposition' => 'terminate', 'reason' => 'Only the first instance', 'confirm' => '0',
         ])->assertSessionHasErrors('confirm');
-    $response = $this->get('/admin/upstream-instances?instance='.$other->id)->assertOk();
+    $response = $this->get('/admin/instances/'.$other->id)->assertOk();
     $xpath = instanceUiXPath($response->getContent());
-    $swap = '//form[@action="/admin/upstream-instances/'.$other->id.'/hot-swap"]';
-    expect($xpath->query($swap.'/ancestor::details[@open]'))->toHaveCount(0)
+    $swap = '//form[@action="/admin/upstream-instances/'.$other->id.'/hot-swap?tab=overview"]';
+    expect($xpath->query($swap.'/ancestor::dialog[starts-with(@x-init,"$nextTick")]'))->toHaveCount(0)
         ->and($xpath->query($swap.'//input[@name="reason"][@value=""]'))->toHaveCount(1)
         ->and($xpath->query($swap.'//input[@name="host_id"][@value=""]'))->toHaveCount(1);
 });
@@ -325,7 +327,7 @@ it('preserves authentication and server permission checks for both list detail a
     $task = FulfillmentTask::factory()->create(['instance_id' => $instance->id, 'status' => FulfillmentTaskStatus::FAILED]);
     $this->get('/admin/upstream-instances')->assertRedirect('/admin/login');
     $this->actingAs(User::factory()->create())->get('/admin/upstream-instances?instance='.$instance->id)->assertForbidden();
-    $this->actingAs(instanceUiActor())->get('/admin/upstream-instances?instance='.$instance->id)->assertOk();
+    $this->actingAs(instanceUiActor())->get('/admin/instances/'.$instance->id)->assertOk();
     $this->post('/admin/upstream-instances/'.$instance->id.'/control', [])->assertForbidden();
     $this->post('/admin/upstream-instances/'.$instance->id.'/hot-swap', [])->assertForbidden();
     $this->post('/admin/upstream-tasks/'.$task->id.'/retry', [])->assertForbidden();

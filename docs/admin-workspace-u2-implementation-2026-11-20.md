@@ -12,3 +12,13 @@
 代表截图：[客户桌面](screenshots/admin-workspace-u2-2026-11-20/customer-1440-light.png)、[客户手机深色](screenshots/admin-workspace-u2-2026-11-20/customer-390-dark.png)。截图均来自临时 SQLite 的合成客户，不含真实账户资料。
 
 U2a 暂存树导出至独立副本后，八个相关 Feature 文件 **240 passed / 2407 assertions**。副本使用新 APP_KEY 与内存测试数据库，未读取部署配置。
+
+## U2b：实例工作台
+
+- 概览桌面双栏：状态、IP、到期与续费事实在左，获授权机器／同步／生命周期／换绑动作在右；手机先核心信息和动作。配置与计费、账单、任务、工单分别按页签读取。
+- 生命周期与换绑表单进入工作台原生弹窗，原确认、Action、真实管理员、未决核对与 VNC 协议保持。普通 GET 不读远端菜单；只有显式 POST 才读取上游支持命令。
+- 经典列表只保留一个实例工作台主入口。旧选中实例 GET 先按原客户过滤和权限验证，再安全转入主工作台；额外重定向保留 errors／允许回填输入，原无 tab POST 的返回契约不变。
+
+代表截图：[实例桌面浅色](screenshots/admin-workspace-u2-2026-11-20/instance-1440-light.png)、[桌面深色](screenshots/admin-workspace-u2-2026-11-20/instance-1440-dark.png)、[手机深色](screenshots/admin-workspace-u2-2026-11-20/instance-390-dark.png)。
+
+U2b 独立暂存树八个相关 Feature 文件 **214 passed / 1410 assertions**，包含旧经典操作、机器 HTTP 协议及 VNC；随后仅微调共用手机页头按钮换行，保留整按钮换行，避免中文按钮内逐字折行。

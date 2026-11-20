@@ -30,17 +30,21 @@ class AdminInstanceQueries
         $validator = validator($input, array_fill_keys(['invoices_page', 'tasks_page', 'tickets_page'],
             ['nullable', 'integer', 'min:1', 'max:2147483647']));
         abort_if($validator->fails(), 422, '实例明细分页参数无效。');
-        $pages = $validator->validated() + AdminWorkspaceNavigation::query($actor, 'instance', $input);
+        $tab = AdminWorkspaceNavigation::tab('instance', $input);
+        abort_if($tab === null, 422, '实例页签无效。');
         $permissions = ['customers' => $actor->can('customers.view'), 'finance' => $actor->can('finance.view'),
             'tasks' => $actor->can('tasks.view'), 'support' => $actor->can('support.view')];
+        $ability = ['invoices' => 'finance.view', 'tasks' => 'tasks.view', 'tickets' => 'support.view'][$tab] ?? 'upstream.view';
+        Gate::forUser($actor)->authorize($ability);
+        $pages = AdminWorkspaceNavigation::query($actor, 'instance', $input);
         $instance = Instance::query()->select(['id', 'user_id', 'product_id', 'driver_type', 'upstream_api_id',
             'upstream_instance_id', 'display_name', 'hostname', 'primary_ip', 'assigned_ips', 'status', 'billing_cycle',
-            'currency', 'recurring_amount', 'is_price_locked', 'next_due_at', 'last_synced_at', 'created_at', 'updated_at',
+            'currency', 'recurring_amount', 'is_price_locked', 'next_due_at', 'last_synced_at', 'suspend_reason', 'created_at', 'updated_at',
             'active_config->upstream_configoption as public_option_selection',
             'active_config->mapping_requires_review as mapping_review', 'active_config->price_requires_review as price_review',
             'active_config->cancellation->task_id as cancellation_task', 'active_config->cloud_operation->status as machine_operation_status'])
             ->findOrFail($instanceId);
-        $configuration = $this->publicOptions($instance);
+        $configuration = $tab === 'configuration' ? $this->publicOptions($instance) : [];
         $mappingReview = $this->truth($instance->getAttribute('mapping_review'));
         $priceReview = $this->truth($instance->getAttribute('price_review'));
         $cancellation = $instance->getAttribute('cancellation_task') !== null;
@@ -57,7 +61,7 @@ class AdminInstanceQueries
         $closedOwner = $owner !== null && ($owner->deleted_at !== null || $owner->anonymized_at !== null);
         $bound = $classic && $connection?->is_active && $connection->driver === DriverType::ZJMF_API
             && is_string($instance->upstream_instance_id) && $instance->upstream_instance_id !== '';
-        $data = ['instance' => $instance, 'permissions' => $permissions, 'classic' => $classic,
+        $data = ['instance' => $instance, 'currentTab' => $tab, 'permissions' => $permissions, 'classic' => $classic,
             'connection' => $connection, 'owner' => $owner,
             'product' => Product::query()->find($instance->product_id, ['id', 'name']),
             'configuration' => $configuration, 'mappingReview' => $mappingReview, 'priceReview' => $priceReview,
@@ -80,13 +84,17 @@ class AdminInstanceQueries
             'actionLabels' => ['provision' => '开通', 'renew' => '续费', 'upgrade' => '升级', 'suspend' => '暂停',
                 'unsuspend' => '恢复', 'terminate' => '终止', 'register_callback' => '登记回调'],
             'ticketLabels' => ['open' => '待回复', 'answered' => '已回复', 'closed' => '已关闭'],
-            'invoices' => null, 'tasks' => null, 'tickets' => null, 'retryTasks' => []];
-        if ($permissions['finance']) {
+            'invoices' => null, 'tasks' => null, 'tickets' => null, 'retryTasks' => [], 'hotSwapAccounts' => []];
+        if ($tab === 'overview' && $data['canHotSwap']) {
+            $data['hotSwapAccounts'] = UpstreamApi::query()->where('driver', DriverType::ZJMF_API)
+                ->where('is_active', true)->orderBy('id')->get(['id', 'name', 'is_active']);
+        }
+        if ($tab === 'invoices') {
             $data['invoices'] = Invoice::query()->where('instance_id', $instance->id)->where('user_id', $instance->user_id)
                 ->latest('id')->paginate(10, ['id', 'invoice_no', 'type', 'status', 'currency', 'total_amount', 'paid_at', 'created_at'],
                     'invoices_page', (int) ($pages['invoices_page'] ?? 1))->appends($pages)->fragment('instance-invoices');
         }
-        if ($permissions['tasks']) {
+        if ($tab === 'tasks') {
             $tasks = FulfillmentTask::query()->where('instance_id', $instance->id)->where('user_id', $instance->user_id)
                 ->latest('id')->paginate(10, ['id', 'user_id', 'invoice_id', 'instance_id', 'driver_type', 'upstream_api_id', 'action',
                     'status', 'attempts', 'max_attempts', 'available_at', 'executed_at', 'created_at'],
@@ -104,7 +112,7 @@ class AdminInstanceQueries
                             && $actor->can('inventory.view') && $actor->can('inventory.retry')))->pluck('id')->all();
             }
         }
-        if ($permissions['support']) {
+        if ($tab === 'tickets') {
             $data['tickets'] = Ticket::query()->where('instance_id', $instance->id)->where('user_id', $instance->user_id)
                 ->latest('id')->paginate(10, ['id', 'subject', 'status', 'created_at', 'updated_at'],
                     'tickets_page', (int) ($pages['tickets_page'] ?? 1))->appends($pages)->fragment('instance-tickets');

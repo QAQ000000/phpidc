@@ -24,7 +24,7 @@
 .admin-workspace-rail .admin-ui-facts{grid-template-columns:minmax(0,1fr);gap:14px}
 @media(max-width:1100px){.admin-workspace-header{flex-wrap:wrap}.admin-workspace-actions{max-width:100%}}
 @media(max-width:850px){.admin-workspace-columns{display:flex;flex-direction:column}.admin-workspace-main,.admin-workspace-rail{width:100%}.admin-workspace-rail{order:-1}}
-@media(max-width:640px){.admin-workspace-header{padding-bottom:14px}.admin-workspace-header h2{font-size:18px}.admin-ui-actions.admin-workspace-actions{display:flex;flex-wrap:wrap;gap:8px;width:100%;max-width:100%}.admin-workspace-actions>.admin-ui-button{min-width:0;flex:0 1 auto}.admin-workspace-tabs{gap:3px 17px}.admin-workspace-tab{min-height:42px}}
+@media(max-width:640px){.admin-workspace-header{padding-bottom:14px}.admin-workspace-header h2{font-size:18px}.admin-ui-actions.admin-workspace-actions{display:flex;flex-wrap:wrap;gap:8px;width:100%;max-width:100%}.admin-ui-actions.admin-workspace-actions>.admin-ui-button{min-width:0;flex:0 0 auto}.admin-ui-actions.admin-workspace-actions .admin-ui-button{white-space:nowrap}.admin-workspace-tabs{gap:3px 17px}.admin-workspace-tab{min-height:42px}}
 .admin-ui-actions{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
 .admin-ui-button,.admin-ui .inventory-button{display:inline-flex;align-items:center;justify-content:center;gap:6px;min-height:36px;padding:7px 15px;border:1px solid var(--admin-border);border-radius:5px;background:var(--admin-bg);color:var(--admin-text)!important;text-decoration:none;font:inherit;font-weight:500;line-height:1.5;cursor:pointer;white-space:nowrap}
 .admin-ui-button:hover,.admin-ui .inventory-button:hover{background:var(--admin-soft);border-color:var(--admin-muted)}

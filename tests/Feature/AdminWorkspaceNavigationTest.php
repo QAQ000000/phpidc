@@ -183,7 +183,7 @@ it('keeps the allowed source across independent customer and instance pagination
         expect($query['from'])->toEqual($from['from'])->and($query['invoices_page'])->toBe('2');
     }
     expect(workspaceQuery($customer['invoices']->nextPageUrl()))->toHaveKey('tab', 'invoices')->not->toHaveKey('ledger_page')
-        ->and(workspaceQuery($service['invoices']->nextPageUrl())['tasks_page'])->toBe('3');
+        ->and(workspaceQuery($service['invoices']->nextPageUrl()))->toHaveKey('tab', 'invoices')->not->toHaveKey('tasks_page');
 });
 
 it('preserves safe source on profile success and validation failure instead of trusting referer', function (): void {
@@ -250,12 +250,13 @@ it('keeps legacy lifecycle and hot swap validation in the selected instance when
     $instance = Instance::factory()->active()->create(['driver_type' => DriverType::ZJMF_API]);
     $query = Navigation::origin($actor, 'customer', $instance->user_id, ['services_page' => 2], 'customer-services') + ['user_id' => $instance->user_id];
     $page = Navigation::url('instances', null, $query + ['instance' => $instance->id], $section);
-    $html = $this->actingAs($actor)->get($page)->assertOk()->getContent();
+    $redirect = $this->actingAs($actor)->get($page)->assertRedirect();
+    $html = $this->get($redirect->headers->get('Location'))->assertOk()->getContent();
     $form = workspaceXpath($html)->query('//main//form[contains(@action,"/'.$suffix.'")]')->item(0);
     expect($form)->toBeInstanceOf(DOMElement::class);
     expect(workspaceQuery($form->getAttribute('action'))['from'])->toEqual($query['from']);
     $this->from('https://evil.test')->post($form->getAttribute('action'), ['ui_form' => 'instance-'.($suffix === 'control' ? 'control-' : 'hotswap-').$instance->id])
-        ->assertRedirect($page)->assertSessionHasErrors();
+        ->assertRedirect(Navigation::url('instance', $instance->id, $query + ['tab' => 'overview'], $section))->assertSessionHasErrors();
 })->with([
     'lifecycle' => ['control', 'upstream.lifecycle', 'instance-lifecycle'],
     'hot swap' => ['hot-swap', 'upstream.hotswap', 'instance-hot-swap'],

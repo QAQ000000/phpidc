@@ -94,9 +94,9 @@ it('filters classic services by customer and keeps that scope through details an
     $path = '/admin/upstream-instances?user_id='.$owner->id;
     $response = $this->get($path)->assertOk()->assertSee('C1-owned-classic')->assertDontSee('C1-unrelated-classic')->assertDontSee('C1-owned-local-card');
     $xpath = c1IntegrationXPath($response->getContent());
-    $detailLink = $xpath->query('//main//a[contains(@href,"instance='.$owned->id.'")]')->item(0);
+    $detailLink = $xpath->query('//main//a[starts-with(@href,"/admin/instances/'.$owned->id.'?")]')->item(0);
     expect($detailLink)->toBeInstanceOf(DOMElement::class)
-        ->and($detailLink->getAttribute('href'))->toContain('user_id='.$owner->id);
+        ->and($detailLink->getAttribute('href'))->toContain('from%5Bquery%5D%5Buser_id%5D='.$owner->id);
     $this->get($detailLink->getAttribute('href'))->assertOk()->assertSee('href="'.$path.'"', false);
     $this->get($path.'&instance='.$other->id)->assertNotFound();
 });

@@ -15,6 +15,7 @@ use App\Models\UpstreamApi;
 use App\Models\User;
 use App\Services\AdminInstanceQueries;
 use App\Support\AdminRoles;
+use App\Support\AdminWorkspaceNavigation;
 use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
@@ -101,13 +102,13 @@ it('renders every existing fulfillment driver from safe local facts without decr
     }
 })->with([DriverType::ZJMF_API, DriverType::REDEMPTION, DriverType::SUB2API, DriverType::PROXMOX]);
 
-it('checks every domain authority before querying customer invoices tasks or tickets', function (array $extra, array $allowed): void {
+it('checks every domain authority before querying customer invoices tasks or tickets', function (array $extra, array $allowed, string $tab): void {
     $instance = workbenchClassic();
     $actor = workbenchActor('upstream.view', ...$extra);
     $actor->getAllPermissions();
     DB::enableQueryLog();
     DB::flushQueryLog();
-    $data = app(AdminInstanceQueries::class)->detail($actor, $instance->id, []);
+    $data = app(AdminInstanceQueries::class)->detail($actor, $instance->id, ['tab' => $tab]);
     $queries = array_column(DB::getQueryLog(), 'query');
     DB::disableQueryLog();
     foreach (['users', 'invoices', 'fulfillment_tasks', 'tickets'] as $table) {
@@ -120,11 +121,11 @@ it('checks every domain authority before querying customer invoices tasks or tic
         expect($sql)->not->toContain('encrypted_credentials', 'downstream_token', 'encrypted_secret', 'error_message', 'payload');
     }
 })->with([
-    'base only' => [[], []],
-    'customer facts' => [['customers.view'], ['users']],
-    'invoice facts' => [['finance.view'], ['invoices']],
-    'task facts' => [['tasks.view'], ['fulfillment_tasks']],
-    'support facts' => [['support.view'], ['tickets']],
+    'base only' => [[], [], 'overview'],
+    'customer facts' => [['customers.view'], ['users'], 'overview'],
+    'invoice facts' => [['finance.view'], ['invoices'], 'invoices'],
+    'task facts' => [['tasks.view'], ['fulfillment_tasks'], 'tasks'],
+    'support facts' => [['support.view'], ['tickets'], 'tickets'],
 ]);
 
 it('does not query any instance before service authorization succeeds', function (): void {
@@ -151,10 +152,10 @@ it('projects public option labels from numeric selections and never copies arbit
             'name' => $label, 'type' => $type, 'sync_source' => 'upstream', 'is_hidden' => $groupId === '103']);
         $group->items()->create(['upstream_sub_id' => $itemId, 'label' => $value]);
     }
-    $data = app(AdminInstanceQueries::class)->detail(workbenchActor('upstream.view'), $instance->id, []);
+    $data = app(AdminInstanceQueries::class)->detail(workbenchActor('upstream.view'), $instance->id, ['tab' => 'configuration']);
     expect($data['configuration'])->toBe([['label' => '操作系统', 'value' => 'Debian 12'], ['label' => 'CPU 核数', 'value' => '4']])
         ->and($data['mappingReview'])->toBeTrue()->and($data['priceReview'])->toBeTrue();
-    $this->actingAs(workbenchActor('upstream.view'))->get('/admin/instances/'.$instance->id)->assertOk()
+    $this->actingAs(workbenchActor('upstream.view'))->get('/admin/instances/'.$instance->id.'?tab=configuration')->assertOk()
         ->assertSee('Debian 12')->assertSee('CPU 核数')->assertSee('待核准')->assertSee('待客户确认')->assertDontSee('PRIVATE-C4');
 });
 
@@ -169,11 +170,11 @@ it('keeps related records scoped to both the selected instance and its original 
     FulfillmentTask::factory()->create(['instance_id' => $instance->id, 'user_id' => $foreign->user_id]);
     Ticket::create(['instance_id' => $instance->id, 'user_id' => $foreign->user_id, 'subject' => 'PRIVATE-C4-FOREIGN-TICKET']);
     Ticket::create(['instance_id' => $foreign->id, 'user_id' => $instance->user_id, 'subject' => 'PRIVATE-C4-OTHER-INSTANCE']);
-    $data = app(AdminInstanceQueries::class)->detail($actor, $instance->id, []);
-    expect($data['invoices']->pluck('id')->all())->toBe([$invoice->id])
-        ->and($data['tasks']->pluck('id')->all())->toBe([$task->id])
-        ->and($data['tickets']->pluck('id')->all())->toBe([$ticket->id]);
-    $this->actingAs($actor)->get('/admin/instances/'.$instance->id)->assertOk()->assertSee('C4 owned ticket')
+    foreach (['invoices' => $invoice, 'tasks' => $task, 'tickets' => $ticket] as $tab => $record) {
+        $data = app(AdminInstanceQueries::class)->detail($actor, $instance->id, ['tab' => $tab]);
+        expect($data[$tab]->pluck('id')->all())->toBe([$record->id]);
+    }
+    $this->actingAs($actor)->get('/admin/instances/'.$instance->id.'?tab=tickets')->assertOk()->assertSee('C4 owned ticket')
         ->assertDontSee('PRIVATE-C4');
 });
 
@@ -185,13 +186,13 @@ it('paginates each related domain independently with only approved query keys an
         FulfillmentTask::factory()->create(['instance_id' => $instance->id, 'invoice_id' => $invoice->id]);
         Ticket::create(['instance_id' => $instance->id, 'user_id' => $instance->user_id, 'subject' => 'Paged ticket '.$i]);
     }
-    $data = app(AdminInstanceQueries::class)->detail($actor, $instance->id,
-        ['invoices_page' => '2', 'tasks_page' => '2', 'tickets_page' => '2', 'secret' => 'PRIVATE-C4-QUERY']);
     foreach (['invoices', 'tasks', 'tickets'] as $key) {
+        $data = app(AdminInstanceQueries::class)->detail($actor, $instance->id,
+            ['tab' => $key, 'invoices_page' => '2', 'tasks_page' => '2', 'tickets_page' => '2', 'secret' => 'PRIVATE-C4-QUERY']);
         expect($data[$key]->total())->toBe(12)->and($data[$key]->count())->toBe(2)->and($data[$key]->perPage())->toBe(10)
             ->and($data[$key]->url(1))->toEndWith('#instance-'.$key)->not->toContain('secret', 'PRIVATE-C4');
         parse_str(parse_url($data[$key]->url(1), PHP_URL_QUERY), $query);
-        expect(array_keys($query))->toEqualCanonicalizing(['invoices_page', 'tasks_page', 'tickets_page']);
+        expect(array_keys($query))->toEqualCanonicalizing([$key.'_page', 'tab'])->and($query['tab'])->toBe($key);
     }
 });
 
@@ -205,8 +206,8 @@ it('shows remote menu and explicit synchronization only for their independent au
     $instance = workbenchClassic();
     $response = $this->actingAs(workbenchActor('upstream.view', ...$extra))->get('/admin/instances/'.$instance->id)->assertOk();
     $xpath = workbenchXpath($response->getContent());
-    expect($xpath->query('//form[@action="/admin/upstream-instances/'.$instance->id.'/machine"]'))->toHaveCount($machine ? 1 : 0)
-        ->and($xpath->query('//dialog[@id="instance-sync"]//form[@action="/admin/upstream-instances/'.$instance->id.'/sync"]'))->toHaveCount($sync ? 1 : 0);
+    expect($xpath->query('//form[@action="/admin/upstream-instances/'.$instance->id.'/machine?tab=overview"]'))->toHaveCount($machine ? 1 : 0)
+        ->and($xpath->query('//dialog[@id="instance-sync"]//form[@action="/admin/upstream-instances/'.$instance->id.'/sync?tab=overview"]'))->toHaveCount($sync ? 1 : 0);
     if ($sync) {
         expect($xpath->query('//dialog[@id="instance-sync"]//input[@name="reason"][@maxlength="255"][not(@required)]'))->toHaveCount(1)
             ->and($xpath->query('//dialog[@id="instance-sync"]//input[@name="confirm" or @name="request_id"]'))->toHaveCount(0);
@@ -250,12 +251,12 @@ it('offers a new retry dialog only for current paid failed deliveries and all re
     } elseif ($kind === 'terminal') {
         $instance->update(['status' => InstanceStatus::DELETED]);
     }
-    $response = $this->actingAs(workbenchActor(...$permissions))->get('/admin/instances/'.$instance->id)->assertOk();
+    $response = $this->actingAs(workbenchActor(...$permissions))->get('/admin/instances/'.$instance->id.($kind === 'no tasks' ? '' : '?tab=tasks'))->assertOk();
     $xpath = workbenchXpath($response->getContent());
     $form = '//dialog[@id="instance-task-retry-'.$task->id.'"]//form';
     expect($xpath->query($form))->toHaveCount($allowed ? 1 : 0);
     if ($allowed) {
-        expect($xpath->query($form.'[@action="/admin/instances/'.$instance->id.'/tasks/'.$task->id.'/retry"]'))->toHaveCount(1)
+        expect($xpath->query($form.'[@action="/admin/instances/'.$instance->id.'/tasks/'.$task->id.'/retry?tab=tasks"]'))->toHaveCount(1)
             ->and($xpath->query($form.'//input[@name="reason"][@maxlength="255"][not(@required)]'))->toHaveCount(1)
             ->and($xpath->query($form.'//input[@name="confirm"][@required][not(@checked)]'))->toHaveCount(1);
     }
@@ -278,7 +279,7 @@ it('restores only the matching dialog and target without restoring confirmation 
     $this->get('/admin/instances/'.$other->id)->assertOk()->assertDontSee('C4 retained note')->assertDontSee('PRIVATE-C4');
 });
 
-it('keeps one global sidebar and thirty one entries while mapping the hidden workbench to upstream services', function (): void {
+it('keeps one global sidebar and thirty two entries while mapping the hidden workbench to upstream services', function (): void {
     $permissions = array_values(array_unique(array_merge(...array_values(AdminRoles::permissions()))));
     $actor = workbenchActor(...$permissions);
     $instance = workbenchClassic();
@@ -290,27 +291,33 @@ it('keeps one global sidebar and thirty one entries while mapping the hidden wor
         $urls[] = $link->getAttribute('href');
     }
     expect($sidebars)->toHaveCount(1)
-        ->and(array_unique($urls))->toHaveCount(31)
+        ->and(array_unique($urls))->toHaveCount(32)
         ->and($xpath->query('.//li[contains(concat(" ",normalize-space(@class)," ")," fi-active ")]/a[@href="/admin/upstream-instances"]', $sidebars->item(0)))->toHaveCount(1)
-        ->and($xpath->query('//main//aside|//main//*[@role="tablist"]'))->toHaveCount(0);
+        ->and($xpath->query('//main//aside[@aria-label="实例操作"]'))->toHaveCount(1)
+        ->and($xpath->query('//main//nav[@aria-label="实例页签"]'))->toHaveCount(1);
 });
 
-it('adds workbench links while retaining classic detail customer service and task entry contracts', function (): void {
+it('keeps one workbench entry and redirects the historical selected instance page', function (): void {
     $instance = workbenchClassic();
     $local = Instance::factory()->create(['user_id' => $instance->user_id]);
     $task = FulfillmentTask::factory()->create(['instance_id' => $instance->id]);
-    $this->actingAs(workbenchActor('upstream.view', 'customers.view', 'tasks.view'));
-    $this->get('/admin/upstream-instances?instance='.$instance->id)->assertOk()
-        ->assertSee('href="/admin/instances/'.$instance->id.'?from%5Bkind%5D=instances"', false)->assertSee('机器命令核对与历史');
-    $response = $this->get('/admin/customers/'.$instance->user_id)->assertOk();
+    $actor = workbenchActor('upstream.view', 'customers.view', 'tasks.view');
+    $this->actingAs($actor);
+    $origin = AdminWorkspaceNavigation::origin($actor, 'instances', null, []);
+    $this->get('/admin/upstream-instances?instance='.$instance->id)
+        ->assertRedirect(AdminWorkspaceNavigation::url('instance', $instance->id, $origin));
+    $this->get(AdminWorkspaceNavigation::url('instance', $instance->id, $origin))->assertOk()
+        ->assertSee('机器命令核对与历史')->assertDontSee('经典简要详情');
+    $response = $this->get('/admin/customers/'.$instance->user_id.'?tab=services')->assertOk();
     $xpath = workbenchXpath($response->getContent());
-    $source = http_build_query(['from' => ['kind' => 'customer', 'id' => $instance->user_id, 'section' => 'customer-services']]);
+    $source = AdminWorkspaceNavigation::origin($actor, 'customer', $instance->user_id, ['tab' => 'services'], 'customer-services');
     foreach ([$instance, $local] as $service) {
-        expect($xpath->query('//main//a[@href="/admin/instances/'.$service->id.'?'.$source.'"]'))->toHaveCount(1);
+        $url = AdminWorkspaceNavigation::url('instance', $service->id, $source);
+        expect($xpath->query('//main//a[@href="'.$url.'"]'))->toHaveCount(1);
     }
-    expect($xpath->query('//main//a[@href="/admin/upstream-instances?instance='.$instance->id.'"]'))->toHaveCount(1)
-        ->and($xpath->query('//main//a[@href="/admin/upstream-instances?instance='.$local->id.'"]'))->toHaveCount(0);
-    $this->get('/admin/tasks?task_id='.$task->id)->assertOk()->assertSee('href="/admin/instances/'.$instance->id.'"', false);
+    expect($xpath->query('//main//a[starts-with(@href,"/admin/upstream-instances?instance=")]'))->toHaveCount(0);
+    $this->get('/admin/tasks?task_id='.$task->id)->assertOk()
+        ->assertSee('href="'.AdminWorkspaceNavigation::url('instance', $instance->id).'"', false);
 });
 
 it('restricts the legacy queue by customer when a customer filter is explicitly supplied', function (): void {
@@ -333,7 +340,7 @@ it('keeps GET business rows unchanged and selects no task payload or unfiltered 
     $before = $snapshot();
     $this->actingAs($actor)->get('/admin/instances/'.$instance->id)->assertOk()->assertDontSee('PRIVATE-C4')->assertDontSee('INVALID-C4');
     expect($snapshot())->toBe($before);
-    $data = app(AdminInstanceQueries::class)->detail($actor, $instance->id, []);
+    $data = app(AdminInstanceQueries::class)->detail($actor, $instance->id, ['tab' => 'tasks']);
     expect($data['machinePending'])->toBeTrue();
     foreach ($data['tasks'] as $task) {
         expect(array_intersect(['error_message', 'payload'], array_keys($task->getAttributes())))->toBe([]);

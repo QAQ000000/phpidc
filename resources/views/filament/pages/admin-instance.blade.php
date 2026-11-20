@@ -1,10 +1,10 @@
 <x-filament-panels::page>
 @include('filament.admin-ui-styles')
-<link rel="stylesheet" href="/css/admin-instance.css?v=20261120-c4">
+<link rel="stylesheet" href="/css/admin-instance.css?v=20261120-u2b">
 @php
-    $workspaceQuery = \App\Support\AdminWorkspaceNavigation::query(auth()->user(), 'instance', request()->query());
+    $workspaceQuery = ['tab' => $currentTab] + \App\Support\AdminWorkspaceNavigation::query(auth()->user(), 'instance', request()->query());
     $workspaceOrigin = fn (?string $section = null): array => \App\Support\AdminWorkspaceNavigation::origin(auth()->user(), 'instance', $instance->id, $workspaceQuery, $section);
-    $workspaceAction = fn (string $path): string => $path.($workspaceQuery === [] ? '' : '?'.http_build_query($workspaceQuery));
+    $workspaceAction = fn (string $path): string => $path.'?'.http_build_query($workspaceQuery);
     $workspaceReturn = \App\Support\AdminWorkspaceNavigation::returnLink(auth()->user(), $workspaceQuery, '/admin/upstream-instances', '返回经典服务列表');
     $restoreInstanceForm = $errors->any() && is_scalar(old('instance_id')) && (string) old('instance_id') === (string) $instance->id;
     $restoreSync = $restoreInstanceForm && old('_admin_form') === 'instance-sync' && $canSync;
@@ -14,66 +14,68 @@
         \App\Enums\InstanceStatus::FRAUD, \App\Enums\InstanceStatus::PROVISION_FAILED => 'danger',
         default => 'neutral',
     };
+    $instanceTabs = ['overview' => '概览', 'configuration' => '配置与计费'];
+    if ($permissions['finance']) $instanceTabs['invoices'] = '账单';
+    if ($permissions['tasks']) $instanceTabs['tasks'] = '任务';
+    if ($permissions['support']) $instanceTabs['tickets'] = '工单';
 @endphp
 <div class="admin-ui admin-instance-workbench" x-data>
     @if(session('instance_status'))<p role="status" class="inventory-alert">{{ session('instance_status') }}</p>@endif
     @if(session('inventory_status'))<p role="status" class="inventory-alert">{{ session('inventory_status') }}</p>@endif
     @if($errors->any())<div role="alert" class="inventory-alert">@foreach($errors->all() as $error)<p>{{ $error }}</p>@endforeach</div>@endif
-    <x-admin.workspace-header :name="$instance->display_name" :identity="'实例 #'.$instance->id.' · '.$driverLabel" :status="$instanceLabels[$instance->status->value]" :tone="$serviceTone" description="信息以最近保存记录为准；远端动作由当前管理员明确提交。" :return-url="$workspaceReturn['url']" :return-label="$workspaceReturn['label']">
-        @if($classic)<a class="admin-ui-button" href="{{ \App\Support\AdminWorkspaceNavigation::url('instances', null, ['instance' => $instance->id] + $workspaceOrigin()) }}">经典简要详情</a>@endif
-        @if($permissions['customers'])<a class="admin-ui-button" href="{{ \App\Support\AdminWorkspaceNavigation::url('customer', $instance->user_id, $workspaceOrigin('instance-ownership'), 'customer-services') }}">客户服务记录</a>@endif
+    <x-admin.workspace-header :name="$instance->display_name" :identity="'实例 #'.$instance->id.' · '.$driverLabel" :status="$instanceLabels[$instance->status->value]" :tone="$serviceTone" :return-url="$workspaceReturn['url']" :return-label="$workspaceReturn['label']">
+        @if($permissions['customers'])<a class="admin-ui-button" href="{{ \App\Support\AdminWorkspaceNavigation::url('customer', $instance->user_id, $workspaceOrigin('instance-ownership')) }}">客户 #{{ $instance->user_id }}</a>@endif
     </x-admin.workspace-header>
-    <x-admin.card id="instance-summary" title="服务概况">
-        <div class="admin-ui-card-body"><dl class="admin-ui-facts">
-            <div><dt>服务状态</dt><dd><x-admin.badge :tone="$serviceTone" :title="$instance->status->value">{{ $instanceLabels[$instance->status->value] }}</x-admin.badge><span class="admin-ui-meta">{{ $instance->status->value }}</span></dd></div>
-            <div><dt>资源类型</dt><dd>{{ $driverLabel }}<span class="admin-ui-meta">{{ $instance->driver_type->value }}</span></dd></div>
-            <div><dt>主机名</dt><dd>{{ $instance->hostname ?? '未设置' }}</dd></div>
-            <div><dt>主 IP</dt><dd>{{ $instance->primary_ip ?? '未分配' }}</dd></div>
-            <div><dt>其他 IP</dt><dd>{{ $assignedIps === [] ? '未记录' : implode('、', $assignedIps) }}</dd></div>
-            <div><dt>最近同步</dt><dd>{{ $instance->last_synced_at?->format('Y-m-d H:i') ?? '尚未同步' }}<span class="admin-ui-meta">此时间不代表当前远端可达。</span></dd></div>
-            <div><dt>创建时间</dt><dd>{{ $instance->created_at?->format('Y-m-d H:i') ?? '未记录' }}</dd></div>
-            <div><dt>本地更新时间</dt><dd>{{ $instance->updated_at?->format('Y-m-d H:i') ?? '未记录' }}</dd></div>
-        </dl></div>
-    </x-admin.card>
-    <x-admin.card id="instance-ownership" title="归属与商品">
-        <div class="admin-ui-card-body"><dl class="admin-ui-facts">
-            <div><dt>原客户</dt><dd>@if($permissions['customers'])<a class="admin-ui-link" href="{{ \App\Support\AdminWorkspaceNavigation::url('customer', $instance->user_id, $workspaceOrigin('instance-ownership')) }}">客户 #{{ $instance->user_id }}{{ $owner ? ' · '.$owner->name : '' }}</a>@else 客户 #{{ $instance->user_id }}@endif</dd></div>
-            @if($owner)<div><dt>客户账户</dt><dd>{{ $owner->deleted_at !== null || $owner->anonymized_at !== null ? '已注销' : ($owner->disabled_at !== null ? '已停用' : '正常') }}</dd></div>@endif
-            <div><dt>商品</dt><dd>{{ $product?->name ?? '历史商品' }}<span class="admin-ui-meta">商品 #{{ $instance->product_id }}</span></dd></div>
-            <div><dt>连接</dt><dd>{{ $connection?->name ?? ($instance->upstream_api_id === null ? '本地资源' : '连接已不可用') }}@if($connection)<span class="admin-ui-meta">#{{ $connection->id }} · {{ $connection->is_active ? '启用' : '停用' }}</span>@endif</dd></div>
-            <div><dt>远端资源编号</dt><dd>{{ $instance->upstream_instance_id ?? '未绑定远端资源' }}</dd></div>
-        </dl></div>
-    </x-admin.card>
-    <x-admin.card id="instance-configuration" title="配置、计费与到期" description="展示已保存的选配及续费事实；同步上游不代表人工改价。">
-        <div class="admin-ui-card-body"><dl class="admin-ui-facts">
-            <div><dt>计费周期</dt><dd>{{ $instance->billing_cycle->label() }}</dd></div>
-            <div><dt>续费金额</dt><dd>{{ $instance->recurring_amount }} {{ $instance->currency }}</dd></div>
-            <div><dt>价格锁定</dt><dd>{{ $instance->is_price_locked ? '已锁定' : '未锁定' }}</dd></div>
-            <div><dt>下次到期</dt><dd>{{ $instance->next_due_at?->format('Y-m-d H:i') ?? '未设置' }}</dd></div>
-            @if($classic)<div><dt>配置映射</dt><dd>{{ $mappingReview ? '待核准' : '无待核准标记' }}</dd></div><div><dt>未来价格</dt><dd>{{ $priceReview ? '待客户确认' : '无待确认标记' }}</dd></div>@endif
-            @foreach($configuration as $fact)<div><dt>{{ $fact['label'] }}</dt><dd>{{ $fact['value'] }}</dd></div>@endforeach
-        </dl>@if($configuration === [])<p class="admin-ui-meta">暂无已保存的公开选配摘要。</p>@else<p class="admin-ui-meta">选配名称取自当前公开商品配置，选择值取自服务保存记录。</p>@endif</div>
-    </x-admin.card>
-    <x-admin.card id="instance-operations" title="明确操作" description="远端动作由实际管理员提交，受理后仍需核对执行结果。">
-        <div class="admin-ui-card-body">
-            @if($classic)
-                <div class="admin-instance-actions">
-                    @if($canMachine)<form method="post" action="{{ $workspaceAction('/admin/upstream-instances/'.$instance->id.'/machine') }}">@csrf<input type="hidden" name="_admin_form" value="instance-machine-read"><input type="hidden" name="instance_id" value="{{ $instance->id }}"><button class="admin-ui-button admin-ui-button-primary">读取机器管理菜单</button></form>@endif
-                    @if($canSync)<button type="button" class="admin-ui-button" aria-haspopup="dialog" aria-controls="instance-sync" x-on:click="document.getElementById('instance-sync').showModal()">同步上游事实</button>@endif
-                    @if($canLifecycle)<a class="admin-ui-button" href="{{ \App\Support\AdminWorkspaceNavigation::url('instances', null, ['instance' => $instance->id] + $workspaceOrigin('instance-operations'), 'instance-lifecycle') }}">暂停、恢复或终止</a>@endif
-                    @if($canHotSwap)<a class="admin-ui-button" href="{{ \App\Support\AdminWorkspaceNavigation::url('instances', null, ['instance' => $instance->id] + $workspaceOrigin('instance-operations'), 'instance-hot-swap') }}">显式换绑</a>@endif
-                    @if($canMapping)<a class="admin-ui-button" href="/admin/upstream-instances/{{ $instance->id }}/mapping-review">配置映射核准</a>@endif
-                    <a class="admin-ui-button" href="/admin/machine-operation-review?instance_id={{ $instance->id }}">机器命令核对与历史</a>
-                </div>
-                @if($machinePending)<p class="admin-instance-notice">上次请求尚无自动确认，请核对原记录；是否允许新的操作由提交时的实际核对结果决定，原请求不会自动重发。</p>@endif
-                @if($cancellationPending)<p class="admin-instance-notice">已有终止申请，停止发起新的机器命令。</p>@endif
-                @if(!$canMachine && !$canSync)<p class="admin-ui-meta">机器控制与同步需要对应专权、有效绑定及可操作服务状态，提交时再次核对。</p>@endif
-            @else
-                <p>{{ $instance->driver_type === \App\Enums\DriverType::PROXMOX ? '此驱动尚未交付后台远端控制能力，当前仅展示本地服务记录。' : '此类型当前展示本地服务记录，未开放后台远端机器控制与上游同步。' }}</p>
-            @endif
-            @if($permissions['tasks'])<p><a class="admin-ui-link" href="/admin/tasks?instance_id={{ $instance->id }}">前往此实例的任务监控</a></p>@endif
+    <nav class="admin-workspace-tabs" aria-label="实例页签">
+        @foreach($instanceTabs as $tab => $label)<a class="admin-workspace-tab" data-workspace-tab="{{ $tab }}" href="{{ \App\Support\AdminWorkspaceNavigation::url('instance', $instance->id, ['tab' => $tab] + $workspaceQuery) }}" @if($currentTab === $tab) aria-current="page" @endif>{{ $label }}</a>@endforeach
+    </nav>
+    @if($machinePending)<p role="status" class="admin-instance-notice">上次机器请求尚无自动确认，请核对原记录。原请求不会自动重发。<a class="admin-ui-link" href="/admin/machine-operation-review?instance_id={{ $instance->id }}">核对命令</a></p>@endif
+    @if($cancellationPending)<p role="status" class="admin-instance-notice">已有终止申请，停止发起新的机器命令。</p>@endif
+    @if($mappingReview || $priceReview)<p role="status" class="admin-instance-notice">{{ $mappingReview ? '配置映射待核准。' : '' }}{{ $priceReview ? '未来价格待客户确认。' : '' }}@if($canMapping)<a class="admin-ui-link" href="/admin/upstream-instances/{{ $instance->id }}/mapping-review">查看核准记录</a>@endif</p>@endif
+    @if($owner && ($owner->disabled_at !== null || $owner->deleted_at !== null || $owner->anonymized_at !== null))<p class="admin-instance-notice">归属客户{{ $owner->deleted_at !== null || $owner->anonymized_at !== null ? '已注销' : '已停用' }}。</p>@endif
+    @if($currentTab === 'overview')
+        <div class="admin-instance-columns">
+            <div class="admin-instance-main">
+                <x-admin.card id="instance-summary" title="服务概况">
+                    <div class="admin-ui-card-body"><dl class="admin-ui-facts admin-instance-core">
+                        <div><dt>主机名</dt><dd>{{ $instance->hostname ?? '未设置' }}</dd></div>
+                        <div><dt>主 IP</dt><dd>{{ $instance->primary_ip ?? '未分配' }}</dd></div>
+                        <div><dt>下次到期</dt><dd>{{ $instance->next_due_at?->format('Y-m-d H:i') ?? '未设置' }}</dd></div>
+                        <div><dt>续费金额</dt><dd>{{ $instance->recurring_amount }} {{ $instance->currency }}<span class="admin-ui-meta">{{ $instance->billing_cycle->label() }}{{ $instance->is_price_locked ? ' · 已锁价' : '' }}</span></dd></div>
+                    </dl></div>
+                </x-admin.card>
+            </div>
+            <aside class="admin-instance-rail" aria-label="实例操作">
+                @include('filament.instance-workbench-actions')
+            </aside>
+            <div class="admin-instance-details" id="instance-ownership">
+                <x-admin.card title="资源与归属">
+                    <div class="admin-ui-card-body"><dl class="admin-ui-facts">
+                        <div><dt>客户</dt><dd>@if($permissions['customers'])<a class="admin-ui-link" href="{{ \App\Support\AdminWorkspaceNavigation::url('customer', $instance->user_id, $workspaceOrigin('instance-ownership')) }}">客户 #{{ $instance->user_id }}{{ $owner ? ' · '.$owner->name : '' }}</a>@else 客户 #{{ $instance->user_id }}@endif</dd></div>
+                        <div><dt>商品</dt><dd>{{ $product?->name ?? '历史商品' }}<span class="admin-ui-meta">商品 #{{ $instance->product_id }}</span></dd></div>
+                        <div><dt>上游连接</dt><dd>{{ $connection?->name ?? ($instance->upstream_api_id === null ? '本地资源' : '连接已不可用') }}@if($connection)<span class="admin-ui-meta">#{{ $connection->id }} · {{ $connection->is_active ? '启用' : '停用' }}</span>@endif</dd></div>
+                        <div><dt>远端资源编号</dt><dd>{{ $instance->upstream_instance_id ?? '未绑定远端资源' }}</dd></div>
+                        <div><dt>其他 IP</dt><dd>{{ $assignedIps === [] ? '未记录' : implode('、', $assignedIps) }}</dd></div>
+                        <div><dt>最近同步</dt><dd>{{ $instance->last_synced_at?->format('Y-m-d H:i') ?? '尚未同步' }}</dd></div>
+                        @if($instance->suspend_reason)<div><dt>暂停原因</dt><dd>{{ $instance->suspend_reason }}</dd></div>@endif
+                    </dl></div>
+                </x-admin.card>
+            </div>
         </div>
-    </x-admin.card>
+        @include('filament.instance-workbench-dialogs')
+    @elseif($currentTab === 'configuration')
+        <x-admin.card id="instance-configuration" title="配置与计费">
+            <div class="admin-ui-card-body"><dl class="admin-ui-facts">
+                <div><dt>计费周期</dt><dd>{{ $instance->billing_cycle->label() }}</dd></div>
+                <div><dt>续费金额</dt><dd>{{ $instance->recurring_amount }} {{ $instance->currency }}</dd></div>
+                <div><dt>价格锁定</dt><dd>{{ $instance->is_price_locked ? '已锁定' : '未锁定' }}</dd></div>
+                <div><dt>下次到期</dt><dd>{{ $instance->next_due_at?->format('Y-m-d H:i') ?? '未设置' }}</dd></div>
+                <div><dt>创建时间</dt><dd>{{ $instance->created_at?->format('Y-m-d H:i') ?? '未记录' }}</dd></div>
+                <div><dt>本地更新时间</dt><dd>{{ $instance->updated_at?->format('Y-m-d H:i') ?? '未记录' }}</dd></div>
+                @foreach($configuration as $fact)<div><dt>{{ $fact['label'] }}</dt><dd>{{ $fact['value'] }}</dd></div>@endforeach
+            </dl>@if($configuration === [])<p class="admin-ui-meta">暂无已保存的公开选配摘要。</p>@endif</div>
+        </x-admin.card>
+    @endif
     @if($invoices !== null)
         <x-admin.card id="instance-invoices" title="关联账单" description="当前实例及原客户的账单，按最新记录显示。">
             <x-admin.table label="实例关联账单"><x-slot:head><tr><th scope="col">账单</th><th scope="col">类型 / 状态</th><th scope="col" class="admin-ui-number">金额</th><th scope="col">付款 / 创建时间</th><th scope="col" class="admin-ui-row-actions">操作</th></tr></x-slot:head>
@@ -98,7 +100,7 @@
             </x-admin.table><x-admin.pagination :paginator="$tickets" />
         </x-admin.card>
     @endif
-    @if($canSync)
+    @if($canSync && $currentTab === 'overview')
         <x-admin.dialog id="instance-sync" title="同步上游事实" description="主动读取当前绑定的上游服务。状态、到期时间及交付信息可能按已核验的上游事实更新，原未决命令继续保留。" :show-errors="$restoreSync" x-init="{{ $restoreSync ? '$nextTick(() => $el.showModal())' : '' }}">
             <form method="post" action="{{ $workspaceAction('/admin/upstream-instances/'.$instance->id.'/sync') }}" class="admin-instance-form">@csrf
                 <input type="hidden" name="_admin_form" value="instance-sync"><input type="hidden" name="instance_id" value="{{ $instance->id }}">

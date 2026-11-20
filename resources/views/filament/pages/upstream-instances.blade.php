@@ -18,14 +18,14 @@
                 <x-slot:head><tr><th scope="col">服务</th><th scope="col">上游连接 / 主机</th><th scope="col">本地状态</th><th scope="col">到期时间</th><th scope="col" class="admin-ui-number">续费金额</th><th scope="col" class="admin-ui-row-actions">操作</th></tr></x-slot:head>
                 @forelse($instances as $instance)
                     @php($connection = $accounts->firstWhere('id', $instance->upstream_api_id))
-                    @php($detailUrl = '/admin/upstream-instances?'.http_build_query([...array_filter([...$filters, 'page' => request()->query('page')], fn ($value) => $value !== null && $value !== ''), 'instance' => $instance->id]))
+                    @php($detailUrl = \App\Support\AdminWorkspaceNavigation::url('instance', $instance->id, $workspaceOrigin))
                     <tr>
                         <td class="admin-ui-product-name"><a class="admin-ui-link" href="{{ $detailUrl }}">{{ $instance->display_name }}</a><span class="admin-ui-meta">#{{ $instance->id }}</span></td>
                         <td>{{ $connection?->name ?? '未关联连接' }}<span class="admin-ui-meta">#{{ $instance->upstream_api_id }} / {{ $instance->upstream_instance_id ?? '未绑定主机' }}@if($connection && !$connection->is_active) · 连接停用@endif</span></td>
                         <td><x-admin.badge :title="$instance->status->value" :tone="match($instance->status) { \App\Enums\InstanceStatus::ACTIVE => 'success', \App\Enums\InstanceStatus::PENDING, \App\Enums\InstanceStatus::SUSPENDED => 'warning', \App\Enums\InstanceStatus::FRAUD, \App\Enums\InstanceStatus::PROVISION_FAILED => 'danger', default => 'neutral' }">{{ $statusLabels[$instance->status->value] }}</x-admin.badge></td>
                         <td class="admin-ui-nowrap">{{ $instance->next_due_at?->format('Y-m-d H:i') ?? '未设置' }}</td>
                         <td class="admin-ui-number"><span class="admin-ui-nowrap">{{ $instance->recurring_amount }} <small>{{ $instance->currency }}</small></span><span class="admin-ui-meta">{{ $instance->billing_cycle->label() }}</span></td>
-                        <td class="admin-ui-row-actions"><div><a class="admin-ui-link" href="{{ $detailUrl }}">实例详情</a><a class="admin-ui-link" href="{{ \App\Support\AdminWorkspaceNavigation::url('instance', $instance->id, $workspaceOrigin) }}">实例工作台</a><a class="admin-ui-link" href="/admin/machine-operation-review?instance_id={{ $instance->id }}">命令核对</a></div></td>
+                        <td class="admin-ui-row-actions"><div><a class="admin-ui-link" href="{{ $detailUrl }}">实例工作台</a><a class="admin-ui-link" href="/admin/machine-operation-review?instance_id={{ $instance->id }}">命令核对</a></div></td>
                     </tr>
                 @empty
                     <tr><td colspan="6" class="admin-ui-empty"><strong>{{ $hasFilters ? '没有匹配实例' : '暂无经典魔方服务' }}</strong><p>{{ $hasFilters ? '调整筛选条件或重置后重试。' : '经典魔方服务建立后会显示在这里。' }}</p>@if($hasFilters)<a class="admin-ui-button" href="/admin/upstream-instances">重置筛选</a>@endif</td></tr>

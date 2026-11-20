@@ -1,5 +1,13 @@
 .admin-instance-workbench .admin-instance-actions{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
 .admin-instance-workbench .admin-instance-actions form{margin:0}
+.admin-instance-workbench .admin-instance-columns{display:grid;grid-template-columns:minmax(0,2fr) minmax(260px,1fr);gap:18px;align-items:start}
+.admin-instance-workbench .admin-instance-main{grid-column:1;grid-row:1;min-width:0}
+.admin-instance-workbench .admin-instance-rail{grid-column:2;grid-row:1 / span 2;min-width:0;position:sticky;top:88px}
+.admin-instance-workbench .admin-instance-details{grid-column:1;grid-row:2;min-width:0}
+.admin-instance-workbench .admin-instance-core{grid-template-columns:repeat(2,minmax(0,1fr))}
+.admin-instance-workbench .admin-instance-rail .admin-instance-actions{display:grid;grid-template-columns:1fr;gap:9px}
+.admin-instance-workbench .admin-instance-rail .admin-ui-button{width:100%;justify-content:center;white-space:normal;text-align:center}
+.admin-instance-workbench .admin-instance-rail .admin-ui-card-body>p{margin-top:14px}
 .admin-instance-workbench .admin-instance-form{display:grid;gap:16px;min-width:0}
 .admin-instance-workbench .admin-instance-form label{display:grid;gap:6px;min-width:0}
 .admin-instance-workbench .admin-instance-form-actions{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
@@ -11,3 +19,4 @@
 .admin-instance-workbench .admin-machine-command h3{font-weight:600;margin:0}
 .admin-instance-workbench [data-os-selector]{display:grid;gap:16px}
 @media(max-width:640px){.admin-instance-workbench .admin-instance-actions{align-items:stretch}.admin-instance-workbench .admin-instance-actions>*{width:100%}.admin-instance-workbench .admin-instance-actions .admin-ui-button{width:100%;justify-content:center}.admin-instance-workbench .admin-instance-form-actions>*{flex:1}}
+@media(max-width:900px){.admin-instance-workbench .admin-instance-columns{display:flex;flex-direction:column;gap:16px}.admin-instance-workbench .admin-instance-columns>*{width:100%}.admin-instance-workbench .admin-instance-rail{position:static}.admin-instance-workbench .admin-instance-core{grid-template-columns:repeat(2,minmax(0,1fr))}}

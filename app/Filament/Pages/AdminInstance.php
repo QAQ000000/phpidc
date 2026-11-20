@@ -39,7 +39,12 @@ class AdminInstance extends Page
 
     public function getBreadcrumbs(): array
     {
-        return ['/admin/upstream-instances' => '上游服务', '实例工作台'];
+        return ['/admin/upstream-instances' => '服务实例', '实例工作台'];
+    }
+
+    public function getHeading(): string
+    {
+        return '';
     }
 
     protected function getViewData(): array

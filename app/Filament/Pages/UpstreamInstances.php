@@ -9,6 +9,8 @@ use App\Enums\InstanceStatus;
 use App\Models\FulfillmentTask;
 use App\Models\Instance;
 use App\Models\UpstreamApi;
+use App\Models\User;
+use App\Support\AdminWorkspaceNavigation;
 use Filament\Pages\Page;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Facades\Auth;
@@ -25,6 +27,33 @@ class UpstreamInstances extends Page
     public static function canAccess(): bool
     {
         return Auth::user()?->can('upstream.view') ?? false;
+    }
+
+    public function mount(): void
+    {
+        $selected = request()->query('instance');
+        if ($selected === null || $selected === '') {
+            return;
+        }
+        $actor = Auth::user();
+        abort_unless($actor instanceof User && $actor->isAccessEnabled() && $actor->can('upstream.view'), 403);
+        $validator = validator(request()->query(), [
+            'q' => ['nullable', 'string', 'max:100'], 'account_id' => ['nullable', 'integer', 'min:1'],
+            'user_id' => ['nullable', 'integer', 'min:1'], 'status' => ['nullable', Rule::enum(InstanceStatus::class)],
+            'page' => ['nullable', 'integer', 'min:1'],
+        ]);
+        abort_if($validator->fails(), 422, '实例筛选参数无效。');
+        $id = filter_var($selected, FILTER_VALIDATE_INT, ['options' => ['min_range' => 1]]);
+        abort_if($id === false, 404);
+        $filters = $validator->validated();
+        Instance::query()->where('driver_type', DriverType::ZJMF_API)
+            ->when(isset($filters['user_id']), fn (Builder $query) => $query->where('user_id', $filters['user_id']))
+            ->select('id')->findOrFail($id);
+        $query = AdminWorkspaceNavigation::query($actor, 'instances', request()->query());
+        $origin = isset($query['from']) ? ['from' => $query['from']]
+            : AdminWorkspaceNavigation::origin($actor, 'instances', null, $filters);
+        request()->session()->keep(['errors', '_old_input', 'inventory_status', 'instance_status']);
+        $this->redirect(AdminWorkspaceNavigation::url('instance', $id, $origin));
     }
 
     protected function getViewData(): array

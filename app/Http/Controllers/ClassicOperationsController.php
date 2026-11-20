@@ -108,9 +108,11 @@ class ClassicOperationsController extends Controller
     public function control(Request $request, Instance $instance)
     {
         $actor = $this->actor($request, 'upstream.lifecycle');
-        $query = AdminWorkspaceNavigation::query($actor, 'instances', $request->query());
-        $returnUrl = isset($query['from']) ? AdminWorkspaceNavigation::url('instances', null,
-            ['instance' => $instance->id] + $query, 'instance-lifecycle') : null;
+        $onWorkbench = $request->query('tab') === 'overview';
+        $query = AdminWorkspaceNavigation::query($actor, $onWorkbench ? 'instance' : 'instances', $request->query());
+        $returnUrl = $onWorkbench ? AdminWorkspaceNavigation::url('instance', $instance->id, $query, 'instance-lifecycle')
+            : (isset($query['from']) ? AdminWorkspaceNavigation::url('instances', null,
+                ['instance' => $instance->id] + $query, 'instance-lifecycle') : null);
         try {
             $data = $request->validate(['action' => ['required', Rule::in(['suspend', 'unsuspend', 'terminate'])], 'reason' => ['nullable', 'string', 'max:1000'], 'request_id' => ['required', 'ulid'], 'confirm' => ['accepted']]);
             $reason = $this->reason($data, match ($data['action']) {
@@ -147,9 +149,11 @@ class ClassicOperationsController extends Controller
     public function hotSwap(Request $request, Instance $instance)
     {
         $actor = $this->actor($request, 'upstream.hotswap');
-        $query = AdminWorkspaceNavigation::query($actor, 'instances', $request->query());
-        $returnUrl = isset($query['from']) ? AdminWorkspaceNavigation::url('instances', null,
-            ['instance' => $instance->id] + $query, 'instance-hot-swap') : null;
+        $onWorkbench = $request->query('tab') === 'overview';
+        $query = AdminWorkspaceNavigation::query($actor, $onWorkbench ? 'instance' : 'instances', $request->query());
+        $returnUrl = $onWorkbench ? AdminWorkspaceNavigation::url('instance', $instance->id, $query, 'instance-hot-swap')
+            : (isset($query['from']) ? AdminWorkspaceNavigation::url('instances', null,
+                ['instance' => $instance->id] + $query, 'instance-hot-swap') : null);
         try {
             $data = $request->validate(['account_id' => ['required', 'integer'], 'host_id' => ['required', 'integer', 'min:1'], 'pid' => ['nullable', 'integer', 'min:1'],
                 'disposition' => ['required', Rule::in(['terminate', 'keep_orphan'])], 'reason' => ['required', 'string', 'max:255'], 'confirm' => ['accepted']]);
