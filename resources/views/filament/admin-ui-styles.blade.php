@@ -1,9 +1,11 @@
 <style>
-.admin-ui{--admin-accent:#2f54ea;--admin-bg:#fff;--admin-soft:#f8fafc;--admin-text:#263244;--admin-muted:#69788d;--admin-border:#e4e9f0;--admin-focus:#2f54ea24;color:var(--admin-text);font-size:13px;line-height:1.65;display:grid;gap:20px;min-width:0;width:100%}
+.admin-ui{--admin-accent:#2f54ea;--admin-bg:#fff;--admin-soft:#f8fafc;--admin-text:#263244;--admin-muted:#69788d;--admin-border:#e4e9f0;--admin-focus:#2f54ea24;color:var(--admin-text);font-size:13px;line-height:1.65;display:grid;grid-template-columns:minmax(0,1fr);gap:20px;min-width:0;width:100%}
 .dark .admin-ui{--admin-accent:#9bb0ff;--admin-bg:#18181b;--admin-soft:#202024;--admin-text:#e4e4e7;--admin-muted:#a1a1aa;--admin-border:#39393f;--admin-focus:#9bb0ff30}
 .admin-ui *, .admin-ui *:before,.admin-ui *:after{box-sizing:border-box}
 .admin-ui h2,.admin-ui h3,.admin-ui p{margin:0}
 .admin-ui-heading{display:flex;justify-content:space-between;align-items:flex-start;gap:20px}
+.admin-ui-heading>div,.admin-ui-card-heading>div{min-width:0;max-width:100%}
+.admin-ui-heading h2,.admin-ui-card-heading h2{overflow-wrap:anywhere}
 .admin-ui-heading h2{font-size:18px;font-weight:600}
 .admin-ui-heading p,.admin-ui-card-heading p,.admin-ui-dialog-heading p{font-size:12px;color:var(--admin-muted);margin-top:5px;max-width:760px}
 .admin-ui-actions{display:flex;align-items:center;gap:10px;flex-wrap:wrap}

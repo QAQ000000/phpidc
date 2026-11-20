@@ -1,13 +1,37 @@
 <x-filament-panels::page>
-@include('filament.inventory-feedback')
-@foreach($instances as $instance)<section class="inventory-box"><h2>#{{ $instance->id }} {{ $instance->display_name }}</h2><p>{{ $instance->status->value }} · 上游 {{ $instance->upstream_api_id }}/{{ $instance->upstream_instance_id }} · 到期 {{ $instance->next_due_at }} · 续费 {{ $instance->recurring_amount }} {{ $instance->currency }}</p>
-<p><a class="inventory-link" href="/admin/machine-operation-review?instance_id={{ $instance->id }}">机器命令核对与历史</a></p>
-@can('upstream.mapping-review')<p><a class="inventory-link" href="/admin/upstream-instances/{{ $instance->id }}/mapping-review">配置映射核准与未来价格确认状态</a></p>@endcan
-@can('upstream.lifecycle')<form class="inventory-form" method="post" action="/admin/upstream-instances/{{ $instance->id }}/control">@csrf<input type="hidden" name="request_id" value="{{ (string) \Illuminate\Support\Str::ulid() }}"><label>操作<select name="action"><option value="suspend">暂停</option><option value="unsuspend">恢复</option><option value="terminate">申请终止</option></select></label><details><summary>添加备注（选填）</summary><label>备注<input name="reason" maxlength="1000"></label></details><label><input type="checkbox" name="confirm" value="1" required>确认操作（终止可能永久删除数据）</label><button class="inventory-button">提交操作</button></form>@endcan
-@can('upstream.hotswap')<details class="inventory-box"><summary>显式热切换绑定</summary><p>仅绑定已有目标主机，不迁移磁盘数据。选择终止旧资源时，必须先确认其已删除；保留旧资源会记录孤儿告警。</p><form class="inventory-form" method="post" action="/admin/upstream-instances/{{ $instance->id }}/hot-swap">@csrf<label>目标连接<select name="account_id" required><option value="">请选择连接</option>@foreach($accounts as $account)<option value="{{ $account->id }}">{{ $account->name }}</option>@endforeach</select></label><label>目标主机 ID<input name="host_id" type="number" required></label><p>目标商品将从上游认证后的主机资料读取，无需手填商品 ID。</p><label>旧资源处置<select name="disposition"><option value="keep_orphan">保留旧资源并记录孤儿</option><option value="terminate">已终止且确认 Deleted</option></select></label><label>原因<input name="reason" required maxlength="255"></label><label><input name="confirm" type="checkbox" value="1" required>已核对目标归属、币种、周期及旧资源处置</label><button class="inventory-button">确认切换</button></form></details>@endcan
-</section>@endforeach
-{{ $instances->links() }}
-<h2>最近任务</h2><table class="inventory-table"><thead><tr><th>任务</th><th>实例</th><th>动作</th><th>状态</th><th>诊断 / 显式重试</th></tr></thead><tbody>@foreach($tasks as $task)<tr><td>#{{ $task->id }}</td><td>#{{ $task->instance_id }}</td><td>{{ $task->action }}</td><td>{{ $task->status->value }}</td><td>{{ $task->error_message }}
-@can('upstream.lifecycle')@if($task->status === \App\Enums\FulfillmentTaskStatus::FAILED)<form class="inventory-form" method="post" action="/admin/upstream-tasks/{{ $task->id }}/retry">@csrf<label>重试原因<input name="reason" required></label><label><input type="checkbox" name="confirm" value="1" required>已对账；保留原上游意图</label><button class="inventory-button">重试原任务</button></form>@endif@endcan
-</td></tr>@endforeach</tbody></table>
+@include('filament.admin-ui-styles')
+<div class="admin-ui">
+    @include('filament.inventory-feedback')
+    <header class="admin-ui-heading"><div><h2>{{ $selectedInstance ? '上游实例详情' : '经典魔方服务' }}</h2><p>查看已保存的服务状态、续费信息与最近任务。</p></div></header>
+    @if($selectedInstance)
+        @include('filament.upstream-instance-detail')
+    @else
+        <x-admin.card title="实例列表" description="状态与到期时间为本地已保存记录，进入详情后可核对机器命令与执行授权操作。">
+            <x-admin.filters action="/admin/upstream-instances">
+                <label class="admin-ui-search" for="instance-search">关键词<input id="instance-search" name="q" value="{{ $filters['q'] }}" maxlength="100" placeholder="服务名称 / 本地 ID / 上游主机 ID"></label>
+                <label for="instance-account">上游连接<select id="instance-account" name="account_id"><option value="">全部连接</option>@foreach($accounts as $account)<option value="{{ $account->id }}" @selected($filters['account_id'] === (string) $account->id)>{{ $account->name }}{{ $account->is_active ? '' : '（停用）' }}</option>@endforeach</select></label>
+                <label for="instance-status">服务状态<select id="instance-status" name="status"><option value="">全部状态</option>@foreach($statuses as $status)<option value="{{ $status->value }}" @selected($filters['status'] === $status->value)>{{ $statusLabels[$status->value] }}</option>@endforeach</select></label>
+            </x-admin.filters>
+            <x-admin.table label="经典魔方实例列表">
+                <x-slot:head><tr><th scope="col">服务</th><th scope="col">上游连接 / 主机</th><th scope="col">本地状态</th><th scope="col">到期时间</th><th scope="col" class="admin-ui-number">续费金额</th><th scope="col" class="admin-ui-row-actions">操作</th></tr></x-slot:head>
+                @forelse($instances as $instance)
+                    @php($connection = $accounts->firstWhere('id', $instance->upstream_api_id))
+                    @php($detailUrl = '/admin/upstream-instances?'.http_build_query([...array_filter([...$filters, 'page' => request()->query('page')], fn ($value) => $value !== null && $value !== ''), 'instance' => $instance->id]))
+                    <tr>
+                        <td class="admin-ui-product-name"><a class="admin-ui-link" href="{{ $detailUrl }}">{{ $instance->display_name }}</a><span class="admin-ui-meta">#{{ $instance->id }}</span></td>
+                        <td>{{ $connection?->name ?? '未关联连接' }}<span class="admin-ui-meta">#{{ $instance->upstream_api_id }} / {{ $instance->upstream_instance_id ?? '未绑定主机' }}@if($connection && !$connection->is_active) · 连接停用@endif</span></td>
+                        <td><x-admin.badge :title="$instance->status->value" :tone="match($instance->status) { \App\Enums\InstanceStatus::ACTIVE => 'success', \App\Enums\InstanceStatus::PENDING, \App\Enums\InstanceStatus::SUSPENDED => 'warning', \App\Enums\InstanceStatus::FRAUD, \App\Enums\InstanceStatus::PROVISION_FAILED => 'danger', default => 'neutral' }">{{ $statusLabels[$instance->status->value] }}</x-admin.badge></td>
+                        <td class="admin-ui-nowrap">{{ $instance->next_due_at?->format('Y-m-d H:i') ?? '未设置' }}</td>
+                        <td class="admin-ui-number"><span class="admin-ui-nowrap">{{ $instance->recurring_amount }} <small>{{ $instance->currency }}</small></span><span class="admin-ui-meta">{{ $instance->billing_cycle->label() }}</span></td>
+                        <td class="admin-ui-row-actions"><div><a class="admin-ui-link" href="{{ $detailUrl }}">实例详情</a><a class="admin-ui-link" href="/admin/machine-operation-review?instance_id={{ $instance->id }}">命令核对</a></div></td>
+                    </tr>
+                @empty
+                    <tr><td colspan="6" class="admin-ui-empty"><strong>{{ $hasFilters ? '没有匹配实例' : '暂无经典魔方服务' }}</strong><p>{{ $hasFilters ? '调整筛选条件或重置后重试。' : '经典魔方服务建立后会显示在这里。' }}</p>@if($hasFilters)<a class="admin-ui-button" href="/admin/upstream-instances">重置筛选</a>@endif</td></tr>
+                @endforelse
+            </x-admin.table>
+            <x-admin.pagination :paginator="$instances" />
+        </x-admin.card>
+    @endif
+    @include('filament.upstream-instance-tasks')
+</div>
 </x-filament-panels::page>
