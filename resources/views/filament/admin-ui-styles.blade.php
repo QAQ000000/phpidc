@@ -1,6 +1,5 @@
 <style>
-.admin-ui{--admin-accent:#2f54ea;--admin-bg:#fff;--admin-soft:#f8fafc;--admin-text:#263244;--admin-muted:#69788d;--admin-border:#e4e9f0;--admin-focus:#2f54ea24;color:var(--admin-text);font-size:13px;line-height:1.65;display:grid;grid-template-columns:minmax(0,1fr);gap:20px;min-width:0;width:100%}
-.dark .admin-ui{--admin-accent:#9bb0ff;--admin-bg:#18181b;--admin-soft:#202024;--admin-text:#e4e4e7;--admin-muted:#a1a1aa;--admin-border:#39393f;--admin-focus:#9bb0ff30}
+.admin-ui{--admin-accent:var(--admin-ui-accent);--admin-bg:var(--admin-ui-surface);--admin-soft:var(--admin-ui-subtle);--admin-text:var(--admin-ui-text);--admin-muted:var(--admin-ui-muted);--admin-border:var(--admin-ui-border);--admin-focus:var(--admin-ui-focus);color:var(--admin-text);font-size:var(--admin-ui-font-size);line-height:1.65;display:grid;grid-template-columns:minmax(0,1fr);gap:20px;min-width:0;width:100%}
 .admin-ui *, .admin-ui *:before,.admin-ui *:after{box-sizing:border-box}
 .admin-ui h2,.admin-ui h3,.admin-ui p{margin:0}
 .admin-ui-heading{display:flex;justify-content:space-between;align-items:flex-start;gap:20px}
@@ -11,17 +10,17 @@
 .admin-ui-actions{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
 .admin-ui-button,.admin-ui .inventory-button{display:inline-flex;align-items:center;justify-content:center;gap:6px;min-height:36px;padding:7px 15px;border:1px solid var(--admin-border);border-radius:5px;background:var(--admin-bg);color:var(--admin-text)!important;text-decoration:none;font:inherit;font-weight:500;line-height:1.5;cursor:pointer;white-space:nowrap}
 .admin-ui-button:hover,.admin-ui .inventory-button:hover{background:var(--admin-soft);border-color:var(--admin-muted)}
-.admin-ui-button-primary,.admin-ui .inventory-button{background:#2f54ea;color:#fff!important;border-color:#2f54ea}
-.admin-ui-button-primary:hover,.admin-ui .inventory-button:hover{background:#2445d0;border-color:#2445d0}
+.admin-ui-button-primary,.admin-ui .inventory-button{background:var(--admin-ui-brand);color:#fff!important;border-color:var(--admin-ui-brand)}
+.admin-ui-button-primary:hover,.admin-ui .inventory-button:hover{background:var(--admin-ui-brand-hover);border-color:var(--admin-ui-brand-hover)}
 .admin-ui-button:disabled{opacity:.5;cursor:not-allowed}
 .admin-ui-link,.admin-ui .inventory-link{color:var(--admin-accent);text-decoration:none;cursor:pointer}
 .admin-ui-link:hover,.admin-ui .inventory-link:hover{text-decoration:underline}
 .admin-ui a:focus-visible,.admin-ui button:focus-visible,.admin-ui summary:focus-visible,.admin-ui [tabindex]:focus-visible{outline:2px solid var(--admin-accent);outline-offset:3px}
-.admin-ui-card{min-width:0;width:100%;background:var(--admin-bg);border:1px solid var(--admin-border);border-radius:8px;overflow:hidden}
-.admin-ui-card-heading{display:flex;align-items:center;justify-content:space-between;gap:20px;padding:18px 22px;border-bottom:1px solid var(--admin-border)}
+.admin-ui-card{min-width:0;width:100%;background:var(--admin-bg);border:1px solid var(--admin-border);border-radius:var(--admin-ui-radius);overflow:hidden}
+.admin-ui-card-heading{display:flex;align-items:center;justify-content:space-between;gap:20px;padding:var(--admin-ui-card-padding);border-bottom:1px solid var(--admin-border)}
 .admin-ui-card-heading h2{font-size:15px;font-weight:600}
-.admin-ui-card-body{padding:22px}
-.admin-ui-filters{display:flex;align-items:flex-end;gap:14px;flex-wrap:wrap;padding:20px 22px;border-bottom:1px solid var(--admin-border)}
+.admin-ui-card-body{padding:var(--admin-ui-card-padding)}
+.admin-ui-filters{display:flex;align-items:flex-end;gap:14px;flex-wrap:wrap;padding:var(--admin-ui-card-padding);border-bottom:1px solid var(--admin-border)}
 .admin-ui-filters label{display:grid;gap:6px;min-width:145px;flex:1}
 .admin-ui-filters .admin-ui-search{flex:2;min-width:220px}
 .admin-ui label{font-size:12px;font-weight:500}
@@ -30,14 +29,14 @@
 .admin-ui select{padding-right:30px}
 .admin-ui input:focus,.admin-ui select:focus,.admin-ui textarea:focus{border-color:var(--admin-accent);outline:2px solid var(--admin-focus);outline-offset:0}
 .admin-ui input[readonly]{background:var(--admin-soft)}
-.admin-ui input[type=checkbox]{accent-color:#2f54ea}
+.admin-ui input[type=checkbox]{accent-color:var(--admin-ui-brand)}
 .admin-ui-filter-actions{display:flex;gap:8px}
 .admin-ui-table-scroll{width:100%;max-height:680px;max-height:min(70vh,680px);overflow:auto;overscroll-behavior-x:contain}
 .admin-ui-table{width:100%;border-collapse:separate;border-spacing:0;font-size:13px;text-align:left}
 .admin-ui-table th{position:sticky;top:0;z-index:1;background:var(--admin-soft);font-size:12px;font-weight:500;color:var(--admin-muted);white-space:nowrap}
-.admin-ui-table th,.admin-ui-table td{padding:15px 18px;border-bottom:1px solid var(--admin-border);vertical-align:middle}
-.admin-ui-table th:first-child,.admin-ui-table td:first-child{padding-left:22px}
-.admin-ui-table th:last-child,.admin-ui-table td:last-child{padding-right:22px}
+.admin-ui-table th,.admin-ui-table td{padding:var(--admin-ui-cell-padding);border-bottom:1px solid var(--admin-border);vertical-align:middle}
+.admin-ui-table th:first-child,.admin-ui-table td:first-child{padding-left:20px}
+.admin-ui-table th:last-child,.admin-ui-table td:last-child{padding-right:20px}
 .admin-ui-table tbody tr:last-child td{border-bottom:0}
 .admin-ui-table tbody tr:hover{background:var(--admin-soft)}
 .admin-ui-table .admin-ui-number,.admin-ui-table .admin-ui-row-actions{text-align:right;font-variant-numeric:tabular-nums}
@@ -63,12 +62,12 @@
 .admin-ui-pagination nav>a,.admin-ui-pagination nav>span{display:inline-flex;justify-content:center;align-items:center;min-height:30px;min-width:30px;padding:4px 8px;border:1px solid var(--admin-border);border-radius:4px;color:var(--admin-text);text-decoration:none}
 .admin-ui-pagination [aria-current=page]{color:var(--admin-accent);background:var(--admin-focus);border-color:var(--admin-accent)}
 .admin-ui-pagination [aria-disabled=true]{color:var(--admin-muted);opacity:.55}
-.admin-ui-dialog{margin:auto;border:1px solid var(--admin-border);padding:0;border-radius:10px;color:var(--admin-text);background:var(--admin-bg);width:min(820px,calc(100vw - 32px));max-height:calc(100dvh - 40px);overflow:auto;box-shadow:0 20px 70px #0004}
+.admin-ui-dialog{margin:auto;border:1px solid var(--admin-border);padding:0;border-radius:var(--admin-ui-radius);color:var(--admin-text);background:var(--admin-bg);width:min(820px,calc(100vw - 32px));max-height:calc(100dvh - 40px);overflow:auto;box-shadow:0 20px 70px #0004}
 .admin-ui-dialog::backdrop{background:#0f172a80}
-.admin-ui-dialog-heading{position:sticky;top:0;z-index:2;display:flex;justify-content:space-between;align-items:flex-start;gap:18px;padding:20px 24px;border-bottom:1px solid var(--admin-border);background:var(--admin-bg)}
+.admin-ui-dialog-heading{position:sticky;top:0;z-index:2;display:flex;justify-content:space-between;align-items:flex-start;gap:18px;padding:var(--admin-ui-card-padding);border-bottom:1px solid var(--admin-border);background:var(--admin-bg)}
 .admin-ui-dialog-heading h2{font-size:17px;font-weight:600}
 .admin-ui-dialog-close{border:0;background:var(--admin-soft);color:var(--admin-muted);display:grid;place-items:center;width:30px;height:30px;flex-shrink:0;border-radius:5px;font-size:22px;cursor:pointer}
-.admin-ui-dialog-body{padding:22px 24px}
+.admin-ui-dialog-body{padding:var(--admin-ui-card-padding)}
 .admin-ui-dialog-body h3{font-size:14px;font-weight:600;margin-bottom:14px}
 .admin-ui .inventory-box{border:1px solid var(--admin-border);border-radius:6px;padding:18px;margin-bottom:16px}
 .admin-ui .inventory-box:last-child{margin-bottom:0}
@@ -83,7 +82,7 @@
 .admin-ui-facts{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:20px;margin:0}
 .admin-ui-facts dt{font-size:12px;color:var(--admin-muted);margin-bottom:5px}
 .admin-ui-facts dd{margin:0;font-size:13px;overflow-wrap:anywhere}
-.admin-ui-option{padding:20px 22px;border-top:1px solid var(--admin-border)}
+.admin-ui-option{padding:var(--admin-ui-card-padding);border-top:1px solid var(--admin-border)}
 .admin-ui-option:first-child{border-top:0}
 .admin-ui-option-heading{display:flex;align-items:center;gap:12px;justify-content:space-between}
 .admin-ui-option h3{font-size:14px;font-weight:600}

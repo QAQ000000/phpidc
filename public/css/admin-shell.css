@@ -1,0 +1,37 @@
+.fi-body {
+    --admin-ui-brand: #2f54ea;
+    --admin-ui-brand-hover: #2445d0;
+    --admin-ui-accent: #2f54ea;
+    --admin-ui-surface: #fff;
+    --admin-ui-subtle: #f8fafc;
+    --admin-ui-text: #263244;
+    --admin-ui-muted: #69788d;
+    --admin-ui-border: #e4e9f0;
+    --admin-ui-active: #eef2ff;
+    --admin-ui-focus: #2f54ea24;
+    --admin-ui-font-size: 13px;
+    --admin-ui-radius: 8px;
+    --admin-ui-card-padding: 18px 20px;
+    --admin-ui-cell-padding: 10px 14px;
+    font-size: var(--admin-ui-font-size);
+}
+.dark .fi-body {
+    --admin-ui-accent: #9bb0ff;
+    --admin-ui-surface: #18181b;
+    --admin-ui-subtle: #202024;
+    --admin-ui-text: #e4e4e7;
+    --admin-ui-muted: #a1a1aa;
+    --admin-ui-border: #39393f;
+    --admin-ui-active: #2a304b;
+    --admin-ui-focus: #9bb0ff30;
+}
+.fi-body .fi-sidebar-item-label,
+.fi-body .fi-sidebar-group-label {
+    font-size: var(--admin-ui-font-size);
+}
+.fi-body .fi-sidebar-item-btn {
+    border-radius: var(--admin-ui-radius);
+}
+@media (max-width: 640px) {
+    .fi-body { --admin-ui-card-padding: 18px; }
+}

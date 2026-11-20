@@ -42,52 +42,52 @@ class AdminNavigation
 
         foreach ([
             '商品与服务' => [
-                ['库存概览', '/admin/inventory', InventoryOverview::class],
-                ['卡密库存', '/admin/inventory/cards', InventoryCards::class],
-                ['已付待交付', '/admin/fulfillment', FulfillmentQueue::class],
-                ['上游商品与连接', '/admin/upstreams', UpstreamAccounts::class],
-                ['上游服务', '/admin/upstream-instances', UpstreamInstances::class],
+                ['库存概览', '/admin/inventory', InventoryOverview::class, 'heroicon-o-squares-2x2'],
+                ['卡密库存', '/admin/inventory/cards', InventoryCards::class, 'heroicon-o-key'],
+                ['已付待交付', '/admin/fulfillment', FulfillmentQueue::class, 'heroicon-o-truck'],
+                ['上游商品与连接', '/admin/upstreams', UpstreamAccounts::class, 'heroicon-o-cloud-arrow-down'],
+                ['上游服务', '/admin/upstream-instances', UpstreamInstances::class, 'heroicon-o-server-stack'],
             ],
             '财务与结算' => [
-                ['财务账单', '/admin/finance', FinanceInvoices::class],
-                ['流水与支付回调', '/admin/finance/ledger', FinanceLedger::class],
-                ['退款佣金应收', '/admin/finance/receivables', FinanceReceivables::class],
-                ['钱包结清', '/admin/wallet-clearances', WalletClearances::class],
-                ['外部佣金提现', '/admin/external-payouts', ExternalAffiliatePayouts::class],
-                ['佣金转钱包审核', '/admin/payouts', AffiliatePayouts::class],
-                ['支付方式', '/admin/settings?tab=payment-plugins', SystemSettings::class],
-                ['计费策略', '/admin/settings?tab=billing', SystemSettings::class],
+                ['财务账单', '/admin/finance', FinanceInvoices::class, 'heroicon-o-document-text'],
+                ['流水与支付回调', '/admin/finance/ledger', FinanceLedger::class, 'heroicon-o-banknotes'],
+                ['退款佣金应收', '/admin/finance/receivables', FinanceReceivables::class, 'heroicon-o-receipt-refund'],
+                ['钱包结清', '/admin/wallet-clearances', WalletClearances::class, 'heroicon-o-wallet'],
+                ['外部佣金提现', '/admin/external-payouts', ExternalAffiliatePayouts::class, 'heroicon-o-arrow-top-right-on-square'],
+                ['佣金转钱包审核', '/admin/payouts', AffiliatePayouts::class, 'heroicon-o-arrows-right-left'],
+                ['支付方式', '/admin/settings?tab=payment-plugins', SystemSettings::class, 'heroicon-o-credit-card'],
+                ['计费策略', '/admin/settings?tab=billing', SystemSettings::class, 'heroicon-o-calculator'],
             ],
             '运营与内容' => [
-                ['优惠券', '/admin/coupons', PromotionCoupons::class],
-                ['推广规则与佣金', '/admin/affiliates', AffiliateOperations::class],
-                ['工单处理', '/admin/support', SupportTickets::class],
-                ['商城与内容', '/admin/content', CmsContent::class],
-                ['下载资源', '/admin/downloads', DownloadOperations::class],
+                ['优惠券', '/admin/coupons', PromotionCoupons::class, 'heroicon-o-ticket'],
+                ['推广规则与佣金', '/admin/affiliates', AffiliateOperations::class, 'heroicon-o-user-group'],
+                ['工单处理', '/admin/support', SupportTickets::class, 'heroicon-o-chat-bubble-left-right'],
+                ['商城与内容', '/admin/content', CmsContent::class, 'heroicon-o-document-duplicate'],
+                ['下载资源', '/admin/downloads', DownloadOperations::class, 'heroicon-o-arrow-down-tray'],
             ],
             '消息与通知' => [
-                ['通知模板与日志', '/admin/notifications', NotificationOperations::class],
-                ['通知事件与投递', '/admin/notification-outbox', NotificationOutbox::class],
-                ['邮件插件', '/admin/settings?tab=mail-plugins', SystemSettings::class],
-                ['短信插件', '/admin/settings?tab=sms-plugins', SystemSettings::class],
+                ['通知模板与日志', '/admin/notifications', NotificationOperations::class, 'heroicon-o-bell'],
+                ['通知事件与投递', '/admin/notification-outbox', NotificationOutbox::class, 'heroicon-o-inbox-stack'],
+                ['邮件插件', '/admin/settings?tab=mail-plugins', SystemSettings::class, 'heroicon-o-envelope'],
+                ['短信插件', '/admin/settings?tab=sms-plugins', SystemSettings::class, 'heroicon-o-device-phone-mobile'],
             ],
             '系统设置' => [
-                ['站点信息', '/admin/settings?tab=site', SystemSettings::class],
-                ['实名认证', '/admin/settings?tab=kyc-plugins', SystemSettings::class],
-                ['第三方登录', '/admin/settings?tab=login-plugins', SystemSettings::class],
-                ['自动化策略', '/admin/settings?tab=automation', SystemSettings::class],
+                ['站点信息', '/admin/settings?tab=site', SystemSettings::class, 'heroicon-o-globe-alt'],
+                ['实名认证', '/admin/settings?tab=kyc-plugins', SystemSettings::class, 'heroicon-o-identification'],
+                ['第三方登录', '/admin/settings?tab=login-plugins', SystemSettings::class, 'heroicon-o-finger-print'],
+                ['自动化策略', '/admin/settings?tab=automation', SystemSettings::class, 'heroicon-o-cog-6-tooth'],
             ],
             '系统运维' => [
-                ['任务监控与恢复', '/admin/tasks', AdminTasks::class],
-                ['业务异常核对', '/admin/reconciliations', ReconciliationCases::class],
-                ['账户角色管理', '/admin/access', AdminAccess::class],
-                ['操作审计', '/admin/audit', AdminAudit::class],
+                ['任务监控与恢复', '/admin/tasks', AdminTasks::class, 'heroicon-o-queue-list'],
+                ['业务异常核对', '/admin/reconciliations', ReconciliationCases::class, 'heroicon-o-clipboard-document-check'],
+                ['账户角色管理', '/admin/access', AdminAccess::class, 'heroicon-o-users'],
+                ['操作审计', '/admin/audit', AdminAudit::class, 'heroicon-o-shield-check'],
             ],
         ] as $label => $entries) {
             $items = [];
             $active = false;
 
-            foreach ($entries as [$title, $url, $page]) {
+            foreach ($entries as [$title, $url, $page, $icon]) {
                 if (! $page::canAccess()) {
                     continue;
                 }
@@ -96,12 +96,21 @@ class AdminNavigation
                 $active = $active || $isActive;
                 $items[] = NavigationItem::make($title)
                     ->key($url)
+                    ->icon($icon)
                     ->url($url)
                     ->activeWhen(fn (): bool => $isActive);
             }
 
             if ($items !== []) {
-                $groups[] = NavigationGroup::make($label)->items($items)
+                $groupIcon = match ($label) {
+                    '商品与服务' => 'heroicon-o-cube',
+                    '财务与结算' => 'heroicon-o-banknotes',
+                    '运营与内容' => 'heroicon-o-megaphone',
+                    '消息与通知' => 'heroicon-o-bell',
+                    '系统设置' => 'heroicon-o-cog-6-tooth',
+                    '系统运维' => 'heroicon-o-wrench-screwdriver',
+                };
+                $groups[] = NavigationGroup::make($label)->icon($groupIcon)->items($items)
                     ->collapsed(! $active)->collapsible();
             }
         }

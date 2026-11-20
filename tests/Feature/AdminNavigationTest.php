@@ -103,7 +103,8 @@ it('shows all settings sections to settings viewers without granting access to o
     foreach ($items as $item) {
         expect($item->getUrl())->toStartWith('/admin/settings?tab=');
     }
-    expect(Filament::getPanel('admin')->getHomeUrl())->toBe('/admin/settings?tab=site');
+    // The approved dashboard UI makes /admin the panel home for every admitted role.
+    expect(Filament::getPanel('admin')->getHomeUrl())->toBe('/admin');
 });
 
 it('highlights only the owning menu item for configuration and record details', function (string $request, string $activeUrl): void {
@@ -152,12 +153,18 @@ it('renders the registered menu once in the panel sidebar without exposing recor
     $xpath = new DOMXPath($document);
     $navigation = $xpath->query('//nav[contains(concat(" ", normalize-space(@class), " "), " fi-sidebar-nav ")]');
     expect($navigation)->toHaveCount(1);
-    $links = $xpath->query('.//a[@href]', $navigation->item(0));
-    $urls = [];
-    foreach ($links as $link) {
-        $urls[] = $link->getAttribute('href');
+    // Filament pre-renders the same approved menu for expanded and collapsed desktop modes.
+    foreach ([
+        './/ul[contains(concat(" ", normalize-space(@class), " "), " fi-sidebar-group-items ")]//a[@href]',
+        './/div[contains(concat(" ", normalize-space(@class), " "), " fi-dropdown-panel ")]//a[@href]',
+    ] as $mode) {
+        $links = $xpath->query($mode, $navigation->item(0));
+        $urls = [];
+        foreach ($links as $link) {
+            $urls[] = $link->getAttribute('href');
+        }
+        expect($urls)->toHaveCount(30)->toHaveCount(count(array_unique($urls)))
+            ->not->toContain('/admin/finance/invoice', '/admin/machine-operation-review');
     }
-    expect($urls)->toHaveCount(30)->toHaveCount(count(array_unique($urls)))
-        ->not->toContain('/admin/finance/invoice', '/admin/machine-operation-review');
     Http::assertNothingSent();
 });

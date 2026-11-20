@@ -1,0 +1,24 @@
+.admin-dashboard-stats{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:16px}
+.admin-dashboard-finance-stats{grid-template-columns:repeat(3,minmax(0,1fr))}
+.admin-dashboard-stat{padding:var(--admin-ui-card-padding);border:1px solid var(--admin-border);border-radius:var(--admin-ui-radius);background:var(--admin-bg);min-width:0;display:flex;flex-direction:column;align-items:flex-start;gap:10px}
+.admin-dashboard-stat h3{font-size:12px;font-weight:500;color:var(--admin-muted)}
+.admin-dashboard-stat strong{font-size:27px;font-weight:650;line-height:1.3;color:var(--admin-text);font-variant-numeric:tabular-nums;overflow-wrap:anywhere;max-width:100%}
+.admin-dashboard-stat small{font-size:11px;font-weight:400;color:var(--admin-muted);margin-left:6px}
+.admin-dashboard-stat a{margin-top:auto;font-size:12px}
+.admin-dashboard-caption{color:var(--admin-muted);font-size:12px;line-height:1.8}
+.admin-dashboard-heading{display:flex;gap:12px;align-items:center;justify-content:space-between}
+.admin-dashboard-heading h2{font-size:15px;font-weight:600}
+.admin-dashboard-bottom{display:grid;grid-template-columns:minmax(0,2fr) minmax(260px,1fr);gap:20px;align-items:start}
+.admin-dashboard-bottom>*{min-width:0}
+.admin-dashboard-without-finance{grid-template-columns:minmax(0,1fr)}
+.admin-dashboard-side{display:grid;gap:20px;min-width:0}
+.admin-dashboard-links{list-style:none;margin:0;padding:0;display:grid;gap:0}
+.admin-dashboard-links li{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:12px 0;border-bottom:1px solid var(--admin-border)}
+.admin-dashboard-links li:first-child{padding-top:0}
+.admin-dashboard-links li:last-child{border-bottom:0;padding-bottom:0}
+.admin-dashboard-links a{overflow-wrap:anywhere;font-size:13px}
+.admin-dashboard-ticket{min-width:0}
+.admin-dashboard-ticket a{display:block;overflow-wrap:anywhere}
+@media(max-width:1100px){.admin-dashboard-stats{grid-template-columns:repeat(2,minmax(0,1fr))}.admin-dashboard-bottom{grid-template-columns:minmax(0,1fr)}}
+@media(max-width:640px){.admin-dashboard-stats{gap:12px}.admin-dashboard-stat{padding:16px}.admin-dashboard-stat strong{font-size:24px}.admin-dashboard-heading{align-items:flex-start;flex-direction:column}.admin-dashboard-bottom{gap:16px}}
+@media(max-width:480px){.admin-dashboard-stats{grid-template-columns:minmax(0,1fr)}}
