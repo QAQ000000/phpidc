@@ -3,6 +3,10 @@
 .admin-dashboard-stat{padding:var(--admin-ui-card-padding);border:1px solid var(--admin-border);border-radius:var(--admin-ui-radius);background:var(--admin-bg);min-width:0;display:flex;flex-direction:column;align-items:flex-start;gap:10px}
 .admin-dashboard-stat h3{font-size:12px;font-weight:500;color:var(--admin-muted)}
 .admin-dashboard-stat strong{font-size:27px;font-weight:650;line-height:1.3;color:var(--admin-text);font-variant-numeric:tabular-nums;overflow-wrap:anywhere;max-width:100%}
+.admin-dashboard-stat strong[data-dashboard-alert=danger]{color:#b91c1c}
+.admin-dashboard-stat strong[data-dashboard-alert=warning]{color:#a16207}
+.dark .admin-dashboard-stat strong[data-dashboard-alert=danger]{color:#fca5a5}
+.dark .admin-dashboard-stat strong[data-dashboard-alert=warning]{color:#fde68a}
 .admin-dashboard-stat small{font-size:11px;font-weight:400;color:var(--admin-muted);margin-left:6px}
 .admin-dashboard-stat a{margin-top:auto;font-size:12px}
 .admin-dashboard-caption{color:var(--admin-muted);font-size:12px;line-height:1.8}
@@ -21,4 +25,4 @@
 .admin-dashboard-ticket a{display:block;overflow-wrap:anywhere}
 @media(max-width:1100px){.admin-dashboard-stats{grid-template-columns:repeat(2,minmax(0,1fr))}.admin-dashboard-bottom{grid-template-columns:minmax(0,1fr)}}
 @media(max-width:640px){.admin-dashboard-stats{gap:12px}.admin-dashboard-stat{padding:16px}.admin-dashboard-stat strong{font-size:24px}.admin-dashboard-heading{align-items:flex-start;flex-direction:column}.admin-dashboard-bottom{gap:16px}}
-@media(max-width:480px){.admin-dashboard-stats{grid-template-columns:minmax(0,1fr)}}
+@media(max-width:480px){.admin-dashboard-stats{grid-template-columns:minmax(0,1fr)}.admin-dashboard-invoices{table-layout:fixed;min-width:422px}.admin-dashboard-invoices th,.admin-dashboard-invoices td{padding:10px 8px}.admin-dashboard-invoices th:first-child,.admin-dashboard-invoices td:first-child{width:116px;min-width:0;max-width:116px;padding-left:12px}.admin-dashboard-invoices th:nth-child(2),.admin-dashboard-invoices td:nth-child(2){width:82px}.admin-dashboard-invoices th:nth-child(3),.admin-dashboard-invoices td:nth-child(3){width:104px}.admin-dashboard-invoices th:last-child,.admin-dashboard-invoices td:last-child{width:120px;padding-right:12px}}

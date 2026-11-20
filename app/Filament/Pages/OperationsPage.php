@@ -41,9 +41,20 @@ abstract class OperationsPage extends Page
     {
         $section = static::SECTION;
         $edit = request()->integer('edit');
+        $form = match ($section) {
+            'coupons' => 'coupon', 'affiliates' => 'affiliate-rule', 'notifications' => 'notification-template',
+            'downloads' => 'download', 'support' => 'ticket', default => null,
+        };
+        // Validation may return to a list URL. Retain the submitted record, never turn an edit into a create.
+        if (! $edit && $form !== null && session('errors')?->any() && old('_admin_form') === $form) {
+            $submittedId = old($section === 'support' ? 'record_id' : 'id');
+            if (is_scalar($submittedId) && ctype_digit((string) $submittedId)) {
+                $edit = (int) $submittedId;
+            }
+        }
         $data = match ($section) {
-            'coupons' => ['records' => Coupon::latest('id')->paginate(20), 'editing' => $edit ? Coupon::findOrFail($edit) : null],
-            'affiliates' => ['records' => AffiliateRule::orderByDesc('priority')->orderBy('id')->paginate(20, ['*'], 'rules_page'),
+            'coupons' => ['records' => Coupon::latest('id')->paginate(20)->withQueryString(), 'editing' => $edit ? Coupon::findOrFail($edit) : null],
+            'affiliates' => ['records' => AffiliateRule::orderByDesc('priority')->orderBy('id')->paginate(20, ['*'], 'rules_page')->withQueryString(),
                 'editing' => $edit ? AffiliateRule::findOrFail($edit) : null,
                 'productIds' => $edit ? DB::table('affiliate_rule_product')->where('affiliate_rule_id', $edit)->pluck('product_id')->all() : [],
                 'commissions' => AffiliateCommission::query()->when(request()->integer('user_id'), fn ($q, $id) => $q->where('referrer_id', $id))
@@ -55,13 +66,13 @@ abstract class OperationsPage extends Page
                 ->when(request()->integer('user_id'), fn ($q, $id) => $q->where('user_id', $id))->latest('id')->paginate(20)->withQueryString(),
                 'ticket' => $edit ? Ticket::findOrFail($edit) : null,
                 'replies' => $edit ? TicketReply::where('ticket_id', $edit)->orderBy('id')->paginate(30, ['*'], 'replies_page')->withQueryString() : null],
-            'notifications' => ['records' => NotificationTemplate::orderBy('event_key')->paginate(20, ['*'], 'templates_page'),
+            'notifications' => ['records' => NotificationTemplate::orderBy('event_key')->orderBy('id')->paginate(20, ['*'], 'templates_page')->withQueryString(),
                 'editing' => $edit ? NotificationTemplate::findOrFail($edit) : null,
                 'logs' => DB::table('notification_logs')->select(['id', 'user_id', 'event_key', 'channel', 'status', 'error_message', 'created_at'])
                     ->when(request()->integer('user_id'), fn ($q, $id) => $q->where('user_id', $id))
                     ->when(in_array(request('delivery_status'), ['sent', 'failed', 'simulated', 'skipped', 'disabled'], true), fn ($q) => $q->where('status', request('delivery_status')))
                     ->latest('id')->paginate(20, ['*'], 'logs_page')->withQueryString()],
-            'downloads' => ['records' => DownloadResource::orderBy('sort_order')->orderBy('id')->paginate(20, ['id', 'category', 'title', 'version', 'description', 'storage_type', 'file_size', 'sha256', 'access_level', 'download_count', 'is_active', 'sort_order']),
+            'downloads' => ['records' => DownloadResource::orderBy('sort_order')->orderBy('id')->paginate(20, ['id', 'category', 'title', 'version', 'description', 'storage_type', 'file_size', 'sha256', 'access_level', 'download_count', 'is_active', 'sort_order'])->withQueryString(),
                 'editing' => $edit ? DownloadResource::findOrFail($edit) : null],
             default => [],
         };

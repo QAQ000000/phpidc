@@ -1,9 +1,9 @@
 <x-filament-panels::page>
 @include('filament.admin-ui-styles')
-<link rel="stylesheet" href="/css/admin-dashboard.css?v=20261120">
+<link rel="stylesheet" href="/css/admin-dashboard.css?v=20261120-b1">
 <div class="admin-ui admin-dashboard">
     <header class="admin-ui-heading">
-        <div><h2>业务概况</h2><p>查看当前业务状态，进入待办继续处理。</p></div>
+        <p class="admin-dashboard-caption">查看当前业务状态，进入待办继续处理。</p>
         <p class="admin-dashboard-caption">更新于 {{ $updatedAt->format('Y-m-d H:i:s') }} · {{ config('app.timezone') }}</p>
     </header>
     @if($finance !== null)
@@ -13,7 +13,7 @@
                 <article class="admin-dashboard-stat"><h3>今日商品结算额（退款前）</h3><div><strong data-dashboard-metric="today_paid">{{ $finance['today'] }}</strong><small>CNY</small></div></article>
                 <article class="admin-dashboard-stat"><h3>本月商品结算额（退款前）</h3><div><strong data-dashboard-metric="month_paid">{{ $finance['month'] }}</strong><small>CNY</small></div></article>
                 <article class="admin-dashboard-stat"><h3>待付款账单</h3><strong data-dashboard-metric="unpaid">{{ $finance['unpaid'] }}</strong><a class="admin-ui-link" href="/admin/finance?status=Unpaid">查看待付款 →</a></article>
-                <article class="admin-dashboard-stat"><h3>未结支付异常</h3><strong data-dashboard-metric="payment_attention">{{ $finance['payment_attention'] }}</strong><a class="admin-ui-link" href="/admin/reconciliations">前往业务核对 →</a></article>
+                <article class="admin-dashboard-stat"><h3>未结支付异常</h3><strong data-dashboard-metric="payment_attention" @if($finance['payment_attention'] > 0) data-dashboard-alert="danger" @endif>{{ $finance['payment_attention'] }}</strong><a class="admin-ui-link" href="/admin/reconciliations">前往业务核对 →</a></article>
                 <article class="admin-dashboard-stat"><h3>外部佣金提现待审</h3><strong data-dashboard-metric="pending_withdrawals">{{ $finance['external_pending'] }}</strong><a class="admin-ui-link" href="/admin/external-payouts?status=pending">查看外部提现 →</a></article>
                 <article class="admin-dashboard-stat"><h3>佣金转钱包待审</h3><strong data-dashboard-metric="wallet_withdrawals">{{ $finance['wallet_pending'] }}</strong><a class="admin-ui-link" href="/admin/payouts?status=pending">查看转钱包申请 →</a></article>
             </div>
@@ -29,10 +29,10 @@
                     <article class="admin-dashboard-stat"><h3>7 天内到期经典服务</h3><strong data-dashboard-metric="due_instances">{{ $services['due'] }}</strong><a class="admin-ui-link" href="/admin/upstream-instances">前往服务列表 →</a></article>
                 @endif
                 @if($tasks !== null)
-                    <article class="admin-dashboard-stat"><h3>失败履约任务</h3><strong data-dashboard-metric="failed_tasks">{{ $tasks['failed'] }}</strong><a class="admin-ui-link" href="/admin/tasks?status=failed">查看失败任务 →</a></article>
+                    <article class="admin-dashboard-stat"><h3>失败履约任务</h3><strong data-dashboard-metric="failed_tasks" @if($tasks['failed'] > 0) data-dashboard-alert="danger" @endif>{{ $tasks['failed'] }}</strong><a class="admin-ui-link" href="/admin/tasks?status=failed">查看失败任务 →</a></article>
                 @endif
                 @if($support !== null)
-                    <article class="admin-dashboard-stat"><h3>待回复工单</h3><strong data-dashboard-metric="open_tickets">{{ $support['open'] }}</strong><a class="admin-ui-link" href="/admin/support?status=open">查看待回复 →</a></article>
+                    <article class="admin-dashboard-stat"><h3>待回复工单</h3><strong data-dashboard-metric="open_tickets" @if($support['open'] > 0) data-dashboard-alert="warning" @endif>{{ $support['open'] }}</strong><a class="admin-ui-link" href="/admin/support?status=open">查看待回复 →</a></article>
                 @endif
             </div>
             @if($services !== null)<p class="admin-dashboard-caption">经典服务按本地同步状态统计。到期范围为当前时刻起 7 天内，包含运行中和暂停的经典服务。</p>@endif
@@ -41,7 +41,7 @@
     <div @class(['admin-dashboard-bottom', 'admin-dashboard-without-finance' => $finance === null])>
         @if($finance !== null)
             <x-admin.card title="最近账单" description="按账单创建顺序展示最近 8 条，金额及状态保留原始记录。">
-                <x-admin.table label="最近账单">
+                <x-admin.table label="最近账单" class="admin-dashboard-invoices">
                     <x-slot:head><tr><th scope="col">账单 / 客户</th><th scope="col">类型 / 状态</th><th scope="col" class="admin-ui-number">金额</th><th scope="col">创建时间</th></tr></x-slot:head>
                     @forelse($finance['invoices'] as $invoice)
                         <tr>

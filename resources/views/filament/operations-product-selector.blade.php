@@ -1,10 +1,11 @@
 @php
-    $selectedProductIds = old('product_ids', $selectedProductIds ?? null);
+    $selectedProductIds = ($restoreOldInputs ?? true) ? old('product_ids', old('product_scope') === 'selected' ? [] : ($selectedProductIds ?? null)) : ($selectedProductIds ?? null);
     $selectedProductIds = is_array($selectedProductIds) || $selectedProductIds === null ? $selectedProductIds : [];
     $selectedProductIds = $selectedProductIds === null ? null : array_map('strval', array_filter($selectedProductIds, 'is_scalar'));
-    $productScope = old('product_scope', $selectedProductIds === null || ($allWhenEmpty ?? false) && $selectedProductIds === [] ? 'all' : 'selected');
+    $defaultScope = $selectedProductIds === null || ($allWhenEmpty ?? false) && $selectedProductIds === [] ? 'all' : 'selected';
+    $productScope = ($restoreOldInputs ?? true) ? old('product_scope', $defaultScope) : $defaultScope;
 @endphp
-<fieldset class="inventory-box" style="width:100%" x-data="{ search: '', scope: @js($productScope) }">
+<fieldset class="admin-operations-fieldset admin-operations-wide" x-data="{ search: '', scope: @js($productScope) }">
     <legend>适用商品</legend>
     <label>商品范围<select name="product_scope" x-model="scope"><option value="all" @selected($productScope === 'all')>所有商品</option><option value="selected" @selected($productScope === 'selected')>指定商品</option></select></label>
     <div x-show="scope === 'selected'">

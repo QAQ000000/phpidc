@@ -1,0 +1,11 @@
+<x-admin.dialog id="cms-category" :title="$editCategory ? '编辑栏目 #'.$editCategory->id : '新建栏目'" :show-errors="$categoryError">
+<form method="post" action="/admin/content/categories" class="admin-operations-form">@csrf
+<input type="hidden" name="_admin_form" value="cms-category">
+@if($editCategory)<input type="hidden" name="id" value="{{ $editCategory->id }}">@endif
+<label>类型<select name="type" @disabled($editCategory)><option value="news" @selected(($editCategory?->type->value ?? $categoryValue('type', 'news')) === 'news')>新闻</option><option value="help" @selected(($editCategory?->type->value ?? $categoryValue('type')) === 'help')>帮助</option></select></label>
+@if($editCategory)<input type="hidden" name="type" value="{{ $editCategory->type->value }}"><p class="admin-operations-note admin-operations-wide">既有栏目类型固定，保持公开链接前缀。</p>@endif
+<label>名称<input name="name" value="{{ $categoryValue('name', $editCategory?->name) }}" required maxlength="255"></label><label>URL slug<input name="slug" value="{{ $categoryValue('slug', $editCategory?->slug) }}" required maxlength="100"></label>
+<label>可见性<select name="is_hidden"><option value="0" @selected(!(bool) $categoryValue('is_hidden', $editCategory?->is_hidden))>公开</option><option value="1" @selected((bool) $categoryValue('is_hidden', $editCategory?->is_hidden))>隐藏</option></select></label>
+<label>SEO 标题<input name="seo_title" value="{{ $categoryValue('seo_title', $editCategory?->seo_title) }}" maxlength="255"></label><label>SEO 关键词<input name="seo_keywords" value="{{ $categoryValue('seo_keywords', $editCategory?->seo_keywords) }}" maxlength="255"></label><label>SEO 描述<input name="seo_description" value="{{ $categoryValue('seo_description', $editCategory?->seo_description) }}" maxlength="1000"></label><label>排序<input name="sort_order" type="number" min="0" value="{{ $categoryValue('sort_order', $editCategory?->sort_order ?? 0) }}"></label>
+<label>备注（可选）<input name="reason" maxlength="255" value="{{ $categoryValue('reason') }}"></label><div class="admin-operations-form-actions"><button type="submit" class="admin-ui-button admin-ui-button-primary">保存栏目</button><button type="button" class="admin-ui-button" x-on:click="$el.closest('dialog').close()">取消</button></div></form>
+</x-admin.dialog>
