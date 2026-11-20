@@ -6,6 +6,7 @@ namespace App\Support;
 
 use App\Filament\Pages\AdminAccess;
 use App\Filament\Pages\AdminAudit;
+use App\Filament\Pages\AdminCustomers;
 use App\Filament\Pages\AdminTasks;
 use App\Filament\Pages\AffiliateOperations;
 use App\Filament\Pages\AffiliatePayouts;
@@ -59,6 +60,7 @@ class AdminNavigation
                 ['计费策略', '/admin/settings?tab=billing', SystemSettings::class, 'heroicon-o-calculator'],
             ],
             '运营与内容' => [
+                ['客户管理', '/admin/customers', AdminCustomers::class, 'heroicon-o-user-circle'],
                 ['优惠券', '/admin/coupons', PromotionCoupons::class, 'heroicon-o-ticket'],
                 ['推广规则与佣金', '/admin/affiliates', AffiliateOperations::class, 'heroicon-o-user-group'],
                 ['工单处理', '/admin/support', SupportTickets::class, 'heroicon-o-chat-bubble-left-right'],
@@ -141,6 +143,10 @@ class AdminNavigation
 
         if ($path === '/admin/finance/invoice') {
             return '/admin/finance';
+        }
+
+        if (preg_match('#^/admin/customers/[1-9][0-9]*$#', $path) === 1) {
+            return '/admin/customers';
         }
 
         if ($path === '/admin/upstreams/catalog') {

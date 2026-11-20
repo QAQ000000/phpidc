@@ -55,7 +55,7 @@ it('loads the shared shell stylesheet once on operational and configuration page
 
 it('renders every native group and item icon while keeping navigation permissions scoped', function (): void {
     $this->actingAs(shellUiOperator(['inventory.view', 'upstream.view', 'finance.view', 'promotion.view', 'affiliate.view',
-        'support.view', 'cms.view', 'download.view', 'notification.view', 'settings.view', 'tasks.view', 'access.view', 'audit.view']));
+        'support.view', 'cms.view', 'download.view', 'notification.view', 'settings.view', 'tasks.view', 'access.view', 'audit.view', 'customers.view']));
     $request = Request::create('/admin/audit');
     app()->instance('request', $request);
     app()->instance('originalRequest', $request);

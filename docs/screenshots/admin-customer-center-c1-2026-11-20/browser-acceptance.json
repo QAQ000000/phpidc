@@ -1,0 +1,853 @@
+{
+  "fixture": "isolated synthetic SQLite data; no real financial or supplier action",
+  "layouts": {
+    "checks": [
+      {
+        "path": "/admin",
+        "width": 1440,
+        "theme": "light",
+        "status": 200,
+        "overflow": false,
+        "dark": false,
+        "secret": false,
+        "postForms": 0,
+        "searchButtons": 1,
+        "openDialogs": 0
+      },
+      {
+        "path": "/admin/customers",
+        "width": 1440,
+        "theme": "light",
+        "status": 200,
+        "overflow": false,
+        "dark": false,
+        "secret": false,
+        "postForms": 0,
+        "searchButtons": 1,
+        "openDialogs": 0
+      },
+      {
+        "path": "/admin/customers?user_id=3",
+        "width": 1440,
+        "theme": "light",
+        "status": 200,
+        "overflow": false,
+        "dark": false,
+        "secret": false,
+        "postForms": 0,
+        "searchButtons": 1,
+        "openDialogs": 0
+      },
+      {
+        "path": "/admin/customers?name=Literal%25_",
+        "width": 1440,
+        "theme": "light",
+        "status": 200,
+        "overflow": false,
+        "dark": false,
+        "secret": false,
+        "postForms": 0,
+        "searchButtons": 1,
+        "openDialogs": 0
+      },
+      {
+        "path": "/admin/customers?status=closed",
+        "width": 1440,
+        "theme": "light",
+        "status": 200,
+        "overflow": false,
+        "dark": false,
+        "secret": false,
+        "postForms": 0,
+        "searchButtons": 1,
+        "openDialogs": 0
+      },
+      {
+        "path": "/admin/customers/3",
+        "width": 1440,
+        "theme": "light",
+        "status": 200,
+        "overflow": false,
+        "dark": false,
+        "secret": false,
+        "postForms": 0,
+        "searchButtons": 1,
+        "openDialogs": 0
+      },
+      {
+        "path": "/admin/customers/6",
+        "width": 1440,
+        "theme": "light",
+        "status": 200,
+        "overflow": false,
+        "dark": false,
+        "secret": false,
+        "postForms": 0,
+        "searchButtons": 1,
+        "openDialogs": 0
+      },
+      {
+        "path": "/admin/customers/3?invoices_page=2&ledger_page=2&tickets_page=2&kyc_page=2&notifications_page=2&audit_page=2",
+        "width": 1440,
+        "theme": "light",
+        "status": 200,
+        "overflow": false,
+        "dark": false,
+        "secret": false,
+        "postForms": 0,
+        "searchButtons": 1,
+        "openDialogs": 0
+      },
+      {
+        "path": "/admin/customers?user_id=999999",
+        "width": 1440,
+        "theme": "light",
+        "status": 200,
+        "overflow": false,
+        "dark": false,
+        "secret": false,
+        "postForms": 0,
+        "searchButtons": 1,
+        "openDialogs": 0
+      },
+      {
+        "path": "/admin",
+        "width": 1440,
+        "theme": "dark",
+        "status": 200,
+        "overflow": false,
+        "dark": true,
+        "secret": false,
+        "postForms": 0,
+        "searchButtons": 1,
+        "openDialogs": 0
+      },
+      {
+        "path": "/admin/customers",
+        "width": 1440,
+        "theme": "dark",
+        "status": 200,
+        "overflow": false,
+        "dark": true,
+        "secret": false,
+        "postForms": 0,
+        "searchButtons": 1,
+        "openDialogs": 0
+      },
+      {
+        "path": "/admin/customers?user_id=3",
+        "width": 1440,
+        "theme": "dark",
+        "status": 200,
+        "overflow": false,
+        "dark": true,
+        "secret": false,
+        "postForms": 0,
+        "searchButtons": 1,
+        "openDialogs": 0
+      },
+      {
+        "path": "/admin/customers?name=Literal%25_",
+        "width": 1440,
+        "theme": "dark",
+        "status": 200,
+        "overflow": false,
+        "dark": true,
+        "secret": false,
+        "postForms": 0,
+        "searchButtons": 1,
+        "openDialogs": 0
+      },
+      {
+        "path": "/admin/customers?status=closed",
+        "width": 1440,
+        "theme": "dark",
+        "status": 200,
+        "overflow": false,
+        "dark": true,
+        "secret": false,
+        "postForms": 0,
+        "searchButtons": 1,
+        "openDialogs": 0
+      },
+      {
+        "path": "/admin/customers/3",
+        "width": 1440,
+        "theme": "dark",
+        "status": 200,
+        "overflow": false,
+        "dark": true,
+        "secret": false,
+        "postForms": 0,
+        "searchButtons": 1,
+        "openDialogs": 0
+      },
+      {
+        "path": "/admin/customers/6",
+        "width": 1440,
+        "theme": "dark",
+        "status": 200,
+        "overflow": false,
+        "dark": true,
+        "secret": false,
+        "postForms": 0,
+        "searchButtons": 1,
+        "openDialogs": 0
+      },
+      {
+        "path": "/admin/customers/3?invoices_page=2&ledger_page=2&tickets_page=2&kyc_page=2&notifications_page=2&audit_page=2",
+        "width": 1440,
+        "theme": "dark",
+        "status": 200,
+        "overflow": false,
+        "dark": true,
+        "secret": false,
+        "postForms": 0,
+        "searchButtons": 1,
+        "openDialogs": 0
+      },
+      {
+        "path": "/admin/customers?user_id=999999",
+        "width": 1440,
+        "theme": "dark",
+        "status": 200,
+        "overflow": false,
+        "dark": true,
+        "secret": false,
+        "postForms": 0,
+        "searchButtons": 1,
+        "openDialogs": 0
+      },
+      {
+        "path": "/admin",
+        "width": 390,
+        "theme": "light",
+        "status": 200,
+        "overflow": false,
+        "dark": false,
+        "secret": false,
+        "postForms": 0,
+        "searchButtons": 1,
+        "openDialogs": 0
+      },
+      {
+        "path": "/admin/customers",
+        "width": 390,
+        "theme": "light",
+        "status": 200,
+        "overflow": false,
+        "dark": false,
+        "secret": false,
+        "postForms": 0,
+        "searchButtons": 1,
+        "openDialogs": 0
+      },
+      {
+        "path": "/admin/customers?user_id=3",
+        "width": 390,
+        "theme": "light",
+        "status": 200,
+        "overflow": false,
+        "dark": false,
+        "secret": false,
+        "postForms": 0,
+        "searchButtons": 1,
+        "openDialogs": 0
+      },
+      {
+        "path": "/admin/customers?name=Literal%25_",
+        "width": 390,
+        "theme": "light",
+        "status": 200,
+        "overflow": false,
+        "dark": false,
+        "secret": false,
+        "postForms": 0,
+        "searchButtons": 1,
+        "openDialogs": 0
+      },
+      {
+        "path": "/admin/customers?status=closed",
+        "width": 390,
+        "theme": "light",
+        "status": 200,
+        "overflow": false,
+        "dark": false,
+        "secret": false,
+        "postForms": 0,
+        "searchButtons": 1,
+        "openDialogs": 0
+      },
+      {
+        "path": "/admin/customers/3",
+        "width": 390,
+        "theme": "light",
+        "status": 200,
+        "overflow": false,
+        "dark": false,
+        "secret": false,
+        "postForms": 0,
+        "searchButtons": 1,
+        "openDialogs": 0
+      },
+      {
+        "path": "/admin/customers/6",
+        "width": 390,
+        "theme": "light",
+        "status": 200,
+        "overflow": false,
+        "dark": false,
+        "secret": false,
+        "postForms": 0,
+        "searchButtons": 1,
+        "openDialogs": 0
+      },
+      {
+        "path": "/admin/customers/3?invoices_page=2&ledger_page=2&tickets_page=2&kyc_page=2&notifications_page=2&audit_page=2",
+        "width": 390,
+        "theme": "light",
+        "status": 200,
+        "overflow": false,
+        "dark": false,
+        "secret": false,
+        "postForms": 0,
+        "searchButtons": 1,
+        "openDialogs": 0
+      },
+      {
+        "path": "/admin/customers?user_id=999999",
+        "width": 390,
+        "theme": "light",
+        "status": 200,
+        "overflow": false,
+        "dark": false,
+        "secret": false,
+        "postForms": 0,
+        "searchButtons": 1,
+        "openDialogs": 0
+      },
+      {
+        "path": "/admin",
+        "width": 390,
+        "theme": "dark",
+        "status": 200,
+        "overflow": false,
+        "dark": true,
+        "secret": false,
+        "postForms": 0,
+        "searchButtons": 1,
+        "openDialogs": 0
+      },
+      {
+        "path": "/admin/customers",
+        "width": 390,
+        "theme": "dark",
+        "status": 200,
+        "overflow": false,
+        "dark": true,
+        "secret": false,
+        "postForms": 0,
+        "searchButtons": 1,
+        "openDialogs": 0
+      },
+      {
+        "path": "/admin/customers?user_id=3",
+        "width": 390,
+        "theme": "dark",
+        "status": 200,
+        "overflow": false,
+        "dark": true,
+        "secret": false,
+        "postForms": 0,
+        "searchButtons": 1,
+        "openDialogs": 0
+      },
+      {
+        "path": "/admin/customers?name=Literal%25_",
+        "width": 390,
+        "theme": "dark",
+        "status": 200,
+        "overflow": false,
+        "dark": true,
+        "secret": false,
+        "postForms": 0,
+        "searchButtons": 1,
+        "openDialogs": 0
+      },
+      {
+        "path": "/admin/customers?status=closed",
+        "width": 390,
+        "theme": "dark",
+        "status": 200,
+        "overflow": false,
+        "dark": true,
+        "secret": false,
+        "postForms": 0,
+        "searchButtons": 1,
+        "openDialogs": 0
+      },
+      {
+        "path": "/admin/customers/3",
+        "width": 390,
+        "theme": "dark",
+        "status": 200,
+        "overflow": false,
+        "dark": true,
+        "secret": false,
+        "postForms": 0,
+        "searchButtons": 1,
+        "openDialogs": 0
+      },
+      {
+        "path": "/admin/customers/6",
+        "width": 390,
+        "theme": "dark",
+        "status": 200,
+        "overflow": false,
+        "dark": true,
+        "secret": false,
+        "postForms": 0,
+        "searchButtons": 1,
+        "openDialogs": 0
+      },
+      {
+        "path": "/admin/customers/3?invoices_page=2&ledger_page=2&tickets_page=2&kyc_page=2&notifications_page=2&audit_page=2",
+        "width": 390,
+        "theme": "dark",
+        "status": 200,
+        "overflow": false,
+        "dark": true,
+        "secret": false,
+        "postForms": 0,
+        "searchButtons": 1,
+        "openDialogs": 0
+      },
+      {
+        "path": "/admin/customers?user_id=999999",
+        "width": 390,
+        "theme": "dark",
+        "status": 200,
+        "overflow": false,
+        "dark": true,
+        "secret": false,
+        "postForms": 0,
+        "searchButtons": 1,
+        "openDialogs": 0
+      }
+    ],
+    "roles": [
+      {
+        "name": "viewer",
+        "path": "/admin/customers",
+        "status": 200,
+        "wallet": 0,
+        "services": 0,
+        "posts": 0,
+        "secret": false
+      },
+      {
+        "name": "viewer",
+        "path": "/admin/customers/3",
+        "status": 200,
+        "wallet": 0,
+        "services": 0,
+        "posts": 0,
+        "secret": false
+      },
+      {
+        "name": "viewer",
+        "path": "/admin/customers/6",
+        "status": 200,
+        "wallet": 0,
+        "services": 0,
+        "posts": 0,
+        "secret": false
+      },
+      {
+        "name": "viewer",
+        "search": 200,
+        "groupKeys": [
+          "customers"
+        ]
+      },
+      {
+        "name": "finance",
+        "path": "/admin/customers",
+        "status": 403,
+        "wallet": 0,
+        "services": 0,
+        "posts": 0,
+        "secret": false
+      },
+      {
+        "name": "finance",
+        "path": "/admin/customers/3",
+        "status": 403,
+        "wallet": 0,
+        "services": 0,
+        "posts": 0,
+        "secret": false
+      },
+      {
+        "name": "finance",
+        "path": "/admin/customers/6",
+        "status": 403,
+        "wallet": 0,
+        "services": 0,
+        "posts": 0,
+        "secret": false
+      },
+      {
+        "name": "finance",
+        "search": 200,
+        "groupKeys": [
+          "invoices"
+        ]
+      },
+      {
+        "name": "upstream",
+        "path": "/admin/customers",
+        "status": 403,
+        "wallet": 0,
+        "services": 0,
+        "posts": 0,
+        "secret": false
+      },
+      {
+        "name": "upstream",
+        "path": "/admin/customers/3",
+        "status": 403,
+        "wallet": 0,
+        "services": 0,
+        "posts": 0,
+        "secret": false
+      },
+      {
+        "name": "upstream",
+        "path": "/admin/customers/6",
+        "status": 403,
+        "wallet": 0,
+        "services": 0,
+        "posts": 0,
+        "secret": false
+      },
+      {
+        "name": "upstream",
+        "search": 200,
+        "groupKeys": [
+          "instances"
+        ]
+      },
+      {
+        "name": "customer",
+        "path": "/admin/customers",
+        "status": 403,
+        "wallet": 0,
+        "services": 0,
+        "posts": 0,
+        "secret": false
+      },
+      {
+        "name": "customer",
+        "path": "/admin/customers/3",
+        "status": 403,
+        "wallet": 0,
+        "services": 0,
+        "posts": 0,
+        "secret": false
+      },
+      {
+        "name": "customer",
+        "path": "/admin/customers/6",
+        "status": 403,
+        "wallet": 0,
+        "services": 0,
+        "posts": 0,
+        "secret": false
+      },
+      {
+        "name": "customer",
+        "search": 403,
+        "groupKeys": []
+      }
+    ],
+    "links": [
+      {
+        "text": "返回客户列表",
+        "url": "/admin/customers",
+        "status": 200,
+        "secret": false
+      },
+      {
+        "text": "账户角色",
+        "url": "/admin/access?user_id=3",
+        "status": 200,
+        "secret": false
+      },
+      {
+        "text": "查看经典服务列表",
+        "url": "/admin/upstream-instances?user_id=3",
+        "status": 200,
+        "secret": false
+      },
+      {
+        "text": "查看全部账单",
+        "url": "/admin/finance?user_id=3",
+        "status": 200,
+        "secret": false
+      },
+      {
+        "text": "查看全部流水",
+        "url": "/admin/finance/ledger?user_id=3",
+        "status": 200,
+        "secret": false
+      },
+      {
+        "text": "查看全部工单",
+        "url": "/admin/support?user_id=3",
+        "status": 200,
+        "secret": false
+      },
+      {
+        "text": "查看通知日志",
+        "url": "/admin/notifications?user_id=3",
+        "status": 200,
+        "secret": false
+      },
+      {
+        "text": "查看账户审计",
+        "url": "/admin/audit?subject_type=App%5CModels%5CUser&subject_id=3",
+        "status": 200,
+        "secret": false
+      }
+    ],
+    "pageErrors": [],
+    "externalOrigins": [
+      "https://ui-avatars.com"
+    ],
+    "business_tables_changed": []
+  },
+  "search_interactions": {
+    "checks": [
+      {
+        "name": "button opens and focuses",
+        "ok": true
+      },
+      {
+        "name": "same upstream ID retains both connections",
+        "ok": true,
+        "shared": [
+          {
+            "text": "演示云服务器 2本地 #2 · 连接 #2 华南演示连接 · 上游 #C1-SHARED-42 · 已暂停",
+            "url": "/admin/upstream-instances?instance=2"
+          },
+          {
+            "text": "演示云服务器 1本地 #1 · 连接 #1 华东演示连接 · 上游 #C1-SHARED-42 · 运行中",
+            "url": "/admin/upstream-instances?instance=1"
+          }
+        ]
+      },
+      {
+        "name": "Escape closes and returns focus",
+        "ok": true
+      },
+      {
+        "name": "Ctrl K opens",
+        "ok": true
+      },
+      {
+        "name": "numeric IDs remain in three groups",
+        "ok": true,
+        "groups": [
+          "客户",
+          "账单",
+          "服务"
+        ]
+      },
+      {
+        "name": "ArrowDown selects first result",
+        "ok": true
+      },
+      {
+        "name": "ArrowUp returns to input",
+        "ok": true
+      },
+      {
+        "name": "keyboard result navigates",
+        "ok": true
+      },
+      {
+        "name": "exact email result",
+        "ok": true
+      },
+      {
+        "name": "invoice number result",
+        "ok": true
+      },
+      {
+        "name": "invoice destination loads",
+        "ok": true
+      },
+      {
+        "name": "nonclassic service links to customer service section",
+        "ok": true
+      },
+      {
+        "name": "service anchor exists",
+        "ok": true
+      },
+      {
+        "name": "typing is debounced",
+        "ok": true,
+        "terms": [
+          "3"
+        ]
+      },
+      {
+        "name": "empty input clears without a request",
+        "ok": true
+      },
+      {
+        "name": "late response cannot replace latest results",
+        "ok": true,
+        "delayed": [
+          "slow",
+          "fast"
+        ]
+      },
+      {
+        "name": "close button returns focus",
+        "ok": true
+      },
+      {
+        "name": "mobile modal light",
+        "ok": true,
+        "left": 16,
+        "right": 374,
+        "scroll": 356,
+        "width": 356,
+        "viewport": 390,
+        "document": 390,
+        "dark": false
+      },
+      {
+        "name": "mobile modal dark",
+        "ok": true,
+        "left": 16,
+        "right": 374,
+        "scroll": 356,
+        "width": 356,
+        "viewport": 390,
+        "document": 390,
+        "dark": true
+      },
+      {
+        "name": "no browser errors",
+        "ok": true,
+        "errors": []
+      }
+    ],
+    "errors": []
+  },
+  "screenshots": [
+    {
+      "file": "customers-desktop-light.png",
+      "size": 177261,
+      "pixels": [
+        1440,
+        1148
+      ],
+      "sha256": "60d339e0b085ac77dc91ed6f8f63fb53981bf01663cc9eaa9b6078071441ca79"
+    },
+    {
+      "file": "customer-detail-desktop-light.png",
+      "size": 617814,
+      "pixels": [
+        1440,
+        6197
+      ],
+      "sha256": "3a1b170fdba08ae806ac1a3c1ef257908119395b20ebb5ec9218af2b29bf3731"
+    },
+    {
+      "file": "customer-filter-desktop-dark.png",
+      "size": 74777,
+      "pixels": [
+        1440,
+        1000
+      ],
+      "sha256": "95cc711ee5680a3e8a7fdfcab989c134c2ef4262d9f9ad54bc0bfdf5dd729706"
+    },
+    {
+      "file": "closed-detail-desktop-dark.png",
+      "size": 199551,
+      "pixels": [
+        1440,
+        2845
+      ],
+      "sha256": "050f3f861c6527cccdb09b2670178ef3dc9955e2a017799abadfb1dfb821cbce"
+    },
+    {
+      "file": "customer-detail-mobile-dark.png",
+      "size": 392202,
+      "pixels": [
+        390,
+        6475
+      ],
+      "sha256": "6870a61b9f5ba36870f148cebf04d2eda1161dd7505303f1bed4e948188c5959"
+    },
+    {
+      "file": "closed-list-mobile-dark.png",
+      "size": 40428,
+      "pixels": [
+        390,
+        944
+      ],
+      "sha256": "8bfd6c6fc058eed3e10cf9cbdda74c033e59da35d29691fa4e9b0915154fe906"
+    },
+    {
+      "file": "customer-summary-mobile-dark.png",
+      "size": 45378,
+      "pixels": [
+        390,
+        844
+      ],
+      "sha256": "752d7fe254509e7fbaf6e7808ff3656a9de0462a6e0b98223fb98549a93755a2"
+    },
+    {
+      "file": "search-desktop-light.png",
+      "size": 158950,
+      "pixels": [
+        1440,
+        1000
+      ],
+      "sha256": "a32811fafefc4b570fd42da411d2e6df1c4e566623f15a28146e6634eb80f3b6"
+    },
+    {
+      "file": "search-desktop-dark.png",
+      "size": 148706,
+      "pixels": [
+        1440,
+        1000
+      ],
+      "sha256": "cf04a374597f14f12d10469a989d8dfc677b12400397a13ed24a2e157b42eb09"
+    },
+    {
+      "file": "search-mobile-light.png",
+      "size": 63029,
+      "pixels": [
+        390,
+        844
+      ],
+      "sha256": "0186e993dd1885511ec47a6ccf422ff679b1156b15191c28d8b54841973f534e"
+    },
+    {
+      "file": "search-mobile-dark.png",
+      "size": 57083,
+      "pixels": [
+        390,
+        844
+      ],
+      "sha256": "f9a57af1e6f828fdba6017faa0fda843f5e37c8f1b5a7b007672161ce2518251"
+    }
+  ]
+}

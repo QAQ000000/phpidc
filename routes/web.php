@@ -3,6 +3,7 @@
 declare(strict_types=1);
 
 use App\Http\Controllers\AdminOperationsController;
+use App\Http\Controllers\AdminSearchController;
 use App\Http\Controllers\AffiliateReceivableController;
 use App\Http\Controllers\CheckoutController;
 use App\Http\Controllers\ClassicOperationsController;
@@ -86,6 +87,7 @@ Route::middleware('auth')->group(function (): void {
     Route::post('/console/account/kyc/{verification}/refresh', [CustomerKycController::class, 'refresh'])->middleware('throttle:kyc-refresh');
 });
 Route::middleware('auth')->group(function (): void {
+    Route::get('/admin/search', AdminSearchController::class);
     Route::get('/console', [CustomerSalesController::class, 'index']);
     Route::get('/console/wallet', [WalletTopupController::class, 'index']);
     Route::post('/console/wallet/topups', [WalletTopupController::class, 'store'])->middleware('throttle:wallet-topup');

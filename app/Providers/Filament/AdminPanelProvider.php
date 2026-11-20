@@ -6,6 +6,8 @@ namespace App\Providers\Filament;
 
 use App\Filament\Pages\AdminAccess;
 use App\Filament\Pages\AdminAudit;
+use App\Filament\Pages\AdminCustomer;
+use App\Filament\Pages\AdminCustomers;
 use App\Filament\Pages\AdminDashboard;
 use App\Filament\Pages\AdminTasks;
 use App\Filament\Pages\AffiliateOperations;
@@ -42,6 +44,7 @@ use Filament\Navigation\NavigationBuilder;
 use Filament\Panel;
 use Filament\PanelProvider;
 use Filament\View\PanelsRenderHook;
+use Illuminate\Contracts\View\View;
 use Illuminate\Cookie\Middleware\AddQueuedCookiesToResponse;
 use Illuminate\Cookie\Middleware\EncryptCookies;
 use Illuminate\Foundation\Http\Middleware\PreventRequestForgery;
@@ -59,8 +62,9 @@ class AdminPanelProvider extends PanelProvider
             ->colors(['primary' => '#2f54ea'])->maxContentWidth('full')->sidebarCollapsibleOnDesktop()
             ->renderHook(PanelsRenderHook::STYLES_AFTER, fn (): string => Blade::render('@livewireStyles<link rel="stylesheet" href="/css/admin-shell.css?v=20261120">'))
             ->renderHook(PanelsRenderHook::SCRIPTS_AFTER, fn (): string => Blade::render('@livewireScripts'))
+            ->renderHook(PanelsRenderHook::TOPBAR_START, fn (): View => view('filament.admin-global-search'))
             ->navigation(fn (NavigationBuilder $builder): NavigationBuilder => app(AdminNavigation::class)->build($builder))
-            ->pages([AdminDashboard::class, PromotionCoupons::class, AffiliateOperations::class, AffiliatePayouts::class, SupportTickets::class, NotificationOperations::class, NotificationOutbox::class, DownloadOperations::class, InventoryOverview::class, InventoryCards::class, FulfillmentQueue::class, UpstreamAccounts::class, UpstreamInstances::class, ClassicCatalog::class, MachineOperationReview::class, InstanceMappingReview::class, CmsContent::class,
+            ->pages([AdminDashboard::class, AdminCustomers::class, AdminCustomer::class, PromotionCoupons::class, AffiliateOperations::class, AffiliatePayouts::class, SupportTickets::class, NotificationOperations::class, NotificationOutbox::class, DownloadOperations::class, InventoryOverview::class, InventoryCards::class, FulfillmentQueue::class, UpstreamAccounts::class, UpstreamInstances::class, ClassicCatalog::class, MachineOperationReview::class, InstanceMappingReview::class, CmsContent::class,
                 FinanceInvoices::class, FinanceInvoice::class, FinanceLedger::class, FinanceReceivables::class, ExternalAffiliatePayouts::class, WalletClearances::class, ReconciliationCases::class, AdminTasks::class, AdminAccess::class, AdminAudit::class, SystemSettings::class])
             ->middleware([EncryptCookies::class, AddQueuedCookiesToResponse::class, StartSession::class,
                 AuthenticateSession::class, ShareErrorsFromSession::class, PreventRequestForgery::class,

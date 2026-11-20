@@ -32,17 +32,22 @@ class UpstreamInstances extends Page
         $validator = validator(request()->query(), [
             'q' => ['nullable', 'string', 'max:100'],
             'account_id' => ['nullable', 'integer', 'min:1'],
+            'user_id' => ['nullable', 'integer', 'min:1'],
             'status' => ['nullable', Rule::enum(InstanceStatus::class)],
             'page' => ['nullable', 'integer', 'min:1'],
         ]);
         // Invalid GET filters need an HTTP error instead of Livewire form validation state.
         abort_if($validator->fails(), 422, '实例筛选参数无效。');
         $data = $validator->validated();
+        $userId = (string) ($data['user_id'] ?? '');
         $filters = [
             'q' => (string) ($data['q'] ?? ''),
             'account_id' => (string) ($data['account_id'] ?? ''),
             'status' => (string) ($data['status'] ?? ''),
         ];
+        if ($userId !== '') {
+            $filters['user_id'] = $userId;
+        }
         $query = array_filter($filters, fn (string $value): bool => $value !== '');
         $columns = ['id', 'display_name', 'upstream_api_id', 'upstream_instance_id', 'status',
             'next_due_at', 'recurring_amount', 'currency', 'billing_cycle'];
@@ -57,6 +62,7 @@ class UpstreamInstances extends Page
                 });
             })
             ->when($filters['account_id'] !== '', fn (Builder $instances) => $instances->where('upstream_api_id', $filters['account_id']))
+            ->when($userId !== '', fn (Builder $instances) => $instances->where('user_id', $userId))
             ->when($filters['status'] !== '', fn (Builder $instances) => $instances->where('status', $filters['status']))
             ->orderByDesc('id')->paginate(20)->appends($query);
         $selectedInstance = null;
@@ -65,6 +71,7 @@ class UpstreamInstances extends Page
             $selectedKey = filter_var($selectedId, FILTER_VALIDATE_INT, ['options' => ['min_range' => 1]]);
             abort_if($selectedKey === false, 404);
             $selectedInstance = Instance::where('driver_type', DriverType::ZJMF_API)
+                ->when($userId !== '', fn (Builder $instances) => $instances->where('user_id', $userId))
                 ->select([...$columns, 'user_id', 'product_id', 'hostname', 'primary_ip', 'last_synced_at', 'suspend_reason'])
                 ->findOrFail((int) $selectedKey);
         }

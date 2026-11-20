@@ -25,7 +25,7 @@ class User extends Authenticatable implements FilamentUser
     public function canAccessPanel(Panel $panel): bool
     {
         return $panel->getId() === 'admin' && ! $this->trashed() && collect([
-            'promotion.view', 'affiliate.view', 'support.view', 'notification.view', 'download.view',
+            'customers.view', 'promotion.view', 'affiliate.view', 'support.view', 'notification.view', 'download.view',
             'inventory.view', 'upstream.view', 'cms.view', 'finance.view', 'tasks.view', 'audit.view', 'access.view', 'settings.view',
         ])->contains(fn (string $permission): bool => $this->can($permission));
     }

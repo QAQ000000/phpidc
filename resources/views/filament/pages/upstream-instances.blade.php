@@ -9,6 +9,7 @@
         <x-admin.card title="实例列表" description="状态与到期时间为本地已保存记录，进入详情后可核对机器命令与执行授权操作。">
             <x-admin.filters action="/admin/upstream-instances">
                 <label class="admin-ui-search" for="instance-search">关键词<input id="instance-search" name="q" value="{{ $filters['q'] }}" maxlength="100" placeholder="服务名称 / 本地 ID / 上游主机 ID"></label>
+                <label for="instance-customer">客户 ID<input id="instance-customer" name="user_id" type="number" min="1" value="{{ $filters['user_id'] ?? '' }}"></label>
                 <label for="instance-account">上游连接<select id="instance-account" name="account_id"><option value="">全部连接</option>@foreach($accounts as $account)<option value="{{ $account->id }}" @selected($filters['account_id'] === (string) $account->id)>{{ $account->name }}{{ $account->is_active ? '' : '（停用）' }}</option>@endforeach</select></label>
                 <label for="instance-status">服务状态<select id="instance-status" name="status"><option value="">全部状态</option>@foreach($statuses as $status)<option value="{{ $status->value }}" @selected($filters['status'] === $status->value)>{{ $statusLabels[$status->value] }}</option>@endforeach</select></label>
             </x-admin.filters>

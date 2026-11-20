@@ -34,7 +34,7 @@ function navigationViewPermissions(): array
 {
     return ['inventory.view', 'upstream.view', 'finance.view', 'promotion.view', 'affiliate.view',
         'support.view', 'cms.view', 'download.view', 'notification.view', 'settings.view',
-        'tasks.view', 'access.view', 'audit.view'];
+        'tasks.view', 'access.view', 'audit.view', 'customers.view'];
 }
 
 /** @return array<NavigationGroup> */
@@ -62,12 +62,12 @@ it('keeps every operational area and settings destination in one flat global nav
     $urls = array_map(fn (NavigationItem $item): ?string => $item->getUrl(), $items);
 
     expect($groups)->toHaveCount(6)
-        ->and($urls)->toHaveCount(30)->toHaveCount(count(array_unique($urls)))
+        ->and($urls)->toHaveCount(31)->toHaveCount(count(array_unique($urls)))
         ->toEqualCanonicalizing([
             '/admin/inventory', '/admin/inventory/cards', '/admin/fulfillment', '/admin/upstreams',
             '/admin/upstream-instances', '/admin/finance', '/admin/finance/ledger', '/admin/finance/receivables',
             '/admin/wallet-clearances', '/admin/external-payouts', '/admin/payouts', '/admin/coupons',
-            '/admin/affiliates', '/admin/support', '/admin/content', '/admin/downloads', '/admin/notifications',
+            '/admin/affiliates', '/admin/support', '/admin/content', '/admin/downloads', '/admin/notifications', '/admin/customers',
             '/admin/notification-outbox', '/admin/tasks', '/admin/reconciliations', '/admin/access', '/admin/audit',
             '/admin/settings?tab=site', '/admin/settings?tab=payment-plugins', '/admin/settings?tab=billing',
             '/admin/settings?tab=mail-plugins', '/admin/settings?tab=sms-plugins', '/admin/settings?tab=kyc-plugins',
@@ -140,6 +140,7 @@ it('highlights only the owning menu item for configuration and record details', 
     ['/admin/finance/ledger?invoice_id=7', '/admin/finance/ledger'],
     ['/admin/finance/receivables?clawback=3', '/admin/finance/receivables'],
     ['/admin/finance/invoice?invoice_id=7', '/admin/finance'],
+    ['/admin/customers/7', '/admin/customers'],
     ['/admin/machine-operation-review?instance_id=7', '/admin/upstream-instances'],
     ['/admin/upstream-instances/7/mapping-review', '/admin/upstream-instances'],
     ['/admin/upstream-instances/7/mapping-review/check', '/admin/upstream-instances'],
@@ -163,7 +164,7 @@ it('renders the registered menu once in the panel sidebar without exposing recor
         foreach ($links as $link) {
             $urls[] = $link->getAttribute('href');
         }
-        expect($urls)->toHaveCount(30)->toHaveCount(count(array_unique($urls)))
+        expect($urls)->toHaveCount(31)->toHaveCount(count(array_unique($urls)))
             ->not->toContain('/admin/finance/invoice', '/admin/machine-operation-review');
     }
     Http::assertNothingSent();
