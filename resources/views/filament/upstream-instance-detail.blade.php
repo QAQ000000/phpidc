@@ -1,4 +1,10 @@
 @php
+    $classicWorkspaceQuery = \App\Support\AdminWorkspaceNavigation::query(auth()->user(), 'instances', request()->query());
+    $classicWorkspaceReturn = \App\Support\AdminWorkspaceNavigation::returnLink(auth()->user(), $classicWorkspaceQuery, $detailReturnUrl, '返回实例列表');
+    $classicWorkspaceOrigin = \App\Support\AdminWorkspaceNavigation::origin(auth()->user(), 'instances', null, $classicWorkspaceQuery);
+    $classicWorkspaceAction = function (string $path) use ($classicWorkspaceQuery, $selectedInstance): string {
+        return isset($classicWorkspaceQuery['from']) ? $path.'?'.http_build_query($classicWorkspaceQuery + ['instance' => $selectedInstance->id]) : $path;
+    };
     $connection = $accounts->firstWhere('id', $selectedInstance->upstream_api_id);
     $controlForm = 'instance-control-'.$selectedInstance->id;
     $swapForm = 'instance-hotswap-'.$selectedInstance->id;
@@ -16,7 +22,7 @@
     $swapDisposition = in_array($swapDisposition, ['keep_orphan', 'terminate'], true) ? $swapDisposition : 'keep_orphan';
 @endphp
 <x-admin.card :title="$selectedInstance->display_name" description="执行操作前请核对当前服务、目标资源和处置方式。">
-    <x-slot:actions><a class="admin-ui-button" href="{{ $detailReturnUrl }}">返回实例列表</a><a class="admin-ui-button" href="/admin/instances/{{ $selectedInstance->id }}">实例工作台</a><a class="admin-ui-button" href="/admin/machine-operation-review?instance_id={{ $selectedInstance->id }}">机器命令核对与历史</a></x-slot:actions>
+    <x-slot:actions><a class="admin-ui-button" href="{{ $classicWorkspaceReturn['url'] }}">{{ $classicWorkspaceReturn['label'] }}</a><a class="admin-ui-button" href="{{ \App\Support\AdminWorkspaceNavigation::url('instance', $selectedInstance->id, $classicWorkspaceOrigin) }}">实例工作台</a><a class="admin-ui-button" href="/admin/machine-operation-review?instance_id={{ $selectedInstance->id }}">机器命令核对与历史</a></x-slot:actions>
     <div class="admin-ui-card-body">
         <dl class="admin-ui-facts">
             <div><dt>本地实例</dt><dd>#{{ $selectedInstance->id }}</dd></div>
@@ -36,7 +42,7 @@
 @can('upstream.lifecycle')
 <x-admin.card id="instance-lifecycle" title="服务状态操作" description="操作进入现有任务流程；终止可能永久删除数据。">
     <div class="admin-ui-card-body"><details @if($restoreControl) open @endif><summary>暂停、恢复或申请终止</summary>
-        <form class="inventory-form" method="post" action="/admin/upstream-instances/{{ $selectedInstance->id }}/control">@csrf
+        <form class="inventory-form" method="post" action="{{ $classicWorkspaceAction('/admin/upstream-instances/'.$selectedInstance->id.'/control') }}">@csrf
             <input type="hidden" name="ui_form" value="{{ $controlForm }}"><input type="hidden" name="request_id" value="{{ $controlRequest }}">
             <label>操作<select name="action"><option value="suspend" @selected($controlAction === 'suspend')>暂停</option><option value="unsuspend" @selected($controlAction === 'unsuspend')>恢复</option><option value="terminate" @selected($controlAction === 'terminate')>申请终止</option></select></label>
             <details><summary>添加备注（选填）</summary><label>备注<input name="reason" maxlength="1000" value="{{ $submittedValue($restoreControl, 'reason') }}"></label></details>
@@ -49,7 +55,7 @@
 <x-admin.card id="instance-hot-swap" title="显式热切换绑定" description="仅绑定已有目标主机，不迁移磁盘数据。">
     <div class="admin-ui-card-body"><details @if($restoreSwap) open @endif><summary>核对并切换资源绑定</summary>
         <p class="inventory-note">选择终止旧资源时，必须先确认其已删除；保留旧资源会记录孤儿告警。</p>
-        <form class="inventory-form" method="post" action="/admin/upstream-instances/{{ $selectedInstance->id }}/hot-swap">@csrf
+        <form class="inventory-form" method="post" action="{{ $classicWorkspaceAction('/admin/upstream-instances/'.$selectedInstance->id.'/hot-swap') }}">@csrf
             <input type="hidden" name="ui_form" value="{{ $swapForm }}">
             <label>目标连接<select name="account_id" required><option value="">请选择连接</option>@foreach($accounts->where('is_active', true) as $account)<option value="{{ $account->id }}" @selected($submittedValue($restoreSwap, 'account_id') === (string) $account->id)>{{ $account->name }}</option>@endforeach</select></label>
             <label>目标主机 ID<input name="host_id" type="number" required value="{{ $submittedValue($restoreSwap, 'host_id') }}"></label><p>目标商品将从上游认证后的主机资料读取，无需手填商品 ID。</p>

@@ -21,6 +21,7 @@ use App\Models\Product;
 use App\Models\ProductOptionGroup;
 use App\Models\User;
 use App\Services\DriverManager;
+use App\Support\AdminWorkspaceNavigation;
 use DomainException;
 use Illuminate\Database\UniqueConstraintViolationException;
 use Illuminate\Http\Request;
@@ -107,13 +108,21 @@ class ClassicOperationsController extends Controller
     public function control(Request $request, Instance $instance)
     {
         $actor = $this->actor($request, 'upstream.lifecycle');
-        $data = $request->validate(['action' => ['required', Rule::in(['suspend', 'unsuspend', 'terminate'])], 'reason' => ['nullable', 'string', 'max:1000'], 'request_id' => ['required', 'ulid'], 'confirm' => ['accepted']]);
-        $reason = $this->reason($data, match ($data['action']) {
-            'suspend' => '管理员暂停服务', 'unsuspend' => '管理员恢复服务', default => '管理员确认终止服务',
-        });
-        $this->run(fn () => app(RequestInstanceOperationAction::class)->execute($instance, $data['action'], $reason, $data['request_id'], $actor));
+        $query = AdminWorkspaceNavigation::query($actor, 'instances', $request->query());
+        $returnUrl = isset($query['from']) ? AdminWorkspaceNavigation::url('instances', null,
+            ['instance' => $instance->id] + $query, 'instance-lifecycle') : null;
+        try {
+            $data = $request->validate(['action' => ['required', Rule::in(['suspend', 'unsuspend', 'terminate'])], 'reason' => ['nullable', 'string', 'max:1000'], 'request_id' => ['required', 'ulid'], 'confirm' => ['accepted']]);
+            $reason = $this->reason($data, match ($data['action']) {
+                'suspend' => '管理员暂停服务', 'unsuspend' => '管理员恢复服务', default => '管理员确认终止服务',
+            });
+            $this->run(fn () => app(RequestInstanceOperationAction::class)->execute($instance, $data['action'], $reason, $data['request_id'], $actor));
+        } catch (ValidationException $exception) {
+            // run() already translates domain failures without altering their messages or input handling.
+            throw $returnUrl === null ? $exception : $exception->redirectTo($returnUrl);
+        }
 
-        return redirect('/admin/upstream-instances')->with('inventory_status', '操作已入队，等待上游确认。');
+        return redirect($returnUrl ?? '/admin/upstream-instances')->with('inventory_status', '操作已入队，等待上游确认。');
     }
 
     public function bounds(Request $request, ProductOptionGroup $group)
@@ -138,10 +147,17 @@ class ClassicOperationsController extends Controller
     public function hotSwap(Request $request, Instance $instance)
     {
         $actor = $this->actor($request, 'upstream.hotswap');
-        $data = $request->validate(['account_id' => ['required', 'integer'], 'host_id' => ['required', 'integer', 'min:1'], 'pid' => ['nullable', 'integer', 'min:1'],
-            'disposition' => ['required', Rule::in(['terminate', 'keep_orphan'])], 'reason' => ['required', 'string', 'max:255'], 'confirm' => ['accepted']]);
-        $this->run(fn () => app(HotSwapInstanceDriverAction::class)->execute($instance, $data['account_id'], (string) $data['host_id'], isset($data['pid']) ? (string) $data['pid'] : null, $data['disposition'], $data['reason'], $actor, true));
+        $query = AdminWorkspaceNavigation::query($actor, 'instances', $request->query());
+        $returnUrl = isset($query['from']) ? AdminWorkspaceNavigation::url('instances', null,
+            ['instance' => $instance->id] + $query, 'instance-hot-swap') : null;
+        try {
+            $data = $request->validate(['account_id' => ['required', 'integer'], 'host_id' => ['required', 'integer', 'min:1'], 'pid' => ['nullable', 'integer', 'min:1'],
+                'disposition' => ['required', Rule::in(['terminate', 'keep_orphan'])], 'reason' => ['required', 'string', 'max:255'], 'confirm' => ['accepted']]);
+            $this->run(fn () => app(HotSwapInstanceDriverAction::class)->execute($instance, $data['account_id'], (string) $data['host_id'], isset($data['pid']) ? (string) $data['pid'] : null, $data['disposition'], $data['reason'], $actor, true));
+        } catch (ValidationException $exception) {
+            throw $returnUrl === null ? $exception : $exception->redirectTo($returnUrl);
+        }
 
-        return redirect('/admin/upstream-instances')->with('inventory_status', '绑定已切换；请核对目标配置，旧资源处置已记录。');
+        return redirect($returnUrl ?? '/admin/upstream-instances')->with('inventory_status', '绑定已切换；请核对目标配置，旧资源处置已记录。');
     }
 }

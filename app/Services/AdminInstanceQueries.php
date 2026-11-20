@@ -16,6 +16,7 @@ use App\Models\ProductOptionGroup;
 use App\Models\Ticket;
 use App\Models\UpstreamApi;
 use App\Models\User;
+use App\Support\AdminWorkspaceNavigation;
 use App\Support\CustomerLabels;
 use Illuminate\Support\Facades\Gate;
 
@@ -29,7 +30,7 @@ class AdminInstanceQueries
         $validator = validator($input, array_fill_keys(['invoices_page', 'tasks_page', 'tickets_page'],
             ['nullable', 'integer', 'min:1', 'max:2147483647']));
         abort_if($validator->fails(), 422, '实例明细分页参数无效。');
-        $pages = $validator->validated();
+        $pages = $validator->validated() + AdminWorkspaceNavigation::query($actor, 'instance', $input);
         $permissions = ['customers' => $actor->can('customers.view'), 'finance' => $actor->can('finance.view'),
             'tasks' => $actor->can('tasks.view'), 'support' => $actor->can('support.view')];
         $instance = Instance::query()->select(['id', 'user_id', 'product_id', 'driver_type', 'upstream_api_id',

@@ -20,6 +20,7 @@ use App\Models\Instance;
 use App\Models\Invoice;
 use App\Models\User;
 use App\Support\AdminMachineAccess;
+use App\Support\AdminWorkspaceNavigation;
 use App\Support\DirectVncConnection;
 use DomainException;
 use Filament\Facades\Filament;
@@ -37,7 +38,7 @@ class AdminInstanceOperationsController extends Controller
         try {
             $controls = $read->execute($actor, $instance);
         } catch (ValidationException $exception) {
-            return $this->failure($instance, $exception);
+            return $this->failure($request, $instance, $exception);
         }
 
         // Explicit controller routes do not run Filament's panel middleware.
@@ -81,9 +82,9 @@ class AdminInstanceOperationsController extends Controller
                 return redirect($link.'#'.$encoded)->header('Cache-Control', 'private, no-store')->header('Referrer-Policy', 'no-referrer');
             }
 
-            return redirect('/admin/instances/'.$instance->id)->with('instance_status', '上游已受理机器操作；请查询电源或上游任务核对实际结果，受理不代表完成。');
+            return redirect($this->workspaceUrl($request, $instance))->with('instance_status', '上游已受理机器操作；请查询电源或上游任务核对实际结果，受理不代表完成。');
         } catch (ValidationException $exception) {
-            return $this->failure($instance, $exception);
+            return $this->failure($request, $instance, $exception);
         }
     }
 
@@ -93,7 +94,7 @@ class AdminInstanceOperationsController extends Controller
         try {
             $status = $read->execute($actor, $instance);
         } catch (ValidationException $exception) {
-            return $this->failure($instance, $exception);
+            return $this->failure($request, $instance, $exception);
         }
         if ($request->expectsJson()) {
             return response()->json($status + ['checked_at' => now()->toIso8601String()], $status['available'] ? 200 : 502)
@@ -101,7 +102,7 @@ class AdminInstanceOperationsController extends Controller
         }
         $label = ['on' => '开机', 'off' => '关机', 'unknown' => '未知', 'unavailable' => '暂不可用'][$status['state']] ?? '暂不可用';
 
-        return redirect('/admin/instances/'.$instance->id)->with('instance_status', '本次查询电源状态：'.$label.'。电源状态与服务计费状态分别记录。');
+        return redirect($this->workspaceUrl($request, $instance))->with('instance_status', '本次查询电源状态：'.$label.'。电源状态与服务计费状态分别记录。');
     }
 
     public function sync(Request $request, Instance $instance, SyncAdminInstanceAction $sync)
@@ -119,7 +120,7 @@ class AdminInstanceOperationsController extends Controller
             ]), 'instance-sync');
         }
 
-        return redirect('/admin/instances/'.$instance->id)->with('instance_status', '已同步上游服务事实；请核对最新状态与到期日，原未决机器操作仍按原流程处理。');
+        return redirect($this->workspaceUrl($request, $instance))->with('instance_status', '已同步上游服务事实；请核对最新状态与到期日，原未决机器操作仍按原流程处理。');
     }
 
     public function retry(Request $request, Instance $instance, FulfillmentTask $task, RetryFulfillmentTaskAction $retry)
@@ -146,7 +147,7 @@ class AdminInstanceOperationsController extends Controller
             return $this->formFailure($request, $instance, ValidationException::withMessages(['operation' => $exception->getMessage()]), 'instance-task-retry', $task->id);
         }
 
-        return redirect('/admin/instances/'.$instance->id)->with('instance_status', '原失败任务已重新入队；请在履约任务中核对结果。');
+        return redirect($this->workspaceUrl($request, $instance))->with('instance_status', '原失败任务已重新入队；请在履约任务中核对结果。');
     }
 
     public function vnc(Request $request, Instance $instance)
@@ -182,10 +183,18 @@ class AdminInstanceOperationsController extends Controller
         return $actor;
     }
 
-    private function failure(Instance $instance, ValidationException $exception)
+    private function workspaceUrl(Request $request, Instance $instance): string
+    {
+        $actor = $request->user();
+
+        return AdminWorkspaceNavigation::url('instance', $instance->id, $actor instanceof User
+            ? AdminWorkspaceNavigation::query($actor, 'instance', $request->query()) : []);
+    }
+
+    private function failure(Request $request, Instance $instance, ValidationException $exception)
     {
         // Rescue passwords, console connections and submitted machine inputs never enter old-input.
-        return redirect('/admin/instances/'.$instance->id)->withErrors($exception->errors());
+        return redirect($this->workspaceUrl($request, $instance))->withErrors($exception->errors());
     }
 
     private function formFailure(Request $request, Instance $instance, ValidationException $exception, string $form, ?int $taskId = null)
@@ -198,6 +207,6 @@ class AdminInstanceOperationsController extends Controller
             $input['reason'] = mb_substr($request->input('reason'), 0, 255);
         }
 
-        return $this->failure($instance, $exception)->withInput($input);
+        return $this->failure($request, $instance, $exception)->withInput($input);
     }
 }

@@ -1,13 +1,18 @@
 <x-filament-panels::page>
 @include('filament.admin-ui-styles')
 <link rel="stylesheet" href="/css/admin-instance.css?v=20261120-c4">
-@php($labels = ['on' => '开机', 'off' => '关机', 'reboot' => '重启', 'hard_off' => '硬关机', 'hard_reboot' => '硬重启', 'reinstall' => '重装系统', 'rescueSystem' => '救援系统', 'vnc' => '打开 VNC 控制台'])
+@php
+    $labels = ['on' => '开机', 'off' => '关机', 'reboot' => '重启', 'hard_off' => '硬关机', 'hard_reboot' => '硬重启', 'reinstall' => '重装系统', 'rescueSystem' => '救援系统', 'vnc' => '打开 VNC 控制台'];
+    $workspaceQuery = \App\Support\AdminWorkspaceNavigation::query(auth()->user(), 'instance', request()->query());
+    $workspaceAction = fn (string $path): string => $path.($workspaceQuery === [] ? '' : '?'.http_build_query($workspaceQuery));
+    $workspaceStatus = match($instance->status) { \App\Enums\InstanceStatus::PENDING => '待开通', \App\Enums\InstanceStatus::ACTIVE => '运行中', \App\Enums\InstanceStatus::SUSPENDED => '已暂停', \App\Enums\InstanceStatus::CANCELLED => '已取消', \App\Enums\InstanceStatus::FRAUD => '异常', \App\Enums\InstanceStatus::DELETED => '已删除', \App\Enums\InstanceStatus::PROVISION_FAILED => '开通失败' };
+@endphp
 <div class="admin-ui admin-instance-workbench" x-data>
-    <header class="admin-ui-heading"><div><h2>{{ $instance->display_name }}</h2><p>实例 #{{ $instance->id }} · 以当前管理员身份操作客户 #{{ $instance->user_id }} 的服务。</p></div><a class="admin-ui-button" href="/admin/instances/{{ $instance->id }}">返回实例工作台</a></header>
+    <x-admin.workspace-header :name="$instance->display_name" :identity="'实例 #'.$instance->id.' · 机器管理'" :status="$workspaceStatus" :tone="$instance->status === \App\Enums\InstanceStatus::ACTIVE ? 'success' : 'warning'" :description="'以当前管理员身份操作客户 #'.$instance->user_id.' 的服务；受理后仍需核对实际结果。'" :return-url="\App\Support\AdminWorkspaceNavigation::url('instance', $instance->id, $workspaceQuery)" return-label="返回实例工作台" />
     <x-admin.card title="机器管理" description="仅显示上游本次提供的能力。操作受理后仍需核对结果，超时或结果未知时请核对原请求。">
         <div class="admin-ui-card-body">
             <div class="admin-instance-actions">
-                <form method="post" action="/admin/upstream-instances/{{ $instance->id }}/power-status">@csrf<button class="admin-ui-button">查询电源状态</button></form>
+                <form method="post" action="{{ $workspaceAction('/admin/upstream-instances/'.$instance->id.'/power-status') }}">@csrf<button class="admin-ui-button">查询电源状态</button></form>
                 <a class="admin-ui-link" href="/admin/machine-operation-review?instance_id={{ $instance->id }}">机器命令核对与历史</a>
             </div>
             <div class="admin-machine-grid">
@@ -16,7 +21,7 @@
                 <section class="admin-machine-command"><h3>{{ $labels[$command] }}</h3>
                 @if(in_array($command, ['on', 'vnc'], true))
                     <p class="admin-ui-meta">{{ $command === 'vnc' ? '临时控制台链接仅供当前管理员使用，五分钟内有效。' : '提交开机请求后可查询电源状态。' }}</p>
-                    <form method="post" action="/admin/upstream-instances/{{ $instance->id }}/machine/command" @if($command === 'vnc') target="_blank" rel="noopener noreferrer" @endif>@csrf
+                    <form method="post" action="{{ $workspaceAction('/admin/upstream-instances/'.$instance->id.'/machine/command') }}" @if($command === 'vnc') target="_blank" rel="noopener noreferrer" @endif>@csrf
                         <input type="hidden" name="command" value="{{ $command }}"><input type="hidden" name="request_id" value="{{ (string) \Illuminate\Support\Str::ulid() }}">
                         <button type="submit" class="admin-ui-button admin-ui-button-primary">{{ $labels[$command] }}</button>
                     </form>
@@ -33,7 +38,7 @@
     @foreach($controls['commands'] as $command)
     @if(isset($labels[$command]) && !in_array($command, ['on', 'vnc'], true))
         <x-admin.dialog :id="'machine-'.$command" :title="$labels[$command]" description="请求以当前管理员身份提交；受理不代表操作完成。">
-            <form method="post" action="/admin/upstream-instances/{{ $instance->id }}/machine/command" class="admin-instance-form">@csrf
+            <form method="post" action="{{ $workspaceAction('/admin/upstream-instances/'.$instance->id.'/machine/command') }}" class="admin-instance-form">@csrf
                 <input type="hidden" name="command" value="{{ $command }}"><input type="hidden" name="request_id" value="{{ (string) \Illuminate\Support\Str::ulid() }}">
                 @if($command === 'reinstall')
                     <p class="admin-instance-notice">重装会覆盖系统盘，请确认已完成备份。</p>

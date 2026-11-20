@@ -1,6 +1,7 @@
 <x-filament-panels::page>
 @include('filament.admin-ui-styles')
 <link rel="stylesheet" href="/css/admin-customers.css?v=20261120-c2">
+@php($workspaceOrigin = \App\Support\AdminWorkspaceNavigation::origin(auth()->user(), 'customers', null, request()->query()))
 <div class="admin-ui admin-customers-page">
     <header class="admin-ui-heading"><div><p>查询客户基本资料及已授权的业务摘要。有效服务按本地运行中、已暂停记录统计。</p></div></header>
     <x-admin.card title="客户列表">
@@ -14,11 +15,11 @@
         <x-admin.table label="客户列表"><x-slot:head><tr><th scope="col">客户 ID</th><th scope="col">姓名 / 邮箱</th>@if($permissions['finance'])<th scope="col" class="admin-ui-number">可用余额 / 账单冻结 / 结清冻结</th>@endif @if($permissions['services'])<th scope="col" class="admin-ui-number">本地有效服务</th>@endif<th scope="col">实名 / 账户</th><th scope="col">注册时间</th><th scope="col" class="admin-ui-row-actions">操作</th></tr></x-slot:head>
             @forelse($customers as $customer)
                 <tr data-customer-id="{{ $customer->id }}">
-                    <td>#{{ $customer->id }}</td><td class="admin-customers-name"><a class="admin-ui-link" href="/admin/customers/{{ $customer->id }}">{{ $customer->name }}</a><span class="admin-ui-meta">{{ $customer->email }}</span></td>
+                    <td>#{{ $customer->id }}</td><td class="admin-customers-name"><a class="admin-ui-link" href="{{ \App\Support\AdminWorkspaceNavigation::url('customer', $customer->id, $workspaceOrigin) }}">{{ $customer->name }}</a><span class="admin-ui-meta">{{ $customer->email }}</span></td>
                     @if($permissions['finance'])<td class="admin-ui-number admin-customers-wallet" data-customer-wallet="{{ $customer->id }}">{{ $customer->credit }} / {{ $customer->frozen_credit }} / {{ $customer->wallet_clearance_frozen }}<span class="admin-ui-meta">CNY · 三列分别展示</span></td>@endif
                     @if($permissions['services'])<td class="admin-ui-number" data-customer-services="{{ $customer->id }}">{{ $customer->active_services_count }}</td>@endif
                     <td><x-admin.badge :tone="$customer->kyc_verified_at ? 'success' : 'neutral'">{{ $customer->kyc_verified_at ? '已认证' : '未认证' }}</x-admin.badge><span class="admin-ui-meta"><x-admin.badge :tone="$customer->trashed() || $customer->anonymized_at !== null ? 'neutral' : ($customer->disabled_at !== null ? 'warning' : 'success')">{{ $customer->trashed() || $customer->anonymized_at !== null ? '已注销' : ($customer->disabled_at !== null ? '已停用' : '正常') }}</x-admin.badge></span></td>
-                    <td class="admin-ui-nowrap">{{ $customer->created_at?->format('Y-m-d H:i') }}</td><td class="admin-ui-row-actions"><a class="admin-ui-link" href="/admin/customers/{{ $customer->id }}">查看详情</a></td>
+                    <td class="admin-ui-nowrap">{{ $customer->created_at?->format('Y-m-d H:i') }}</td><td class="admin-ui-row-actions"><a class="admin-ui-link" href="{{ \App\Support\AdminWorkspaceNavigation::url('customer', $customer->id, $workspaceOrigin) }}">查看详情</a></td>
                 </tr>
             @empty<tr><td colspan="{{ 5 + (int) $permissions['finance'] + (int) $permissions['services'] }}" class="admin-ui-empty"><strong>没有匹配的客户</strong>调整筛选条件后重试。</td></tr>@endforelse
         </x-admin.table><x-admin.pagination :paginator="$customers" />

@@ -1,5 +1,6 @@
 <x-filament-panels::page>
 @include('filament.admin-ui-styles')
+@php($workspaceOrigin = \App\Support\AdminWorkspaceNavigation::origin(auth()->user(), 'invoices', null, request()->query()))
 <div class="admin-ui">
     @include('filament.inventory-feedback')
     <header class="admin-ui-heading">
@@ -16,7 +17,7 @@
         <x-admin.table label="财务账单列表">
             <x-slot:head><tr><th scope="col">账单 / 客户</th><th scope="col">类型 / 状态</th><th scope="col" class="admin-ui-number">总额</th><th scope="col" class="admin-ui-number">钱包 / 网关</th><th scope="col">创建时间</th><th scope="col" class="admin-ui-row-actions">核查</th></tr></x-slot:head>
             @forelse($invoices as $invoice)
-                @php($detailQuery = [...array_filter($filters, fn (string $value): bool => $value !== ''), 'invoice_id' => $invoice->id])
+                @php($detailQuery = [...array_filter($filters, fn (string $value): bool => $value !== ''), 'invoice_id' => $invoice->id] + $workspaceOrigin)
                 @if($invoices->currentPage() > 1)@php($detailQuery['page'] = $invoices->currentPage())@endif
                 @php($detailUrl = '/admin/finance/invoice?'.http_build_query($detailQuery))
                 <tr>

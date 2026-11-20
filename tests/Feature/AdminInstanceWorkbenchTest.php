@@ -301,11 +301,12 @@ it('adds workbench links while retaining classic detail customer service and tas
     $task = FulfillmentTask::factory()->create(['instance_id' => $instance->id]);
     $this->actingAs(workbenchActor('upstream.view', 'customers.view', 'tasks.view'));
     $this->get('/admin/upstream-instances?instance='.$instance->id)->assertOk()
-        ->assertSee('href="/admin/instances/'.$instance->id.'"', false)->assertSee('机器命令核对与历史');
+        ->assertSee('href="/admin/instances/'.$instance->id.'?from%5Bkind%5D=instances"', false)->assertSee('机器命令核对与历史');
     $response = $this->get('/admin/customers/'.$instance->user_id)->assertOk();
     $xpath = workbenchXpath($response->getContent());
+    $source = http_build_query(['from' => ['kind' => 'customer', 'id' => $instance->user_id, 'section' => 'customer-services']]);
     foreach ([$instance, $local] as $service) {
-        expect($xpath->query('//main//a[@href="/admin/instances/'.$service->id.'"]'))->toHaveCount(1);
+        expect($xpath->query('//main//a[@href="/admin/instances/'.$service->id.'?'.$source.'"]'))->toHaveCount(1);
     }
     expect($xpath->query('//main//a[@href="/admin/upstream-instances?instance='.$instance->id.'"]'))->toHaveCount(1)
         ->and($xpath->query('//main//a[@href="/admin/upstream-instances?instance='.$local->id.'"]'))->toHaveCount(0);

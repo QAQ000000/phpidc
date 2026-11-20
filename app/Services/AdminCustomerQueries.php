@@ -14,6 +14,7 @@ use App\Models\User;
 use App\Support\AdminAuditProjection;
 use App\Support\AdminCustomerAccess;
 use App\Support\AdminFinancialAccess;
+use App\Support\AdminWorkspaceNavigation;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Gate;
@@ -73,7 +74,7 @@ class AdminCustomerQueries
         Gate::forUser($actor)->authorize('customers.view');
         $validator = validator($input, array_fill_keys(self::DETAIL_PAGES, ['nullable', 'integer', 'min:1', 'max:2147483647']));
         abort_if($validator->fails(), 422, '客户明细分页参数无效。');
-        $pages = $validator->validated();
+        $pages = $validator->validated() + AdminWorkspaceNavigation::query($actor, 'customer', $input);
         $permissions = $this->permissions($actor);
         $customer = $this->customers($permissions['finance'], $permissions['services'])->findOrFail($customerId);
         $management = ['profile' => $actor->can('customers.manage'), 'password_reset' => $actor->can('customers.password-reset'), 'access' => $actor->can('customers.status.manage')];

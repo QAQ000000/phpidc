@@ -12,6 +12,7 @@ use App\Models\FulfillmentTask;
 use App\Models\Invoice;
 use App\Models\User;
 use App\Support\AdminRoles;
+use App\Support\AdminWorkspaceNavigation;
 use DomainException;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -57,23 +58,27 @@ class AdminOperationsController extends Controller
     {
         $actor = $this->actor($request, 'finance.view', 'finance.refund');
         Gate::forUser($actor)->authorize('refund-invoice', $invoice);
-        $data = $request->validate(['mode' => ['required', Rule::in(['refund_wallet', 'external_record'])],
-            'reason' => ['required_if:keep_service,1', 'nullable', 'string', 'max:255'], 'confirm' => ['required', 'accepted'],
-            'keep_service' => ['sometimes', 'accepted'], 'external_confirm' => ['accepted_if:mode,external_record']]);
-        if ($request->boolean('keep_service') && trim($data['reason'] ?? '') === '') {
-            throw ValidationException::withMessages(['reason' => '保留服务的退款豁免必须填写实际原因。']);
-        }
-        $reason = trim($data['reason'] ?? '');
-        if ($reason === '') {
-            $reason = $data['mode'] === 'refund_wallet' ? '按账单全额退款至客户钱包' : '登记已完成的外部全额退款';
-        }
+        $returnUrl = AdminWorkspaceNavigation::url('invoice', $invoice->id,
+            AdminWorkspaceNavigation::query($actor, 'invoice', $request->query()));
         try {
+            $data = $request->validate(['mode' => ['required', Rule::in(['refund_wallet', 'external_record'])],
+                'reason' => ['required_if:keep_service,1', 'nullable', 'string', 'max:255'], 'confirm' => ['required', 'accepted'],
+                'keep_service' => ['sometimes', 'accepted'], 'external_confirm' => ['accepted_if:mode,external_record']]);
+            if ($request->boolean('keep_service') && trim($data['reason'] ?? '') === '') {
+                throw ValidationException::withMessages(['reason' => '保留服务的退款豁免必须填写实际原因。']);
+            }
+            $reason = trim($data['reason'] ?? '');
+            if ($reason === '') {
+                $reason = $data['mode'] === 'refund_wallet' ? '按账单全额退款至客户钱包' : '登记已完成的外部全额退款';
+            }
             $refund->execute($invoice, $data['mode'], $request->boolean('keep_service'), $reason, $actor);
         } catch (DomainException $e) {
-            throw ValidationException::withMessages(['operation' => $e->getMessage()]);
+            throw ValidationException::withMessages(['operation' => $e->getMessage()])->redirectTo($returnUrl);
+        } catch (ValidationException $exception) {
+            throw $exception->redirectTo($returnUrl);
         }
 
-        return redirect('/admin/finance/invoice?invoice_id='.$invoice->id)->with('inventory_status', '全额退款已入账；重复提交不会重复退款。外部登记不会发起打款。');
+        return redirect($returnUrl)->with('inventory_status', '全额退款已入账；重复提交不会重复退款。外部登记不会发起打款。');
     }
 
     public function retry(Request $request, FulfillmentTask $task, RetryFulfillmentTaskAction $retry): RedirectResponse

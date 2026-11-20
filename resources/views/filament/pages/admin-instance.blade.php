@@ -2,6 +2,10 @@
 @include('filament.admin-ui-styles')
 <link rel="stylesheet" href="/css/admin-instance.css?v=20261120-c4">
 @php
+    $workspaceQuery = \App\Support\AdminWorkspaceNavigation::query(auth()->user(), 'instance', request()->query());
+    $workspaceOrigin = fn (?string $section = null): array => \App\Support\AdminWorkspaceNavigation::origin(auth()->user(), 'instance', $instance->id, $workspaceQuery, $section);
+    $workspaceAction = fn (string $path): string => $path.($workspaceQuery === [] ? '' : '?'.http_build_query($workspaceQuery));
+    $workspaceReturn = \App\Support\AdminWorkspaceNavigation::returnLink(auth()->user(), $workspaceQuery, '/admin/upstream-instances', '返回经典服务列表');
     $restoreInstanceForm = $errors->any() && is_scalar(old('instance_id')) && (string) old('instance_id') === (string) $instance->id;
     $restoreSync = $restoreInstanceForm && old('_admin_form') === 'instance-sync' && $canSync;
     $serviceTone = match($instance->status) {
@@ -15,10 +19,10 @@
     @if(session('instance_status'))<p role="status" class="inventory-alert">{{ session('instance_status') }}</p>@endif
     @if(session('inventory_status'))<p role="status" class="inventory-alert">{{ session('inventory_status') }}</p>@endif
     @if($errors->any())<div role="alert" class="inventory-alert">@foreach($errors->all() as $error)<p>{{ $error }}</p>@endforeach</div>@endif
-    <header class="admin-ui-heading">
-        <div><h2>{{ $instance->display_name }}</h2><p>实例 #{{ $instance->id }} · {{ $driverLabel }} · 信息以最近保存记录为准。</p></div>
-        <div class="admin-ui-actions"><a class="admin-ui-button" href="/admin/upstream-instances">返回经典服务列表</a>@if($classic)<a class="admin-ui-button" href="/admin/upstream-instances?instance={{ $instance->id }}">经典简要详情</a>@endif @if($permissions['customers'])<a class="admin-ui-button" href="/admin/customers/{{ $instance->user_id }}#customer-services">客户服务记录</a>@endif</div>
-    </header>
+    <x-admin.workspace-header :name="$instance->display_name" :identity="'实例 #'.$instance->id.' · '.$driverLabel" :status="$instanceLabels[$instance->status->value]" :tone="$serviceTone" description="信息以最近保存记录为准；远端动作由当前管理员明确提交。" :return-url="$workspaceReturn['url']" :return-label="$workspaceReturn['label']">
+        @if($classic)<a class="admin-ui-button" href="{{ \App\Support\AdminWorkspaceNavigation::url('instances', null, ['instance' => $instance->id] + $workspaceOrigin()) }}">经典简要详情</a>@endif
+        @if($permissions['customers'])<a class="admin-ui-button" href="{{ \App\Support\AdminWorkspaceNavigation::url('customer', $instance->user_id, $workspaceOrigin('instance-ownership'), 'customer-services') }}">客户服务记录</a>@endif
+    </x-admin.workspace-header>
     <x-admin.card id="instance-summary" title="服务概况">
         <div class="admin-ui-card-body"><dl class="admin-ui-facts">
             <div><dt>服务状态</dt><dd><x-admin.badge :tone="$serviceTone" :title="$instance->status->value">{{ $instanceLabels[$instance->status->value] }}</x-admin.badge><span class="admin-ui-meta">{{ $instance->status->value }}</span></dd></div>
@@ -33,7 +37,7 @@
     </x-admin.card>
     <x-admin.card id="instance-ownership" title="归属与商品">
         <div class="admin-ui-card-body"><dl class="admin-ui-facts">
-            <div><dt>原客户</dt><dd>@if($permissions['customers'])<a class="admin-ui-link" href="/admin/customers/{{ $instance->user_id }}">客户 #{{ $instance->user_id }}{{ $owner ? ' · '.$owner->name : '' }}</a>@else 客户 #{{ $instance->user_id }}@endif</dd></div>
+            <div><dt>原客户</dt><dd>@if($permissions['customers'])<a class="admin-ui-link" href="{{ \App\Support\AdminWorkspaceNavigation::url('customer', $instance->user_id, $workspaceOrigin('instance-ownership')) }}">客户 #{{ $instance->user_id }}{{ $owner ? ' · '.$owner->name : '' }}</a>@else 客户 #{{ $instance->user_id }}@endif</dd></div>
             @if($owner)<div><dt>客户账户</dt><dd>{{ $owner->deleted_at !== null || $owner->anonymized_at !== null ? '已注销' : ($owner->disabled_at !== null ? '已停用' : '正常') }}</dd></div>@endif
             <div><dt>商品</dt><dd>{{ $product?->name ?? '历史商品' }}<span class="admin-ui-meta">商品 #{{ $instance->product_id }}</span></dd></div>
             <div><dt>连接</dt><dd>{{ $connection?->name ?? ($instance->upstream_api_id === null ? '本地资源' : '连接已不可用') }}@if($connection)<span class="admin-ui-meta">#{{ $connection->id }} · {{ $connection->is_active ? '启用' : '停用' }}</span>@endif</dd></div>
@@ -54,10 +58,10 @@
         <div class="admin-ui-card-body">
             @if($classic)
                 <div class="admin-instance-actions">
-                    @if($canMachine)<form method="post" action="/admin/upstream-instances/{{ $instance->id }}/machine">@csrf<input type="hidden" name="_admin_form" value="instance-machine-read"><input type="hidden" name="instance_id" value="{{ $instance->id }}"><button class="admin-ui-button admin-ui-button-primary">读取机器管理菜单</button></form>@endif
+                    @if($canMachine)<form method="post" action="{{ $workspaceAction('/admin/upstream-instances/'.$instance->id.'/machine') }}">@csrf<input type="hidden" name="_admin_form" value="instance-machine-read"><input type="hidden" name="instance_id" value="{{ $instance->id }}"><button class="admin-ui-button admin-ui-button-primary">读取机器管理菜单</button></form>@endif
                     @if($canSync)<button type="button" class="admin-ui-button" aria-haspopup="dialog" aria-controls="instance-sync" x-on:click="document.getElementById('instance-sync').showModal()">同步上游事实</button>@endif
-                    @if($canLifecycle)<a class="admin-ui-button" href="/admin/upstream-instances?instance={{ $instance->id }}#instance-lifecycle">暂停、恢复或终止</a>@endif
-                    @if($canHotSwap)<a class="admin-ui-button" href="/admin/upstream-instances?instance={{ $instance->id }}#instance-hot-swap">显式换绑</a>@endif
+                    @if($canLifecycle)<a class="admin-ui-button" href="{{ \App\Support\AdminWorkspaceNavigation::url('instances', null, ['instance' => $instance->id] + $workspaceOrigin('instance-operations'), 'instance-lifecycle') }}">暂停、恢复或终止</a>@endif
+                    @if($canHotSwap)<a class="admin-ui-button" href="{{ \App\Support\AdminWorkspaceNavigation::url('instances', null, ['instance' => $instance->id] + $workspaceOrigin('instance-operations'), 'instance-hot-swap') }}">显式换绑</a>@endif
                     @if($canMapping)<a class="admin-ui-button" href="/admin/upstream-instances/{{ $instance->id }}/mapping-review">配置映射核准</a>@endif
                     <a class="admin-ui-button" href="/admin/machine-operation-review?instance_id={{ $instance->id }}">机器命令核对与历史</a>
                 </div>
@@ -73,7 +77,7 @@
     @if($invoices !== null)
         <x-admin.card id="instance-invoices" title="关联账单" description="当前实例及原客户的账单，按最新记录显示。">
             <x-admin.table label="实例关联账单"><x-slot:head><tr><th scope="col">账单</th><th scope="col">类型 / 状态</th><th scope="col" class="admin-ui-number">金额</th><th scope="col">付款 / 创建时间</th><th scope="col" class="admin-ui-row-actions">操作</th></tr></x-slot:head>
-                @forelse($invoices as $invoice)<tr data-instance-invoice="{{ $invoice->id }}"><td>{{ $invoice->invoice_no }}<span class="admin-ui-meta">#{{ $invoice->id }}</span></td><td>{{ $invoiceTypes[$invoice->type->value] }}<span class="admin-ui-meta"><x-admin.badge :tone="$invoice->status === \App\Enums\InvoiceStatus::PAID ? 'success' : ($invoice->status === \App\Enums\InvoiceStatus::UNPAID ? 'warning' : 'neutral')">{{ $invoiceLabels[$invoice->status->value] }}</x-admin.badge></span></td><td class="admin-ui-number admin-ui-nowrap">{{ $invoice->total_amount }} {{ $invoice->currency }}</td><td class="admin-ui-nowrap">{{ $invoice->paid_at?->format('Y-m-d H:i') ?? '尚未付款' }}<span class="admin-ui-meta">创建 {{ $invoice->created_at?->format('Y-m-d H:i') }}</span></td><td class="admin-ui-row-actions"><a class="admin-ui-link" href="/admin/finance/invoice?invoice_id={{ $invoice->id }}">账单工作台</a></td></tr>
+                @forelse($invoices as $invoice)<tr data-instance-invoice="{{ $invoice->id }}"><td>{{ $invoice->invoice_no }}<span class="admin-ui-meta">#{{ $invoice->id }}</span></td><td>{{ $invoiceTypes[$invoice->type->value] }}<span class="admin-ui-meta"><x-admin.badge :tone="$invoice->status === \App\Enums\InvoiceStatus::PAID ? 'success' : ($invoice->status === \App\Enums\InvoiceStatus::UNPAID ? 'warning' : 'neutral')">{{ $invoiceLabels[$invoice->status->value] }}</x-admin.badge></span></td><td class="admin-ui-number admin-ui-nowrap">{{ $invoice->total_amount }} {{ $invoice->currency }}</td><td class="admin-ui-nowrap">{{ $invoice->paid_at?->format('Y-m-d H:i') ?? '尚未付款' }}<span class="admin-ui-meta">创建 {{ $invoice->created_at?->format('Y-m-d H:i') }}</span></td><td class="admin-ui-row-actions"><a class="admin-ui-link" href="{{ \App\Support\AdminWorkspaceNavigation::url('invoice', $invoice->id, $workspaceOrigin('instance-invoices')) }}">账单工作台</a></td></tr>
                 @empty<tr><td colspan="5" class="admin-ui-empty">此实例暂无关联账单。</td></tr>@endforelse
             </x-admin.table><x-admin.pagination :paginator="$invoices" />
         </x-admin.card>
@@ -96,7 +100,7 @@
     @endif
     @if($canSync)
         <x-admin.dialog id="instance-sync" title="同步上游事实" description="主动读取当前绑定的上游服务。状态、到期时间及交付信息可能按已核验的上游事实更新，原未决命令继续保留。" :show-errors="$restoreSync" x-init="{{ $restoreSync ? '$nextTick(() => $el.showModal())' : '' }}">
-            <form method="post" action="/admin/upstream-instances/{{ $instance->id }}/sync" class="admin-instance-form">@csrf
+            <form method="post" action="{{ $workspaceAction('/admin/upstream-instances/'.$instance->id.'/sync') }}" class="admin-instance-form">@csrf
                 <input type="hidden" name="_admin_form" value="instance-sync"><input type="hidden" name="instance_id" value="{{ $instance->id }}">
                 <label>备注（可选）<input name="reason" maxlength="255" value="{{ $restoreSync && is_string(old('reason')) ? old('reason') : '' }}"></label>
                 <div class="admin-instance-form-actions"><button class="admin-ui-button admin-ui-button-primary">确认同步</button><button type="button" class="admin-ui-button" x-on:click="$el.closest('dialog').close()">取消</button></div>
@@ -106,7 +110,7 @@
     @if($tasks !== null)@foreach($tasks as $task)@if(in_array($task->id, $retryTasks, true))
         @php($restoreRetry = $restoreInstanceForm && old('_admin_form') === 'instance-task-retry' && is_scalar(old('record_id')) && (string) old('record_id') === (string) $task->id)
         <x-admin.dialog :id="'instance-task-retry-'.$task->id" :title="'重试原任务 #'.$task->id" description="仅重新调度已付款账单的当前失败任务，不创建新订单或重复扣款；未知远端意图仍须核对。" :show-errors="$restoreRetry" x-init="{{ $restoreRetry ? '$nextTick(() => $el.showModal())' : '' }}">
-            <form method="post" action="/admin/instances/{{ $instance->id }}/tasks/{{ $task->id }}/retry" class="admin-instance-form">@csrf
+            <form method="post" action="{{ $workspaceAction('/admin/instances/'.$instance->id.'/tasks/'.$task->id.'/retry') }}" class="admin-instance-form">@csrf
                 <input type="hidden" name="_admin_form" value="instance-task-retry"><input type="hidden" name="instance_id" value="{{ $instance->id }}"><input type="hidden" name="record_id" value="{{ $task->id }}">
                 <label>备注（可选）<input name="reason" maxlength="255" value="{{ $restoreRetry && is_string(old('reason')) ? old('reason') : '' }}"></label>
                 <label><span><input type="checkbox" name="confirm" value="1" required> 已核查付款、当前绑定与原上游意图，确认重试原任务。</span></label>

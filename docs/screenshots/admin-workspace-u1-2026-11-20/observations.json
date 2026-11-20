@@ -1,0 +1,386 @@
+{
+  "synthetic_fixture": true,
+  "layout": {
+    "mockedAssets": [
+      "ui-avatars.com"
+    ],
+    "layoutChecks": 20,
+    "checks": [
+      {
+        "name": "customer",
+        "width": 1440,
+        "theme": "light",
+        "status": 200,
+        "actions": "flex",
+        "overflow": false,
+        "dark": false,
+        "private": false,
+        "sidebars": 1,
+        "headers": 1,
+        "returnLabel": "返回客户列表"
+      },
+      {
+        "name": "instance",
+        "width": 1440,
+        "theme": "light",
+        "status": 200,
+        "actions": "flex",
+        "overflow": false,
+        "dark": false,
+        "private": false,
+        "sidebars": 1,
+        "headers": 1,
+        "returnLabel": "返回客户 #8"
+      },
+      {
+        "name": "invoice",
+        "width": 1440,
+        "theme": "light",
+        "status": 200,
+        "actions": "flex",
+        "overflow": false,
+        "dark": false,
+        "private": false,
+        "sidebars": 1,
+        "headers": 1,
+        "returnLabel": "返回实例 #1"
+      },
+      {
+        "name": "terminal",
+        "width": 1440,
+        "theme": "light",
+        "status": 200,
+        "actions": "flex",
+        "overflow": false,
+        "dark": false,
+        "private": false,
+        "sidebars": 1,
+        "headers": 1,
+        "returnLabel": "返回经典服务列表"
+      },
+      {
+        "name": "closed",
+        "width": 1440,
+        "theme": "light",
+        "status": 200,
+        "actions": "flex",
+        "overflow": false,
+        "dark": false,
+        "private": false,
+        "sidebars": 1,
+        "headers": 1,
+        "returnLabel": "返回经典服务列表"
+      },
+      {
+        "name": "customer",
+        "width": 1440,
+        "theme": "dark",
+        "status": 200,
+        "actions": "flex",
+        "overflow": false,
+        "dark": true,
+        "private": false,
+        "sidebars": 1,
+        "headers": 1,
+        "returnLabel": "返回客户列表"
+      },
+      {
+        "name": "instance",
+        "width": 1440,
+        "theme": "dark",
+        "status": 200,
+        "actions": "flex",
+        "overflow": false,
+        "dark": true,
+        "private": false,
+        "sidebars": 1,
+        "headers": 1,
+        "returnLabel": "返回客户 #8"
+      },
+      {
+        "name": "invoice",
+        "width": 1440,
+        "theme": "dark",
+        "status": 200,
+        "actions": "flex",
+        "overflow": false,
+        "dark": true,
+        "private": false,
+        "sidebars": 1,
+        "headers": 1,
+        "returnLabel": "返回实例 #1"
+      },
+      {
+        "name": "terminal",
+        "width": 1440,
+        "theme": "dark",
+        "status": 200,
+        "actions": "flex",
+        "overflow": false,
+        "dark": true,
+        "private": false,
+        "sidebars": 1,
+        "headers": 1,
+        "returnLabel": "返回经典服务列表"
+      },
+      {
+        "name": "closed",
+        "width": 1440,
+        "theme": "dark",
+        "status": 200,
+        "actions": "flex",
+        "overflow": false,
+        "dark": true,
+        "private": false,
+        "sidebars": 1,
+        "headers": 1,
+        "returnLabel": "返回经典服务列表"
+      },
+      {
+        "name": "customer",
+        "width": 390,
+        "theme": "light",
+        "status": 200,
+        "actions": "grid",
+        "overflow": false,
+        "dark": false,
+        "private": false,
+        "sidebars": 1,
+        "headers": 1,
+        "returnLabel": "返回客户列表"
+      },
+      {
+        "name": "instance",
+        "width": 390,
+        "theme": "light",
+        "status": 200,
+        "actions": "grid",
+        "overflow": false,
+        "dark": false,
+        "private": false,
+        "sidebars": 1,
+        "headers": 1,
+        "returnLabel": "返回客户 #8"
+      },
+      {
+        "name": "invoice",
+        "width": 390,
+        "theme": "light",
+        "status": 200,
+        "actions": "grid",
+        "overflow": false,
+        "dark": false,
+        "private": false,
+        "sidebars": 1,
+        "headers": 1,
+        "returnLabel": "返回实例 #1"
+      },
+      {
+        "name": "terminal",
+        "width": 390,
+        "theme": "light",
+        "status": 200,
+        "actions": "grid",
+        "overflow": false,
+        "dark": false,
+        "private": false,
+        "sidebars": 1,
+        "headers": 1,
+        "returnLabel": "返回经典服务列表"
+      },
+      {
+        "name": "closed",
+        "width": 390,
+        "theme": "light",
+        "status": 200,
+        "actions": "grid",
+        "overflow": false,
+        "dark": false,
+        "private": false,
+        "sidebars": 1,
+        "headers": 1,
+        "returnLabel": "返回经典服务列表"
+      },
+      {
+        "name": "customer",
+        "width": 390,
+        "theme": "dark",
+        "status": 200,
+        "actions": "grid",
+        "overflow": false,
+        "dark": true,
+        "private": false,
+        "sidebars": 1,
+        "headers": 1,
+        "returnLabel": "返回客户列表"
+      },
+      {
+        "name": "instance",
+        "width": 390,
+        "theme": "dark",
+        "status": 200,
+        "actions": "grid",
+        "overflow": false,
+        "dark": true,
+        "private": false,
+        "sidebars": 1,
+        "headers": 1,
+        "returnLabel": "返回客户 #8"
+      },
+      {
+        "name": "invoice",
+        "width": 390,
+        "theme": "dark",
+        "status": 200,
+        "actions": "grid",
+        "overflow": false,
+        "dark": true,
+        "private": false,
+        "sidebars": 1,
+        "headers": 1,
+        "returnLabel": "返回实例 #1"
+      },
+      {
+        "name": "terminal",
+        "width": 390,
+        "theme": "dark",
+        "status": 200,
+        "actions": "grid",
+        "overflow": false,
+        "dark": true,
+        "private": false,
+        "sidebars": 1,
+        "headers": 1,
+        "returnLabel": "返回经典服务列表"
+      },
+      {
+        "name": "closed",
+        "width": 390,
+        "theme": "dark",
+        "status": 200,
+        "actions": "grid",
+        "overflow": false,
+        "dark": true,
+        "private": false,
+        "sidebars": 1,
+        "headers": 1,
+        "returnLabel": "返回经典服务列表"
+      }
+    ],
+    "pageErrors": [],
+    "externalOrigins": []
+  },
+  "workflows": {
+    "workflowChecks": 14,
+    "checks": [
+      {
+        "name": "customer list source restored",
+        "ok": true
+      },
+      {
+        "name": "customer actual return click",
+        "ok": true
+      },
+      {
+        "name": "customer to instance return",
+        "ok": true
+      },
+      {
+        "name": "instance pagination retains source",
+        "ok": true
+      },
+      {
+        "name": "invoice returns immediate instance and page",
+        "ok": true
+      },
+      {
+        "name": "invoice actual return click",
+        "ok": true
+      },
+      {
+        "name": "profile CSRF validation returns and reopens dialog",
+        "ok": true
+      },
+      {
+        "name": "machine menu keeps original source",
+        "ok": true
+      },
+      {
+        "name": "machine forms retain source",
+        "ok": true
+      },
+      {
+        "name": "legacy operation form retains source",
+        "ok": true
+      },
+      {
+        "name": "legacy invalid CSRF post retains selected object",
+        "ok": true
+      },
+      {
+        "name": "viewer drops customer source",
+        "ok": true
+      },
+      {
+        "name": "viewer drops invoice source",
+        "ok": true
+      },
+      {
+        "name": "no browser errors",
+        "ok": true
+      }
+    ],
+    "pageErrors": []
+  },
+  "runtime": {
+    "counts": {
+      "jobs": 0,
+      "failed_jobs": 0,
+      "financial_transactions": 0,
+      "offline_invoice_receipts": 0,
+      "notification_events": 0,
+      "notification_logs": 0
+    },
+    "audit_actions": [
+      [
+        "identity.configure",
+        1
+      ],
+      [
+        "instance.machine.controls_read",
+        2
+      ]
+    ],
+    "supplier_requests": [
+      {
+        "method": "POST",
+        "path": "/zjmf_api_login",
+        "host_id": "4253",
+        "func": null
+      },
+      {
+        "method": "GET",
+        "path": "/host/header",
+        "host_id": "4253",
+        "func": null
+      },
+      {
+        "method": "GET",
+        "path": "/host/header",
+        "host_id": "4253",
+        "func": null
+      }
+    ]
+  },
+  "cleanup": {
+    "root_removed": true,
+    "ports_closed": true,
+    "metadata_removed": true
+  },
+  "gates": {
+    "pest_passed": 3191,
+    "assertions": 27934,
+    "phpstan_errors": 0,
+    "pint": "PASS"
+  }
+}

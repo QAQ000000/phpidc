@@ -2,6 +2,12 @@
 @include('filament.admin-ui-styles')
 <link rel="stylesheet" href="/css/admin-finance-invoice.css?v=20261120-c3">
 @php
+    $workspaceQuery = \App\Support\AdminWorkspaceNavigation::query(auth()->user(), 'invoice', request()->query());
+    $workspaceOrigin = fn (?string $section = null): array => \App\Support\AdminWorkspaceNavigation::origin(auth()->user(), 'invoice', $invoice->id, $workspaceQuery, $section);
+    $workspaceAction = fn (string $path): string => $path.($workspaceQuery === [] ? '' : '?'.http_build_query($workspaceQuery));
+    $workspaceReturn = \App\Support\AdminWorkspaceNavigation::returnLink(auth()->user(), $workspaceQuery, $returnUrl, '返回账单');
+    $workspaceStatus = $invoice->type === \App\Enums\InvoiceType::WALLET_TOPUP && $invoice->status === \App\Enums\InvoiceStatus::PAID ? '已到账' : $statusLabels[$invoice->status->value];
+    $workspaceTone = match($invoice->status) { \App\Enums\InvoiceStatus::PAID => 'success', \App\Enums\InvoiceStatus::UNPAID => 'warning', \App\Enums\InvoiceStatus::REFUNDED => 'danger', default => 'neutral' };
     $restoreOffline = $offlineAllowed && $errors->any() && old('_admin_form') === 'offline-receipt'
         && is_scalar(old('invoice_id')) && (string) old('invoice_id') === (string) $invoice->id;
     $offlineValue = function ($key, $default = '') use ($restoreOffline) {
@@ -15,17 +21,16 @@
 <div class="admin-ui admin-finance-invoice" x-data>
     @include('filament.inventory-feedback')
     @if(session('status'))<p role="status" class="inventory-alert">{{ session('status') }}</p>@endif
-    <header class="admin-ui-heading">
-        <div><h2>{{ $invoice->invoice_no }}</h2><p>账单工作台 · 核对原支付计划、实际收款与履约记录。</p></div>
-        <div class="admin-ui-actions"><a class="admin-ui-button" href="{{ $returnUrl }}">返回账单</a><a class="admin-ui-button" href="/admin/finance/ledger?invoice_id={{ $invoice->id }}">查看关联流水和回调</a>@if($invoice->type !== \App\Enums\InvoiceType::WALLET_TOPUP)@can('tasks.view')<a class="admin-ui-button" href="/admin/tasks?invoice_id={{ $invoice->id }}">关联任务</a>@endcan @endif</div>
-    </header>
-    <x-admin.card title="账单信息">
+    <x-admin.workspace-header :name="$invoice->invoice_no" :identity="'账单 #'.$invoice->id.' · '.$typeLabels[$invoice->type->value]" :status="$workspaceStatus" :tone="$workspaceTone" description="核对原支付计划、实际收款与履约记录，金额以原账单为准。" :return-url="$workspaceReturn['url']" :return-label="$workspaceReturn['label']">
+        <a class="admin-ui-button" href="/admin/finance/ledger?invoice_id={{ $invoice->id }}">查看关联流水和回调</a>@if($invoice->type !== \App\Enums\InvoiceType::WALLET_TOPUP)@can('tasks.view')<a class="admin-ui-button" href="/admin/tasks?invoice_id={{ $invoice->id }}">关联任务</a>@endcan @endif
+    </x-admin.workspace-header>
+    <x-admin.card id="invoice-summary" title="账单信息">
         <div class="admin-ui-card-body">
             <dl class="admin-ui-facts">
-                <div><dt>账单 / 客户</dt><dd>#{{ $invoice->id }} · @can('customers.view')<a class="admin-ui-link" href="/admin/customers/{{ $invoice->user_id }}">客户 #{{ $invoice->user_id }}</a>@else 客户 #{{ $invoice->user_id }}@endcan</dd></div>
+                <div><dt>账单 / 客户</dt><dd>#{{ $invoice->id }} · @can('customers.view')<a class="admin-ui-link" href="{{ \App\Support\AdminWorkspaceNavigation::url('customer', $invoice->user_id, $workspaceOrigin('invoice-summary')) }}">客户 #{{ $invoice->user_id }}</a>@else 客户 #{{ $invoice->user_id }}@endcan</dd></div>
                 <div><dt>类型 / 状态</dt><dd>{{ $typeLabels[$invoice->type->value] }} <x-admin.badge :tone="match($invoice->status) { \App\Enums\InvoiceStatus::PAID => 'success', \App\Enums\InvoiceStatus::UNPAID => 'warning', \App\Enums\InvoiceStatus::REFUNDED => 'danger', default => 'neutral' }">{{ $invoice->type === \App\Enums\InvoiceType::WALLET_TOPUP && $invoice->status === \App\Enums\InvoiceStatus::PAID ? '已到账' : $statusLabels[$invoice->status->value] }}</x-admin.badge><span class="admin-ui-meta">{{ $invoice->type->value }} · {{ $invoice->status->value }}</span></dd></div>
                 <div><dt>商品 / 币种</dt><dd>{{ $invoice->type === \App\Enums\InvoiceType::WALLET_TOPUP ? '钱包充值' : '商品 #'.($invoice->product_id ?? '—') }} · {{ $invoice->currency }}</dd></div>
-                <div><dt>关联服务</dt><dd>@if($instance)#{{ $instance->id }} {{ $instance->display_name }} · {{ $instance->status->value }}@else 无关联服务@endif</dd></div>
+                <div><dt>关联服务</dt><dd>@if($instance)@can('upstream.view')<a class="admin-ui-link" href="{{ \App\Support\AdminWorkspaceNavigation::url('instance', $instance->id, $workspaceOrigin('invoice-summary')) }}">#{{ $instance->id }} {{ $instance->display_name }}</a>@else #{{ $instance->id }} {{ $instance->display_name }}@endcan · {{ $instance->status->value }}@else 无关联服务@endif</dd></div>
                 <div><dt>支付时间</dt><dd>{{ $invoice->paid_at ?? '—' }}</dd></div>
                 <div><dt>账单到期</dt><dd>{{ $invoice->expires_at ?? '—' }}</dd></div>
                 <div><dt>创建时间</dt><dd>{{ $invoice->created_at ?? '—' }}</dd></div>
@@ -73,7 +78,7 @@
                 <div class="admin-ui-card-body">
                     <p class="inventory-note">先确认服务已终止。若明确豁免，必须单独勾选保留服务；已交付卡密不会回收，退款会记录损失。佣金不足扣回的差额登记应收，仍需人工处理。</p>
                     <details @if($refundInput && $errors->any()) open @endif><summary>核对并填写全额退款</summary>
-                        <form method="post" action="/admin/finance/invoices/{{ $invoice->id }}/refund" class="inventory-form" x-data="{ mode: '{{ $refundInput && old('mode') === 'external_record' ? 'external_record' : 'refund_wallet' }}', keepService: {{ ($instance === null || !$instance->status->isTerminal()) && $refundInput && old('keep_service') === '1' ? 'true' : 'false' }} }">@csrf
+                        <form method="post" action="{{ $workspaceAction('/admin/finance/invoices/'.$invoice->id.'/refund') }}" class="inventory-form" x-data="{ mode: '{{ $refundInput && old('mode') === 'external_record' ? 'external_record' : 'refund_wallet' }}', keepService: {{ ($instance === null || !$instance->status->isTerminal()) && $refundInput && old('keep_service') === '1' ? 'true' : 'false' }} }">@csrf
                             <input type="hidden" name="ui_form" value="refund-{{ $invoice->id }}">
                             <label>处理方式<select name="mode" required x-model="mode"><option value="refund_wallet" @selected(!$refundInput || old('mode') !== 'external_record')>退回客户钱包</option><option value="external_record" @selected($refundInput && old('mode') === 'external_record')>登记已完成的外部退款</option></select></label>
                             <label>{{ $instance !== null && $instance->status->isTerminal() ? '备注（选填）' : '退款说明（保留服务时必填）' }}<input name="reason" value="{{ $refundInput && is_string(old('reason')) ? old('reason') : '' }}" :required="keepService" maxlength="255" placeholder="有特殊情况时补充说明"></label>
@@ -112,24 +117,24 @@
         </x-admin.table><x-admin.pagination :paginator="$ledger" />
     </x-admin.card>
     @if($tasks !== null)
-    <x-admin.card title="关联履约任务" description="只读当前任务事实；重试仍进入原任务工作台核对。">
+    <x-admin.card id="invoice-tasks" title="关联履约任务" description="只读当前任务事实；重试仍进入原任务工作台核对。">
         <x-admin.table label="账单关联履约任务"><x-slot:head><tr><th scope="col">任务 / 服务</th><th scope="col">动作 / 状态</th><th scope="col">认领次数</th><th scope="col">执行时间</th><th scope="col" class="admin-ui-row-actions">操作</th></tr></x-slot:head>
-            @forelse($tasks as $task)<tr><td>#{{ $task->id }}<span class="admin-ui-meta">服务 #{{ $task->instance_id }}</span></td><td>{{ $task->action }} <x-admin.badge :tone="$task->status->value === 'failed' ? 'danger' : ($task->status->value === 'success' ? 'success' : 'neutral')">{{ $taskLabels[$task->status->value] }}</x-admin.badge></td><td>{{ $task->attempts }} / {{ $task->max_attempts }}</td><td>{{ $task->executed_at ?? $task->available_at ?? '—' }}</td><td class="admin-ui-row-actions"><a class="admin-ui-link" href="/admin/tasks?task_id={{ $task->id }}">任务详情</a></td></tr>
+            @forelse($tasks as $task)<tr><td>#{{ $task->id }}<span class="admin-ui-meta">@if($task->instance_id !== null && auth()->user()->can('upstream.view'))<a class="admin-ui-link" href="{{ \App\Support\AdminWorkspaceNavigation::url('instance', $task->instance_id, $workspaceOrigin('invoice-tasks')) }}">服务 #{{ $task->instance_id }}</a>@else {{ $task->instance_id === null ? '未关联服务' : '服务 #'.$task->instance_id }}@endif</span></td><td>{{ $task->action }} <x-admin.badge :tone="$task->status->value === 'failed' ? 'danger' : ($task->status->value === 'success' ? 'success' : 'neutral')">{{ $taskLabels[$task->status->value] }}</x-admin.badge></td><td>{{ $task->attempts }} / {{ $task->max_attempts }}</td><td>{{ $task->executed_at ?? $task->available_at ?? '—' }}</td><td class="admin-ui-row-actions"><a class="admin-ui-link" href="/admin/tasks?task_id={{ $task->id }}">任务详情</a></td></tr>
             @empty<tr><td colspan="5" class="admin-ui-empty">没有关联履约任务。</td></tr>@endforelse
         </x-admin.table><x-admin.pagination :paginator="$tasks" />
     </x-admin.card>
     @endif
     @if($recoveryInfo)
-        <x-admin.card title="续费恢复核对（只读）">
+        <x-admin.card id="invoice-recovery" title="续费恢复核对（只读）">
             <div class="admin-ui-card-body">
-                @foreach($recoveryInfo['invoices'] as $member)<p><a class="admin-ui-link" href="/admin/finance/invoice?invoice_id={{ $member->id }}">{{ $member->invoice_no }}</a> · {{ $member->status->value }}</p>@endforeach
+                @foreach($recoveryInfo['invoices'] as $member)<p><a class="admin-ui-link" href="{{ \App\Support\AdminWorkspaceNavigation::url('invoice', $member->id, $workspaceOrigin('invoice-recovery')) }}">{{ $member->invoice_no }}</a> · {{ $member->status->value }}</p>@endforeach
                 <p>当前单：{{ $recoveryInfo['current']->invoice_no }}。{{ $recoveryInfo['eligible'] ? '可由客户本人重新核价确认；运营不可代扣钱包。' : $recoveryInfo['reason'] }}</p>
             </div>
         </x-admin.card>
     @endif
     @if($offlineAllowed)
     <x-admin.dialog id="invoice-offline-receipt" title="登记已收到的线下款" description="仅登记已实际收到的银行转账或现金，准确结清原网关应付额；此操作不向银行或支付网关发起收款。" :show-errors="$restoreOffline" x-init="{{ $restoreOffline ? '$nextTick(() => $el.showModal())' : '' }}">
-        <form method="post" action="/admin/finance/invoices/{{ $invoice->id }}/offline-receipt" class="admin-finance-form">@csrf
+        <form method="post" action="{{ $workspaceAction('/admin/finance/invoices/'.$invoice->id.'/offline-receipt') }}" class="admin-finance-form">@csrf
             <input type="hidden" name="_admin_form" value="offline-receipt"><input type="hidden" name="invoice_id" value="{{ $invoice->id }}"><input type="hidden" name="request_id" value="{{ $offlineRequest }}"><input type="hidden" name="currency" value="CNY">
             <p class="admin-finance-wide">账单 {{ $invoice->invoice_no }} · 客户 #{{ $invoice->user_id }}</p>
             <label>本次实收金额（CNY）<input name="amount" value="{{ $invoice->gateway_amount }}" readonly aria-readonly="true"><span class="admin-ui-meta">固定为原网关应付额，提交时重新核对。</span></label>

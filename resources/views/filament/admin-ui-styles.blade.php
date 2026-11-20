@@ -7,6 +7,14 @@
 .admin-ui-heading h2,.admin-ui-card-heading h2{overflow-wrap:anywhere}
 .admin-ui-heading h2{font-size:18px;font-weight:600}
 .admin-ui-heading p,.admin-ui-card-heading p,.admin-ui-dialog-heading p{font-size:12px;color:var(--admin-muted);margin-top:5px;max-width:760px}
+.admin-workspace-header{padding:var(--admin-ui-card-padding);border:1px solid var(--admin-border);border-radius:var(--admin-ui-radius);background:var(--admin-bg)}
+.admin-workspace-identity{flex:1;min-width:0}
+.admin-workspace-meta{display:flex;align-items:center;gap:10px;flex-wrap:wrap;font-size:12px;color:var(--admin-muted)}
+.admin-workspace-header h2{margin-top:7px;font-size:21px;line-height:1.45;overflow-wrap:anywhere}
+.admin-workspace-actions{justify-content:flex-end;max-width:55%;flex-shrink:0}
+.admin-workspace-actions .admin-ui-button{white-space:normal;text-align:center}
+@media(max-width:1000px){.admin-workspace-header{flex-direction:column;align-items:stretch;gap:14px}.admin-workspace-actions{justify-content:flex-start;max-width:100%}}
+@media(max-width:640px){.admin-workspace-header{padding:18px}.admin-workspace-header h2{font-size:19px}.admin-ui-actions.admin-workspace-actions{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}.admin-workspace-actions>.admin-ui-button{min-width:0}}
 .admin-ui-actions{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
 .admin-ui-button,.admin-ui .inventory-button{display:inline-flex;align-items:center;justify-content:center;gap:6px;min-height:36px;padding:7px 15px;border:1px solid var(--admin-border);border-radius:5px;background:var(--admin-bg);color:var(--admin-text)!important;text-decoration:none;font:inherit;font-weight:500;line-height:1.5;cursor:pointer;white-space:nowrap}
 .admin-ui-button:hover,.admin-ui .inventory-button:hover{background:var(--admin-soft);border-color:var(--admin-muted)}

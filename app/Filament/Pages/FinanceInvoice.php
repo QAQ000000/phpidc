@@ -11,6 +11,7 @@ use App\Models\Invoice;
 use App\Models\OfflineInvoiceReceipt;
 use App\Models\User;
 use App\Support\AdminFinancialAccess;
+use App\Support\AdminWorkspaceNavigation;
 use App\Support\OfflineInvoiceReceiptRules;
 use Illuminate\Support\Facades\Auth;
 use Livewire\Attributes\Locked;
@@ -60,6 +61,9 @@ class FinanceInvoice extends FinanceInvoices
             'total_amount', 'discount_amount', 'credit_applied', 'gateway_amount', 'upstream_expected_cost', 'gateway', 'paid_at', 'expires_at', 'created_at'])
             ->findOrFail($this->invoiceId);
         $actor = Auth::user();
+        if ($actor instanceof User) {
+            $query += AdminWorkspaceNavigation::query($actor, 'invoice', request()->query());
+        }
         $source = Invoice::findOrFail($invoice->id);
         $snapshot = $source->line_items ?? [];
         $items = [];
