@@ -149,14 +149,15 @@ it('independently paginates safe payment records while retaining the invoice and
             'gateway_trade_no' => 'UI-EXACT-CALLBACK-'.$i, 'raw_payload' => ['sign' => 'PRIVATE-FINANCE-CALLBACK'],
             'outcome' => PaymentCallbackOutcome::PROCESSED_PAID]);
     }
-    $query = 'invoice_id='.$invoice->id.'&invoice_no=0&status=Paid&page=2&attempts_page=2&callbacks_page=2&injected=untrusted';
+    $query = 'invoice_id='.$invoice->id.'&invoice_no=0&status=Paid&page=2&tab=payments&attempts_page=2&callbacks_page=2&injected=untrusted';
+    $this->actingAs(financeUiActor());
     $data = financeUiData($query, $invoice);
     expect($data['attempts']->pluck('id')->all())->toBe($attempts->slice(3, 10)->reverse()->pluck('id')->all())
         ->and($data['returnUrl'])->toBe('/admin/finance?invoice_no=0&status=Paid&page=2');
     parse_str(parse_url($data['attempts']->url(3), PHP_URL_QUERY), $attemptQuery);
     parse_str(parse_url($data['callbacks']->url(1), PHP_URL_QUERY), $callbackQuery);
-    expect($attemptQuery)->toBe(['invoice_no' => '0', 'status' => 'Paid', 'page' => '2', 'invoice_id' => (string) $invoice->id, 'callbacks_page' => '2', 'attempts_page' => '3'])
-        ->and($callbackQuery)->toBe(['invoice_no' => '0', 'status' => 'Paid', 'page' => '2', 'invoice_id' => (string) $invoice->id, 'attempts_page' => '2', 'callbacks_page' => '1']);
+    expect($attemptQuery)->toBe(['invoice_id' => (string) $invoice->id, 'invoice_no' => '0', 'status' => 'Paid', 'page' => '2', 'callbacks_page' => '2', 'tab' => 'payments', 'attempts_page' => '3'])
+        ->and($callbackQuery)->toBe(['invoice_id' => (string) $invoice->id, 'invoice_no' => '0', 'status' => 'Paid', 'page' => '2', 'attempts_page' => '2', 'tab' => 'payments', 'callbacks_page' => '1']);
     foreach ($data['attempts'] as $attempt) {
         expect(array_key_exists('request_payload', $attempt->getAttributes()))->toBeFalse();
     }
@@ -174,14 +175,14 @@ it('independently paginates safe payment records while retaining the invoice and
 it('keeps refund evidence fields and opens only the matching failed refund with nonsecret input restored', function (): void {
     $instance = Instance::factory()->create(['status' => InstanceStatus::ACTIVE]);
     $invoice = Invoice::factory()->paid()->create(['instance_id' => $instance->id, 'user_id' => $instance->user_id, 'product_id' => $instance->product_id]);
-    $path = '/admin/finance/invoice?invoice_id='.$invoice->id;
-    $this->actingAs(financeUiActor('finance-operator'))->from($path)->post('/admin/finance/invoices/'.$invoice->id.'/refund', [
+    $path = '/admin/finance/invoice?invoice_id='.$invoice->id.'&tab=overview';
+    $this->actingAs(financeUiActor('finance-operator'))->from($path)->post('/admin/finance/invoices/'.$invoice->id.'/refund?tab=overview', [
         'ui_form' => 'refund-'.$invoice->id, 'mode' => 'external_record', 'reason' => 'Existing external evidence', 'keep_service' => '1',
     ])->assertRedirect($path)->assertSessionHasErrors(['confirm', 'external_confirm']);
     $response = $this->get($path)->assertOk()->assertSee('退款说明（保留服务时必填）')
         ->assertSee('x-show="mode === \'external_record\'"', false)->assertSee(':disabled="mode !== \'external_record\'"', false);
     $xpath = financeUiXpath($response->getContent());
-    $form = '//details[@open]/form[@action="/admin/finance/invoices/'.$invoice->id.'/refund"]';
+    $form = '//dialog[@id="invoice-refund"][@x-init="$nextTick(() => $el.showModal())"]//form[@action="/admin/finance/invoices/'.$invoice->id.'/refund?tab=overview"]';
     expect($xpath->query($form.'//input[@name="_token"]'))->toHaveCount(1)
         ->and($xpath->query($form.'//input[@name="reason"][@value="Existing external evidence"][@maxlength="255"]'))->toHaveCount(1)
         ->and($xpath->query($form.'//select[@name="mode"]/option[@value="external_record"][@selected]'))->toHaveCount(1)
@@ -217,8 +218,8 @@ it('renders failed financial forms safely after a rejected array reason without 
     if ($kind === 'refund') {
         $invoice = Invoice::factory()->paid()->create();
         $actor = financeUiActor('finance-operator');
-        $path = '/admin/finance/invoice?invoice_id='.$invoice->id;
-        $postPath = '/admin/finance/invoices/'.$invoice->id.'/refund';
+        $path = '/admin/finance/invoice?invoice_id='.$invoice->id.'&tab=overview';
+        $postPath = '/admin/finance/invoices/'.$invoice->id.'/refund?tab=overview';
         $input = ['ui_form' => 'refund-'.$invoice->id, 'mode' => 'refund_wallet', 'confirm' => '1'];
     } else {
         $actor = financeUiActor('finance-wallet-settings');
@@ -230,7 +231,8 @@ it('renders failed financial forms safely after a rejected array reason without 
         ->assertRedirect($path)->assertSessionHasErrors('reason');
     $response = $this->get($path)->assertOk()->assertDontSee('INVALID-ARRAY-REASON');
     $xpath = financeUiXpath($response->getContent());
-    expect($xpath->query('//details[@open]/form[@action="'.$postPath.'"]//input[@name="reason"][@value=""]'))->toHaveCount(1);
+    $form = $kind === 'refund' ? '//dialog[@id="invoice-refund"][@x-init="$nextTick(() => $el.showModal())"]//form' : '//details[@open]/form';
+    expect($xpath->query($form.'[@action="'.$postPath.'"]//input[@name="reason"][@value=""]'))->toHaveCount(1);
     $this->assertDatabaseCount('financial_transactions', 0);
     expect(DB::table('audit_logs')->whereIn('action', ['invoice.refund', 'wallet.topup.configure'])->count())->toBe(0);
 })->with(['refund', 'wallet settings']);

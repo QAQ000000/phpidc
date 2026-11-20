@@ -6,3 +6,14 @@
 .admin-finance-invoice .admin-finance-evidence{white-space:pre-wrap;overflow-wrap:anywhere}
 .admin-finance-invoice .admin-ui-dialog .inventory-alert{margin-bottom:16px}
 @media(max-width:640px){.admin-finance-invoice .admin-finance-form{grid-template-columns:minmax(0,1fr)}.admin-finance-invoice .admin-finance-form-actions>*{flex:1}}
+.admin-finance-invoice .admin-invoice-plan{font-size:16px;font-weight:650;line-height:1.65;margin:0;overflow-wrap:anywhere}
+.admin-finance-invoice .admin-invoice-receipt{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:6px 10px;margin-bottom:14px}
+.admin-finance-invoice .admin-invoice-receipt strong{font-variant-numeric:tabular-nums}
+.admin-finance-invoice .admin-invoice-receipt .admin-ui-meta{grid-column:1/-1}
+.admin-finance-invoice .admin-invoice-actions{display:grid;gap:12px}
+.admin-finance-invoice .admin-invoice-actions .admin-ui-button{justify-content:center;white-space:normal}
+.admin-finance-invoice .admin-invoice-help{margin-top:16px;font-size:12px;color:var(--admin-muted)}
+.admin-finance-invoice .admin-invoice-help summary{cursor:pointer}
+.admin-finance-invoice .admin-invoice-help p{margin:8px 0 0;line-height:1.6}
+.admin-finance-invoice .admin-invoice-unrecorded{color:var(--admin-muted);margin:0 0 12px}
+@media(max-width:640px){.admin-finance-invoice .admin-invoice-plan{font-size:14px}.admin-finance-invoice .admin-invoice-receipt{grid-template-columns:minmax(0,1fr)}.admin-finance-invoice .admin-invoice-receipt .admin-ui-meta{grid-column:auto}}

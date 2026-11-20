@@ -1,0 +1,306 @@
+{
+  "layout": {
+    "matrix": [
+      {
+        "name": "customer",
+        "width": 1440,
+        "theme": "light",
+        "status": 200,
+        "overflow": false
+      },
+      {
+        "name": "services",
+        "width": 1440,
+        "theme": "light",
+        "status": 200,
+        "overflow": false
+      },
+      {
+        "name": "instance",
+        "width": 1440,
+        "theme": "light",
+        "status": 200,
+        "overflow": false
+      },
+      {
+        "name": "configuration",
+        "width": 1440,
+        "theme": "light",
+        "status": 200,
+        "overflow": false
+      },
+      {
+        "name": "invoice-unpaid",
+        "width": 1440,
+        "theme": "light",
+        "status": 200,
+        "overflow": false
+      },
+      {
+        "name": "invoice-paid",
+        "width": 1440,
+        "theme": "light",
+        "status": 200,
+        "overflow": false
+      },
+      {
+        "name": "invoice-offline",
+        "width": 1440,
+        "theme": "light",
+        "status": 200,
+        "overflow": false
+      },
+      {
+        "name": "closed",
+        "width": 1440,
+        "theme": "light",
+        "status": 200,
+        "overflow": false
+      },
+      {
+        "name": "disabled",
+        "width": 1440,
+        "theme": "light",
+        "status": 200,
+        "overflow": false
+      },
+      {
+        "name": "customer",
+        "width": 1440,
+        "theme": "dark",
+        "status": 200,
+        "overflow": false
+      },
+      {
+        "name": "services",
+        "width": 1440,
+        "theme": "dark",
+        "status": 200,
+        "overflow": false
+      },
+      {
+        "name": "instance",
+        "width": 1440,
+        "theme": "dark",
+        "status": 200,
+        "overflow": false
+      },
+      {
+        "name": "configuration",
+        "width": 1440,
+        "theme": "dark",
+        "status": 200,
+        "overflow": false
+      },
+      {
+        "name": "invoice-unpaid",
+        "width": 1440,
+        "theme": "dark",
+        "status": 200,
+        "overflow": false
+      },
+      {
+        "name": "invoice-paid",
+        "width": 1440,
+        "theme": "dark",
+        "status": 200,
+        "overflow": false
+      },
+      {
+        "name": "invoice-offline",
+        "width": 1440,
+        "theme": "dark",
+        "status": 200,
+        "overflow": false
+      },
+      {
+        "name": "closed",
+        "width": 1440,
+        "theme": "dark",
+        "status": 200,
+        "overflow": false
+      },
+      {
+        "name": "disabled",
+        "width": 1440,
+        "theme": "dark",
+        "status": 200,
+        "overflow": false
+      },
+      {
+        "name": "customer",
+        "width": 390,
+        "theme": "light",
+        "status": 200,
+        "overflow": false
+      },
+      {
+        "name": "services",
+        "width": 390,
+        "theme": "light",
+        "status": 200,
+        "overflow": false
+      },
+      {
+        "name": "instance",
+        "width": 390,
+        "theme": "light",
+        "status": 200,
+        "overflow": false
+      },
+      {
+        "name": "configuration",
+        "width": 390,
+        "theme": "light",
+        "status": 200,
+        "overflow": false
+      },
+      {
+        "name": "invoice-unpaid",
+        "width": 390,
+        "theme": "light",
+        "status": 200,
+        "overflow": false
+      },
+      {
+        "name": "invoice-paid",
+        "width": 390,
+        "theme": "light",
+        "status": 200,
+        "overflow": false
+      },
+      {
+        "name": "invoice-offline",
+        "width": 390,
+        "theme": "light",
+        "status": 200,
+        "overflow": false
+      },
+      {
+        "name": "closed",
+        "width": 390,
+        "theme": "light",
+        "status": 200,
+        "overflow": false
+      },
+      {
+        "name": "disabled",
+        "width": 390,
+        "theme": "light",
+        "status": 200,
+        "overflow": false
+      },
+      {
+        "name": "customer",
+        "width": 390,
+        "theme": "dark",
+        "status": 200,
+        "overflow": false
+      },
+      {
+        "name": "services",
+        "width": 390,
+        "theme": "dark",
+        "status": 200,
+        "overflow": false
+      },
+      {
+        "name": "instance",
+        "width": 390,
+        "theme": "dark",
+        "status": 200,
+        "overflow": false
+      },
+      {
+        "name": "configuration",
+        "width": 390,
+        "theme": "dark",
+        "status": 200,
+        "overflow": false
+      },
+      {
+        "name": "invoice-unpaid",
+        "width": 390,
+        "theme": "dark",
+        "status": 200,
+        "overflow": false
+      },
+      {
+        "name": "invoice-paid",
+        "width": 390,
+        "theme": "dark",
+        "status": 200,
+        "overflow": false
+      },
+      {
+        "name": "invoice-offline",
+        "width": 390,
+        "theme": "dark",
+        "status": 200,
+        "overflow": false
+      },
+      {
+        "name": "closed",
+        "width": 390,
+        "theme": "dark",
+        "status": 200,
+        "overflow": false
+      },
+      {
+        "name": "disabled",
+        "width": 390,
+        "theme": "dark",
+        "status": 200,
+        "overflow": false
+      }
+    ],
+    "scriptErrors": []
+  },
+  "interactions": {
+    "checks": [
+      "customer service opens canonical instance",
+      "instance preserves customer tab and pagination",
+      "return restores services page 2",
+      "instance opens invoice workbench",
+      "invoice return restores instance invoice tab",
+      "invoice returns instance selected tab",
+      "open instance-lifecycle",
+      "escape instance-lifecycle",
+      "open instance-hot-swap",
+      "escape instance-hot-swap",
+      "open instance-sync",
+      "escape instance-sync",
+      "open offline receipt",
+      "open full refund",
+      "audited POST loads synthetic private receipt",
+      "closing receipt clears full evidence",
+      "keyboard opens SSR object tab",
+      "GET does not load machine controls",
+      "explicit POST loads mocked machine capabilities",
+      "machine capability response hides supplier token",
+      "320px long identity has no page overflow"
+    ],
+    "count": 21
+  },
+  "http": {
+    "passed_assertions": 209,
+    "unique_checks": 203,
+    "failed_assertions": 0,
+    "http_requests": 178,
+    "status_counts": {
+      "302": 16,
+      "200": 50,
+      "403": 99,
+      "422": 9,
+      "404": 1,
+      "419": 3
+    },
+    "supplier_get": {
+      "checks": 183,
+      "supplier_before": 0,
+      "supplier_after": 0
+    },
+    "financial_state_unchanged": true,
+    "invalid_profile_unchanged": true
+  }
+}

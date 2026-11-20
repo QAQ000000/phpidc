@@ -356,20 +356,22 @@ it('independently paginates local ledger and tasks and preserves safe context wi
             'idempotency_key' => 'c3-ui-task:'.$index, 'payload' => ['private' => 'PRIVATE-C3-TASK']]);
     }
     $this->actingAs($actor);
-    $data = financialFallbackUiData($invoice, 'ledger_page=2&tasks_page=3&attempts_page=2&user_id='.$invoice->user_id.'&untrusted=x');
+    $data = financialFallbackUiData($invoice, 'tab=ledger&ledger_page=2&tasks_page=3&attempts_page=2&user_id='.$invoice->user_id.'&untrusted=x');
+    $taskData = financialFallbackUiData($invoice, 'tab=tasks&ledger_page=2&tasks_page=3&attempts_page=2&user_id='.$invoice->user_id.'&untrusted=x');
     expect($data['ledger']->currentPage())->toBe(2)->and($data['ledger']->count())->toBe(10)
-        ->and($data['tasks']->currentPage())->toBe(3)->and($data['tasks']->count())->toBe(3)
+        ->and($taskData['tasks']->currentPage())->toBe(3)->and($taskData['tasks']->count())->toBe(3)
         ->and($data['returnUrl'])->toBe('/admin/finance?user_id='.$invoice->user_id);
     parse_str(parse_url($data['ledger']->url(3), PHP_URL_QUERY), $query);
-    expect($query)->toBe(['user_id' => (string) $invoice->user_id, 'invoice_id' => (string) $invoice->id,
-        'attempts_page' => '2', 'tasks_page' => '3', 'tab' => 'payments', 'ledger_page' => '3']);
+    expect($query)->toBe(['invoice_id' => (string) $invoice->id, 'user_id' => (string) $invoice->user_id,
+        'tab' => 'ledger', 'ledger_page' => '3']);
     foreach ($data['ledger'] as $entry) {
         expect(array_key_exists('meta', $entry->getAttributes()))->toBeFalse();
     }
-    foreach ($data['tasks'] as $task) {
+    foreach ($taskData['tasks'] as $task) {
         expect(array_key_exists('payload', $task->getAttributes()))->toBeFalse();
     }
-    $this->get('/admin/finance/invoice?invoice_id='.$invoice->id.'&ledger_page=2&tasks_page=3')->assertOk()->assertDontSee('PRIVATE-C3');
+    $this->get('/admin/finance/invoice?invoice_id='.$invoice->id.'&tab=ledger&ledger_page=2&tasks_page=3')->assertOk()->assertDontSee('PRIVATE-C3');
+    $this->get('/admin/finance/invoice?invoice_id='.$invoice->id.'&tab=tasks&tasks_page=3')->assertOk()->assertDontSee('PRIVATE-C3');
 });
 
 it('does not query task data without task permission and preserves the old paid refund path', function (): void {
@@ -382,7 +384,7 @@ it('does not query task data without task permission and preserves the old paid 
     $response = $this->actingAs($actor)->get('/admin/finance/invoice?invoice_id='.$invoice->id)->assertOk()->assertSee('确认全额退款');
     expect(collect($queries)->contains(fn (string $query): bool => str_contains($query, '"fulfillment_tasks"')))->toBeFalse();
     $xpath = financialFallbackUiXpath($response->getContent());
-    expect($xpath->query('//form[@action="/admin/finance/invoices/'.$invoice->id.'/refund"]//input[@name="ui_form"][@value="refund-'.$invoice->id.'"]'))->toHaveCount(1)
+    expect($xpath->query('//form[@action="/admin/finance/invoices/'.$invoice->id.'/refund?tab=overview"]//input[@name="ui_form"][@value="refund-'.$invoice->id.'"]'))->toHaveCount(1)
         ->and($xpath->query('//form[contains(@action,"/offline-receipt")]'))->toHaveCount(0);
 });
 

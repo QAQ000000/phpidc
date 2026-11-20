@@ -244,7 +244,7 @@ it('provides owner-only recovery forms and a separate confirmation without expos
     expect(FinanceInvoice::canAccess())->toBeFalse();
     $operator = User::factory()->create();
     app(AssignAdminRoleAction::class)->execute($operator, 'finance-viewer', 'Isolated recovery verification');
-    $this->actingAs($operator)->get('/admin/finance/invoice?invoice_id='.$root->id)->assertOk()->assertSee('续费恢复核对')->assertSee($invoice->invoice_no);
+    $this->actingAs($operator)->get('/admin/finance/invoice?invoice_id='.$root->id.'&tab=recovery')->assertOk()->assertSee('续费恢复核对')->assertSee($invoice->invoice_no);
 });
 
 it('keeps committed recovery replay available after key rotation and quote expiry', function (): void {
