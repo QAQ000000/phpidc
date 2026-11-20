@@ -7,7 +7,7 @@
     </x-admin.table><x-admin.pagination :paginator="$records" />
 </x-admin.card>
 @if($ticket)
-    <x-admin.card :title="'#'.$ticket->id.' '.$ticket->subject" :description="'客户 #'.$ticket->user_id.' · 服务 #'.($ticket->instance_id ?? '—').' · '.$ticket->status">
+    <x-admin.card :title="'#'.$ticket->id.' '.$ticket->subject" :description="'客户 #'.$ticket->user_id.' · '.($ticket->instance_id === null ? '未关联服务' : '服务 #'.$ticket->instance_id).' · '.match($ticket->status) { 'open' => '待回复', 'answered' => '已回复', 'closed' => '已关闭', default => $ticket->status }">
         <x-slot:actions>@can('support.reply')<button type="button" class="admin-ui-button admin-ui-button-primary" x-on:click="document.getElementById('ticket-action').showModal()">{{ $ticket->status === 'closed' ? '重开工单' : '处理工单' }}</button>@endcan<a class="admin-ui-button" href="/admin/support">返回工单列表</a></x-slot:actions>
         <div class="admin-ui-card-body admin-operations-thread">
             @forelse($replies as $reply)<article class="admin-operations-message"><p class="admin-operations-note">{{ $reply->is_admin ? '客服' : '客户' }} #{{ $reply->user_id }} · {{ $reply->created_at }}</p><div class="admin-operations-body" style="white-space:pre-wrap;overflow-wrap:anywhere">{{ $reply->body }}</div></article>@empty<p class="admin-operations-note">暂无回复。</p>@endforelse

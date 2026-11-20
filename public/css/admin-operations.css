@@ -17,4 +17,5 @@
 .admin-operations-message p{overflow-wrap:anywhere}
 .admin-operations-page .admin-ui-card-body{min-width:0;overflow-wrap:anywhere}
 .admin-operations-page .admin-ui-table td{overflow-wrap:anywhere}
+.admin-operations-roles{min-width:220px;max-width:360px}
 @media(max-width:640px){.admin-operations-form{grid-template-columns:minmax(0,1fr)}.admin-operations-form-actions>*{flex:1}.admin-operations-fieldset{padding:12px}.admin-operations-message{padding:14px}}

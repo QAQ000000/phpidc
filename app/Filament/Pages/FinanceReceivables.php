@@ -27,8 +27,19 @@ class FinanceReceivables extends FinanceInvoices
         $roots = FinancialTransaction::where('type', TransactionType::AFFILIATE_CLAWBACK)
             ->when(request()->integer('user_id'), fn ($query, $id) => $query->where('user_id', $id))
             ->latest('id')->paginate(20)->withQueryString();
-        $selected = request()->integer('clawback') ? FinancialTransaction::where('type', TransactionType::AFFILIATE_CLAWBACK)->findOrFail(request()->integer('clawback')) : null;
-        $correctionId = request()->integer('corrects_settlement') ?: (int) old('corrects_settlement_id');
+        $formError = session('errors')?->any() && in_array(old('_admin_form'), ['receivable-settlement', 'receivable-reversal', 'receivable-review'], true)
+            ? old('_admin_form') : null;
+        $submittedRoot = filter_var(old('clawback_id'), FILTER_VALIDATE_INT, ['options' => ['min_range' => 1]]) ?: null;
+        if (request('clawback') !== null && request()->integer('clawback') !== $submittedRoot) {
+            $formError = null;
+        }
+        if (request('corrects_settlement') !== null && ($formError !== 'receivable-settlement'
+            || request()->integer('corrects_settlement') !== (int) old('corrects_settlement_id'))) {
+            $formError = null;
+        }
+        $selectedId = request()->integer('clawback') ?: ($formError !== null ? $submittedRoot : null);
+        $selected = $selectedId ? FinancialTransaction::where('type', TransactionType::AFFILIATE_CLAWBACK)->findOrFail($selectedId) : null;
+        $correctionId = request()->integer('corrects_settlement') ?: ($formError === 'receivable-settlement' ? (int) old('corrects_settlement_id') : 0);
         $correction = $correctionId ? AffiliateReceivableSettlement::with('reversal')->whereHas('reversal')->findOrFail($correctionId) : null;
         $check = null;
         try {
@@ -48,9 +59,9 @@ class FinanceReceivables extends FinanceInvoices
         }
 
         return ['roots' => $roots, 'projections' => $projections, 'selected' => $selected, 'selectedUser' => $selectedUser, 'correction' => $correction,
-            'projection' => $projection, 'receivableCheck' => $check,
+            'projection' => $projection, 'receivableCheck' => $check, 'formError' => $formError,
             'settlements' => $selected === null ? null : AffiliateReceivableSettlement::with('reversal')->where('clawback_transaction_id', $selected->id)
                 ->orderBy('id')->paginate(20, ['*'], 'settlements_page')->withQueryString(),
-            'requestId' => old('request_id', (string) Str::ulid())];
+            'requestId' => (string) Str::ulid()];
     }
 }

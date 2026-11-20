@@ -56,7 +56,7 @@ class CmsOperationsController extends Controller
 
     private function reason(Request $request, string $description): string
     {
-        $data = $request->validate(['reason' => ['nullable', 'string', 'max:1000']]);
+        $data = $request->validate(['reason' => ['nullable', 'string', 'max:255']]);
 
         $note = trim($data['reason'] ?? '');
 

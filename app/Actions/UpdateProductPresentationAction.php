@@ -18,9 +18,10 @@ class UpdateProductPresentationAction
             Gate::forUser($actor)->authorize('cms.edit');
             Gate::forUser($actor)->authorize('cms.publish');
         }
-        $data = validator([...$input, 'reason' => trim($reason)], ['name' => ['sometimes', 'required', 'string', 'max:255'],
+        $reason = trim($reason);
+        $data = validator([...$input, 'reason' => $reason], ['name' => ['sometimes', 'required', 'string', 'max:255'],
             'description' => ['required', 'string', 'max:100000'], 'is_hidden' => ['sometimes', 'boolean'],
-            'reason' => ['required', 'string', 'max:1000']])->validate();
+            'reason' => ['required', 'string', 'max:255']])->validate();
         unset($data['reason']);
 
         return DB::transaction(function () use ($product, $data, $reason, $actor): Product {

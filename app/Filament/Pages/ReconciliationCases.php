@@ -33,10 +33,15 @@ class ReconciliationCases extends Page
                 $query->orWhere('kind', 'binding_orphan');
             }
         });
-        $selected = request()->integer('case') ? (clone $query)->findOrFail(request()->integer('case')) : null;
+        $selectedId = request()->integer('case');
+        if (! request()->filled('case') && session('errors')?->any()
+            && in_array(old('_admin_form'), ['reconciliation-payment', 'reconciliation-reopen', 'reconciliation-binding'], true)) {
+            $selectedId = filter_var(old('record_id'), FILTER_VALIDATE_INT, ['options' => ['min_range' => 1]]) ?: 0;
+        }
+        $selected = $selectedId ? (clone $query)->findOrFail($selectedId) : null;
 
         return ['records' => $query->latest('id')->paginate(20)->withQueryString(), 'selected' => $selected,
             'entries' => $selected === null ? null : ReconciliationEntry::where('case_id', $selected->id)->latest('sequence')
-                ->paginate(20, ['id', 'sequence', 'action', 'actor_id', 'reason', 'created_at'], 'history_page')];
+                ->paginate(20, ['id', 'sequence', 'action', 'actor_id', 'reason', 'created_at'], 'history_page')->withQueryString()];
     }
 }

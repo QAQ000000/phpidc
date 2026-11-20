@@ -24,8 +24,8 @@ class WalletClearances extends Page
 
     protected function getViewData(): array
     {
-        return ['records' => WalletClearance::latest('id')->paginate(20, ['id', 'user_id', 'amount', 'status', 'scenario', 'payout_method', 'payout_intent_key', 'created_at', 'completed_at']),
+        return ['records' => WalletClearance::latest('id')->paginate(20, ['id', 'user_id', 'amount', 'status', 'scenario', 'payout_method', 'payout_intent_key', 'created_at', 'completed_at'])->withQueryString(),
             'sources' => Auth::user()?->can('finance.wallet-clearance.reconcile')
-                ? ReconciliationCase::where('status', 'awaiting_clearance')->where('kind', 'payment_attention')->latest('id')->paginate(20, ['id', 'user_id', 'source_credit_transaction_id'], 'sources_page') : null];
+                ? ReconciliationCase::where('status', 'awaiting_clearance')->where('kind', 'payment_attention')->latest('id')->paginate(20, ['id', 'user_id', 'source_credit_transaction_id'], 'sources_page')->withQueryString() : null];
     }
 }

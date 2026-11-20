@@ -26,6 +26,10 @@ class SaveDownloadResourceAction
             'access_level' => ['required', Rule::enum(DownloadAccessLevel::class)], 'sort_order' => ['required', 'integer', 'min:0'],
             'is_active' => ['required', 'boolean'], 'file' => [$id === null && ($input['storage_type'] ?? '') === 'local' ? 'required' : 'nullable', 'file', 'max:51200'],
             'reason' => ['required', 'string', 'max:255'],
+        ], [
+            'external_url.required_if' => '使用外部链接时，请填写下载地址。',
+            'external_url.url' => '外部下载地址必须是有效的 HTTPS 链接。',
+            'external_url.max' => '外部下载地址不能超过 2000 个字符。',
         ])->validate();
         unset($data['file'], $data['reason']);
         // Immutable versions: private file I/O precedes the short metadata transaction.

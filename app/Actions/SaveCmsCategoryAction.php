@@ -23,12 +23,13 @@ class SaveCmsCategoryAction
             Gate::forUser($actor)->authorize('cms.edit');
             Gate::forUser($actor)->authorize('cms.publish');
         }
-        $data = validator([...$input, 'reason' => trim($reason)], [
+        $reason = trim($reason);
+        $data = validator([...$input, 'reason' => $reason], [
             'type' => ['required', Rule::enum(CmsArticleType::class)], 'slug' => ['required', 'max:100', 'regex:/^[a-z0-9]+(?:-[a-z0-9]+)*$/D'],
             'name' => ['required', 'string', 'max:255'], 'is_hidden' => ['sometimes', 'boolean'],
             'seo_title' => ['nullable', 'string', 'max:255'], 'seo_keywords' => ['nullable', 'string', 'max:255'],
             'seo_description' => ['nullable', 'string', 'max:1000'], 'sort_order' => ['sometimes', 'integer', 'min:0'],
-            'reason' => ['required', 'string', 'max:1000'],
+            'reason' => ['required', 'string', 'max:255'],
         ])->validate();
         unset($data['reason']);
 
