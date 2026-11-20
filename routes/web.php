@@ -3,6 +3,7 @@
 declare(strict_types=1);
 
 use App\Http\Controllers\AdminCustomerController;
+use App\Http\Controllers\AdminFinancialFallbackController;
 use App\Http\Controllers\AdminOperationsController;
 use App\Http\Controllers\AdminSearchController;
 use App\Http\Controllers\AffiliateReceivableController;
@@ -92,6 +93,9 @@ Route::middleware('auth')->group(function (): void {
     Route::post('/admin/customers/{customer}/profile', [AdminCustomerController::class, 'profile']);
     Route::post('/admin/customers/{customer}/password-reset', [AdminCustomerController::class, 'passwordReset'])->middleware('throttle:admin-customer-reset');
     Route::post('/admin/customers/{customer}/access', [AdminCustomerController::class, 'access']);
+    Route::post('/admin/customers/{customer}/wallet-adjust', [AdminFinancialFallbackController::class, 'wallet']);
+    Route::post('/admin/finance/invoices/{invoice}/offline-receipt', [AdminFinancialFallbackController::class, 'offline']);
+    Route::post('/admin/finance/offline-receipts/{receipt}/details', [AdminFinancialFallbackController::class, 'details']);
     Route::get('/console', [CustomerSalesController::class, 'index']);
     Route::get('/console/wallet', [WalletTopupController::class, 'index']);
     Route::post('/console/wallet/topups', [WalletTopupController::class, 'store'])->middleware('throttle:wallet-topup');

@@ -13,6 +13,7 @@ use App\Models\Ticket;
 use App\Models\User;
 use App\Support\AdminAuditProjection;
 use App\Support\AdminCustomerAccess;
+use App\Support\AdminFinancialAccess;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Gate;
@@ -82,6 +83,8 @@ class AdminCustomerQueries
             $management = array_fill_keys(array_keys($management), false);
         }
         $data = ['customer' => $customer, 'permissions' => $permissions, 'management' => $management,
+            'walletAdjustment' => $permissions['finance'] && $actor->can('finance.wallet-adjust')
+                && app(AdminFinancialAccess::class)->isManageableTarget($actor, $customer),
             'kycRecords' => KycVerification::query()->where('user_id', $customer->id)
                 ->latest('id')->paginate(10, ['id', 'driver', 'status', 'masked_summary', 'verified_at', 'created_at'], 'kyc_page', (int) ($pages['kyc_page'] ?? 1))->appends($pages)->fragment('customer-kyc')];
         if ($permissions['services']) {

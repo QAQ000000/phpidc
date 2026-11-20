@@ -2,12 +2,19 @@
 
 declare(strict_types=1);
 
+use App\Actions\AssignAdminRoleAction;
+use App\Actions\CreateComboInvoiceAction;
+use App\Actions\RecordOfflineInvoiceReceiptAction;
 use App\Actions\ReencryptSecretsAction;
+use App\Enums\BillingCycle;
 use App\Models\FulfillmentTask;
 use App\Models\Instance;
 use App\Models\Invoice;
+use App\Models\OfflineInvoiceReceipt;
+use App\Models\Product;
 use App\Models\RedemptionCode;
 use App\Models\UpstreamApi;
+use App\Models\User;
 use App\Providers\AppServiceProvider;
 use App\Support\InstallationState;
 use Illuminate\Contracts\Encryption\DecryptException;
@@ -15,6 +22,9 @@ use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Crypt;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\File;
+use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Queue;
+use Illuminate\Support\Str;
 use Tests\Concerns\InstallsApplication;
 
 uses(InstallsApplication::class);
@@ -131,4 +141,32 @@ it('refuses an unsealed installation lock at production boot', function (): void
     file_put_contents(storage_path('installed.lock'), 'legacy hand-written lock');
     $this->app->detectEnvironment(fn () => 'production');
     expect(fn () => (new AppServiceProvider($this->app))->boot())->toThrow(DomainException::class, '密钥校验');
+});
+
+it('rotates offline collection evidence while preserving its source and replay identity', function (): void {
+    Queue::fake();
+    Http::preventStrayRequests();
+    $owner = User::factory()->create(['credit' => '0.00']);
+    $actor = User::factory()->create();
+    app(AssignAdminRoleAction::class)->execute($actor, 'finance-offline-receipt', 'Rotation fixture');
+    $product = Product::factory()->create(['local_prices' => ['onetime' => ['price' => '10.00', 'enabled' => true]]]);
+    $invoice = app(CreateComboInvoiceAction::class)->execute($owner, $product, BillingCycle::ONETIME, [], false, 'epay_wechat',
+        ['request_id' => (string) Str::ulid()]);
+    $input = ['request_id' => (string) Str::ulid(), 'amount' => '10.00', 'external_channel' => 'bank_transfer',
+        'external_reference' => 'ROTATION-PROOF', 'received_at' => now()->subMinute()->toDateTimeString(), 'confirm' => '1', 'evidence' => 'C3-SECRET-RECEIPT'];
+    $receipt = app(RecordOfflineInvoiceReceiptAction::class)->execute($invoice, $actor, $input);
+    $oldCipher = DB::table('offline_invoice_receipts')->where('id', $receipt->id)->value('encrypted_evidence');
+    $ledger = DB::table('financial_transactions')->orderBy('id')->get()->toJson();
+    $claim = DB::table('external_collection_receipts')->orderBy('id')->get()->toJson();
+    app(ReencryptSecretsAction::class)->execute($this->rotationOldKey, $this->rotationNewKey, 'Offline receipt rotation', true);
+    $newCipher = DB::table('offline_invoice_receipts')->where('id', $receipt->id)->value('encrypted_evidence');
+    expect($newCipher)->not->toBe($oldCipher)
+        ->and(app(InstallationState::class)->encrypter($this->rotationNewKey)->decryptString($newCipher))->toBe('C3-SECRET-RECEIPT')
+        ->and(DB::table('financial_transactions')->orderBy('id')->get()->toJson())->toBe($ledger)
+        ->and(DB::table('external_collection_receipts')->orderBy('id')->get()->toJson())->toBe($claim);
+    config(['app.key' => $this->rotationNewKey]);
+    app()->forgetInstance('encrypter');
+    Crypt::clearResolvedInstance('encrypter');
+    expect(app(RecordOfflineInvoiceReceiptAction::class)->execute($invoice, $actor, $input)->id)->toBe($receipt->id)
+        ->and(OfflineInvoiceReceipt::count())->toBe(1);
 });

@@ -21,7 +21,7 @@ use LogicException;
 
 class CreatePurchaseFulfillmentAction
 {
-    // Called only by the wallet or callback settlement transaction (INV-P2).
+    // Called only by an approved Paid settlement transaction (INV-P2 / C3).
     /** @param (Closure(FulfillmentTask): void)|null $beforeNotification */
     public function execute(Invoice $invoice, ?Closure $beforeNotification = null): void
     {

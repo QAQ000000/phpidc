@@ -1,5 +1,6 @@
 .admin-customers-page .admin-customers-name{min-width:200px;max-width:300px;overflow-wrap:anywhere}
 .admin-customers-page .admin-customers-wallet{white-space:nowrap;font-variant-numeric:tabular-nums}
+.admin-customers-page .admin-customers-wallet-actions{display:flex;align-items:center;flex-wrap:wrap;gap:10px 16px;padding:12px 20px;border-top:1px solid var(--admin-border);font-size:12px;color:var(--admin-muted)}
 .admin-customers-page .admin-customers-identity{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
 .admin-customers-page .admin-customers-identity strong{font-size:18px;font-weight:600;overflow-wrap:anywhere}
 .admin-customers-page .admin-customers-profile{grid-template-columns:repeat(3,minmax(0,1fr))}

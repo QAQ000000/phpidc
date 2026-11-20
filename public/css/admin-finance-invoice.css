@@ -1,0 +1,8 @@
+.admin-finance-invoice .admin-finance-form{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px;overflow-wrap:anywhere}
+.admin-finance-invoice .admin-finance-form label{display:grid;gap:6px;min-width:0}
+.admin-finance-invoice .admin-finance-wide{grid-column:1/-1}
+.admin-finance-invoice .admin-finance-form-actions{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.admin-finance-invoice .admin-finance-form input[readonly]{background:var(--admin-soft);font-variant-numeric:tabular-nums}
+.admin-finance-invoice .admin-finance-evidence{white-space:pre-wrap;overflow-wrap:anywhere}
+.admin-finance-invoice .admin-ui-dialog .inventory-alert{margin-bottom:16px}
+@media(max-width:640px){.admin-finance-invoice .admin-finance-form{grid-template-columns:minmax(0,1fr)}.admin-finance-invoice .admin-finance-form-actions>*{flex:1}}

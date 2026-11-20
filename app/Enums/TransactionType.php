@@ -28,11 +28,13 @@ enum TransactionType: string
     case WALLET_CLEARANCE_PAID = 'wallet_clearance_paid';
     case WALLET_CLEARANCE_RELEASE = 'wallet_clearance_release';
     case ADJUSTMENT = 'adjustment';
+    case WALLET_ADJUST_CREDIT = 'wallet_adjust_credit';
+    case WALLET_ADJUST_DEBIT = 'wallet_adjust_debit';
 
     /** Does this type increase the user's available wallet balance? */
     public function isCredit(): bool
     {
-        return in_array($this, [self::CREDIT_IN, self::REFUND_WALLET], true);
+        return in_array($this, [self::CREDIT_IN, self::REFUND_WALLET, self::WALLET_ADJUST_CREDIT], true);
     }
 
     /** Does this type move value into the affiliate balance rather than the wallet? */

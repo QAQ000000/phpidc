@@ -116,6 +116,8 @@ Allowed dependency direction: **`Entry (Controller/Resource) -> Actions -> Contr
 
 Human-approved W3 N03 adds explicit original-receipt reconciliation through shared locked payment rules, immutable original callback/audit facts, actual-result case resolution and original-identity clearance after historical allocation release. N03/N04 also add source-bound orphan conclusions, authenticated endpoint snapshots and immutable mapping/owner price confirmations. Dedicated permissions, stable requests, expected revisions, ordered locks, no I/O under transaction and full evidence revalidation apply; see `docs/domain-invariants.md` and `docs/system-architecture-batch3-2026-11-18.md`.
 
+**Approved C3 financial fallback (2026-11-20):** the user's C3 instruction adds narrowly authorized available-wallet corrections and ordinary offline invoice receipts as additional Action-owned money writers. The four boundaries, fixed permissions, two directional ledger types, standalone offline receipt/shared incoming-receipt claims and immutable historical payment allocation are in `docs/admin-financial-fallback-c3-contract-2026-11-20.md` and the C3 addition to INV-L2. Paid, original hold settlement, receipt, fulfillment, notification outbox and actual administrator audit remain atomic; no synthetic gateway callback, manual repricing or arbitrary historical rewrite is authorized.
+
 ### 3.4 Magic Financial (`zjmf_api` Only — Phase 2) (F05)
 
 - ALL requests use `application/x-www-form-urlencoded` (`Http::asForm()`). Cache JWT `6900s` (`Bearer` | `raw_jwt` fallback); health check via `GET /cart/credit`.

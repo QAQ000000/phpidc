@@ -13,6 +13,7 @@ use App\Models\User;
 use App\Services\AffiliateReceivableBalance;
 use App\Services\NotificationManager;
 use App\Services\ReceivableAdmission;
+use App\Support\ExternalCollectionReceipts;
 use App\Support\OperationsAudit;
 use App\Support\ReceivableOperation;
 use App\Support\ReceivableRevision;
@@ -68,6 +69,7 @@ class ReverseAffiliateReceivableSettlementAction
                     'currency' => 'CNY', 'request_id' => $data['request_id'], 'ledger_transaction_id' => $ledger->id,
                     'processed_by' => $actor->id, 'reason' => $data['reason'], 'correction_reference' => $data['correction_reference']]);
                 $entry->update(['active_receipt_key' => null, 'reversed_at' => now()]);
+                app(ExternalCollectionReceipts::class)->releaseReceivable($entry, $reverse);
                 app(ReceivableRevision::class)->bump($owner);
                 OperationsAudit::record($actor, 'affiliate.receivable_reversed', AffiliateReceivableReversal::class, $reverse->id, $data['reason'],
                     ['remaining' => $projection['remaining']], ['amount' => $entry->amount, 'clawback_transaction_id' => $root->id, 'settlement_id' => $entry->id]);

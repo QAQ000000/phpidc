@@ -1,0 +1,854 @@
+{
+  "batch": "C3",
+  "date": "2026-11-20",
+  "baseline": "f36aa7b",
+  "fixture": "Isolated SQLite with synthetic accounts and loopback SMTP; unpaid 10.00 CNY new-purchase invoices created through CreateComboInvoiceAction with original 3.00 wallet plus 7.00 gateway allocation. No C2 paid invoice fixture reused.",
+  "browser": {
+    "layout_checks": 24,
+    "dialog_checks": 12,
+    "role_checks": 24,
+    "page_errors": [],
+    "initial": {
+      "layoutChecks": 20,
+      "checks": [
+        {
+          "name": "wallet-customer",
+          "width": 1440,
+          "theme": "light",
+          "status": 200,
+          "overflow": false,
+          "dark": false,
+          "private": false,
+          "openDialogs": 0
+        },
+        {
+          "name": "disabled-customer",
+          "width": 1440,
+          "theme": "light",
+          "status": 200,
+          "overflow": false,
+          "dark": false,
+          "private": false,
+          "openDialogs": 0
+        },
+        {
+          "name": "closed-customer",
+          "width": 1440,
+          "theme": "light",
+          "status": 200,
+          "overflow": false,
+          "dark": false,
+          "private": false,
+          "openDialogs": 0
+        },
+        {
+          "name": "protected-customer",
+          "width": 1440,
+          "theme": "light",
+          "status": 200,
+          "overflow": false,
+          "dark": false,
+          "private": false,
+          "openDialogs": 0
+        },
+        {
+          "name": "unpaid-invoice",
+          "width": 1440,
+          "theme": "light",
+          "status": 200,
+          "overflow": false,
+          "dark": false,
+          "private": false,
+          "openDialogs": 0
+        },
+        {
+          "name": "wallet-customer",
+          "width": 1440,
+          "theme": "dark",
+          "status": 200,
+          "overflow": false,
+          "dark": true,
+          "private": false,
+          "openDialogs": 0
+        },
+        {
+          "name": "disabled-customer",
+          "width": 1440,
+          "theme": "dark",
+          "status": 200,
+          "overflow": false,
+          "dark": true,
+          "private": false,
+          "openDialogs": 0
+        },
+        {
+          "name": "closed-customer",
+          "width": 1440,
+          "theme": "dark",
+          "status": 200,
+          "overflow": false,
+          "dark": true,
+          "private": false,
+          "openDialogs": 0
+        },
+        {
+          "name": "protected-customer",
+          "width": 1440,
+          "theme": "dark",
+          "status": 200,
+          "overflow": false,
+          "dark": true,
+          "private": false,
+          "openDialogs": 0
+        },
+        {
+          "name": "unpaid-invoice",
+          "width": 1440,
+          "theme": "dark",
+          "status": 200,
+          "overflow": false,
+          "dark": true,
+          "private": false,
+          "openDialogs": 0
+        },
+        {
+          "name": "wallet-customer",
+          "width": 390,
+          "theme": "light",
+          "status": 200,
+          "overflow": false,
+          "dark": false,
+          "private": false,
+          "openDialogs": 0
+        },
+        {
+          "name": "disabled-customer",
+          "width": 390,
+          "theme": "light",
+          "status": 200,
+          "overflow": false,
+          "dark": false,
+          "private": false,
+          "openDialogs": 0
+        },
+        {
+          "name": "closed-customer",
+          "width": 390,
+          "theme": "light",
+          "status": 200,
+          "overflow": false,
+          "dark": false,
+          "private": false,
+          "openDialogs": 0
+        },
+        {
+          "name": "protected-customer",
+          "width": 390,
+          "theme": "light",
+          "status": 200,
+          "overflow": false,
+          "dark": false,
+          "private": false,
+          "openDialogs": 0
+        },
+        {
+          "name": "unpaid-invoice",
+          "width": 390,
+          "theme": "light",
+          "status": 200,
+          "overflow": false,
+          "dark": false,
+          "private": false,
+          "openDialogs": 0
+        },
+        {
+          "name": "wallet-customer",
+          "width": 390,
+          "theme": "dark",
+          "status": 200,
+          "overflow": false,
+          "dark": true,
+          "private": false,
+          "openDialogs": 0
+        },
+        {
+          "name": "disabled-customer",
+          "width": 390,
+          "theme": "dark",
+          "status": 200,
+          "overflow": false,
+          "dark": true,
+          "private": false,
+          "openDialogs": 0
+        },
+        {
+          "name": "closed-customer",
+          "width": 390,
+          "theme": "dark",
+          "status": 200,
+          "overflow": false,
+          "dark": true,
+          "private": false,
+          "openDialogs": 0
+        },
+        {
+          "name": "protected-customer",
+          "width": 390,
+          "theme": "dark",
+          "status": 200,
+          "overflow": false,
+          "dark": true,
+          "private": false,
+          "openDialogs": 0
+        },
+        {
+          "name": "unpaid-invoice",
+          "width": 390,
+          "theme": "dark",
+          "status": 200,
+          "overflow": false,
+          "dark": true,
+          "private": false,
+          "openDialogs": 0
+        }
+      ],
+      "dialogChecks": 8,
+      "dialogs": [
+        {
+          "name": "wallet-dialog",
+          "width": 1440,
+          "theme": "light",
+          "open": true,
+          "left": 310,
+          "right": 1130
+        },
+        {
+          "name": "offline-dialog",
+          "width": 1440,
+          "theme": "light",
+          "open": true,
+          "left": 310,
+          "right": 1130
+        },
+        {
+          "name": "wallet-dialog",
+          "width": 1440,
+          "theme": "dark",
+          "open": true,
+          "left": 310,
+          "right": 1130
+        },
+        {
+          "name": "offline-dialog",
+          "width": 1440,
+          "theme": "dark",
+          "open": true,
+          "left": 310,
+          "right": 1130
+        },
+        {
+          "name": "wallet-dialog",
+          "width": 390,
+          "theme": "light",
+          "open": true,
+          "left": 16,
+          "right": 374
+        },
+        {
+          "name": "offline-dialog",
+          "width": 390,
+          "theme": "light",
+          "open": true,
+          "left": 16,
+          "right": 374
+        },
+        {
+          "name": "wallet-dialog",
+          "width": 390,
+          "theme": "dark",
+          "open": true,
+          "left": 16,
+          "right": 374
+        },
+        {
+          "name": "offline-dialog",
+          "width": 390,
+          "theme": "dark",
+          "open": true,
+          "left": 16,
+          "right": 374
+        }
+      ],
+      "roleChecks": 19,
+      "roles": [
+        {
+          "who": "viewer",
+          "name": "customer",
+          "status": 200,
+          "forms": 0
+        },
+        {
+          "who": "viewer",
+          "name": "invoice",
+          "status": 200,
+          "forms": 0
+        },
+        {
+          "who": "viewer",
+          "post": "wallet",
+          "status": 403
+        },
+        {
+          "who": "viewer",
+          "post": "offline",
+          "status": 403
+        },
+        {
+          "who": "finance",
+          "name": "customer",
+          "status": 403,
+          "forms": 0
+        },
+        {
+          "who": "finance",
+          "name": "invoice",
+          "status": 200,
+          "forms": 0
+        },
+        {
+          "who": "finance",
+          "post": "wallet",
+          "status": 403
+        },
+        {
+          "who": "finance",
+          "post": "offline",
+          "status": 403
+        },
+        {
+          "who": "customer",
+          "name": "customer",
+          "status": 403,
+          "forms": 0
+        },
+        {
+          "who": "customer",
+          "name": "invoice",
+          "status": 403,
+          "forms": 0
+        },
+        {
+          "who": "customer",
+          "post": "wallet",
+          "status": 403
+        },
+        {
+          "who": "customer",
+          "post": "offline",
+          "status": 403
+        },
+        {
+          "who": "wallet-only",
+          "name": "customer",
+          "status": 403,
+          "forms": 0
+        },
+        {
+          "who": "wallet-only",
+          "name": "invoice",
+          "status": 200,
+          "forms": 0
+        },
+        {
+          "who": "wallet-only",
+          "post": "wallet",
+          "status": 403
+        },
+        {
+          "who": "wallet-only",
+          "post": "offline",
+          "status": 403
+        },
+        {
+          "who": "offline-only",
+          "name": "customer",
+          "status": 403,
+          "forms": 0
+        },
+        {
+          "who": "offline-only",
+          "name": "invoice",
+          "status": 200,
+          "forms": 1
+        },
+        {
+          "who": "offline-only",
+          "post": "wallet",
+          "status": 403
+        }
+      ],
+      "pageErrors": [],
+      "externalOrigins": [
+        "https://ui-avatars.com"
+      ]
+    },
+    "paid": {
+      "layoutChecks": 4,
+      "checks": [
+        {
+          "width": 1440,
+          "theme": "light",
+          "status": 200,
+          "overflow": false,
+          "private": false,
+          "dark": false
+        },
+        {
+          "width": 1440,
+          "theme": "dark",
+          "status": 200,
+          "overflow": false,
+          "private": false,
+          "dark": true
+        },
+        {
+          "width": 390,
+          "theme": "light",
+          "status": 200,
+          "overflow": false,
+          "private": false,
+          "dark": false
+        },
+        {
+          "width": 390,
+          "theme": "dark",
+          "status": 200,
+          "overflow": false,
+          "private": false,
+          "dark": true
+        }
+      ],
+      "dialogChecks": 4,
+      "dialogs": [
+        {
+          "width": 1440,
+          "theme": "light",
+          "status": 200,
+          "cacheControl": "no-store, private",
+          "open": true,
+          "left": 310,
+          "right": 1130
+        },
+        {
+          "width": 1440,
+          "theme": "dark",
+          "status": 200,
+          "cacheControl": "no-store, private",
+          "open": true,
+          "left": 310,
+          "right": 1130
+        },
+        {
+          "width": 390,
+          "theme": "light",
+          "status": 200,
+          "cacheControl": "no-store, private",
+          "open": true,
+          "left": 16,
+          "right": 374
+        },
+        {
+          "width": 390,
+          "theme": "dark",
+          "status": 200,
+          "cacheControl": "no-store, private",
+          "open": true,
+          "left": 16,
+          "right": 374
+        }
+      ],
+      "roleChecks": 5,
+      "roles": [
+        {
+          "who": "viewer",
+          "status": 200,
+          "forms": 0,
+          "details": 0,
+          "taskLinks": 0,
+          "customerLinks": 1,
+          "detailsPost": 403
+        },
+        {
+          "who": "finance",
+          "status": 200,
+          "forms": 0,
+          "details": 0,
+          "taskLinks": 0,
+          "customerLinks": 0,
+          "detailsPost": 403
+        },
+        {
+          "who": "customer",
+          "status": 403,
+          "forms": 0,
+          "details": 0,
+          "taskLinks": 0,
+          "customerLinks": 0,
+          "detailsPost": 403
+        },
+        {
+          "who": "wallet-only",
+          "status": 200,
+          "forms": 0,
+          "details": 0,
+          "taskLinks": 0,
+          "customerLinks": 0,
+          "detailsPost": 403
+        },
+        {
+          "who": "offline-only",
+          "status": 200,
+          "forms": 1,
+          "details": 1,
+          "taskLinks": 0,
+          "customerLinks": 0,
+          "detailsPost": 200
+        }
+      ],
+      "pageErrors": []
+    }
+  },
+  "workflow": {
+    "checks": 29,
+    "results": [
+      "POST redirects to local workbench",
+      "wallet original wallet_adjust_credit replay preserves 23.00",
+      "wallet wallet_adjust_credit conflicting amount rejected",
+      "POST redirects to local workbench",
+      "wallet original wallet_adjust_debit replay preserves 23.00",
+      "wallet wallet_adjust_debit conflicting amount rejected",
+      "wallet real CSRF rejects missing token",
+      "wallet overdraw rejected",
+      "protected or closed wallet target denied 1",
+      "protected or closed wallet target denied 2",
+      "protected or closed wallet target denied 9",
+      "offline real CSRF rejects missing token",
+      "POST redirects to local workbench",
+      "receipt validation does not restore private reference or evidence",
+      "private receipt input absent from HTML after rejected POST",
+      "receipt validation restores fixed original gateway amount",
+      "receipt validation preserves request id",
+      "receipt validation does not restore confirmation",
+      "offline actual form settles original 7.00",
+      "paid workbench masks full reference",
+      "paid workbench does not render private evidence",
+      "POST redirects to local workbench",
+      "offline exact replay returns masked workbench",
+      "offline changed receipt intent conflicts",
+      "same external receipt cannot settle another invoice",
+      "offline unequal gateway amount rejected",
+      "explicit audited POST reads decrypted synthetic receipt",
+      "closing receipt dialog clears plaintext",
+      "receipt details real CSRF rejects missing token"
+    ],
+    "pageErrors": []
+  },
+  "read_only_database": {
+    "business_tables_checked": 60,
+    "changed": [],
+    "unchanged": true
+  },
+  "write_database": {
+    "business_tables_checked": 60,
+    "changed_tables": [
+      "jobs",
+      "users",
+      "instances",
+      "financial_transactions",
+      "fulfillment_tasks",
+      "audit_logs",
+      "invoices",
+      "notification_events",
+      "notification_deliveries",
+      "offline_invoice_receipts",
+      "external_collection_receipts"
+    ],
+    "wallet_actual_form": {
+      "initial_credit": "20.00",
+      "credit_adjustment": "5.00",
+      "debit_adjustment": "2.00",
+      "final_credit": "23.00",
+      "frozen_credit_unchanged": "4.00",
+      "wallet_clearance_frozen_unchanged": "2.00",
+      "adjustment_ledger_rows": 2,
+      "audit_rows": 2
+    },
+    "offline_actual_form": {
+      "created_by": "CreateComboInvoiceAction",
+      "total": "10.00",
+      "original_wallet": "3.00",
+      "original_gateway": "7.00",
+      "actual_offline": "7.00",
+      "wallet_freeze_consumed_once": true,
+      "wallet_clearance_frozen_unchanged": "2.00",
+      "paid_invoices": 1,
+      "offline_receipts": 1,
+      "shared_collection_sources": 1,
+      "fulfillment_tasks": 1,
+      "pending_instances": 1,
+      "paid_notification_outbox_events": 1,
+      "payment_attempts": 0,
+      "payment_callbacks": 0,
+      "fixed_allocation_unchanged": true,
+      "rejected_second_invoices_unpaid": true
+    },
+    "audits": {
+      "actual_actors": true,
+      "safe_payloads": true,
+      "explicit_details_reads": 6
+    },
+    "smtp_messages": 0,
+    "external_supplier_actions": 0
+  },
+  "root_checks": {
+    "gates": {
+      "pest_passed": 2907,
+      "assertions": 26071,
+      "duration_seconds": 237.7,
+      "phpstan_errors": 0,
+      "pint": "PASS",
+      "final_ui_targeted_passed": 35,
+      "final_ui_targeted_assertions": 244
+    },
+    "mysql": {
+      "isolation": {
+        "mysql_version": "8.0.35",
+        "network": "none",
+        "published_ports": false,
+        "private_socket": true
+      },
+      "upgrade": {
+        "phase": "legacy-upgrade",
+        "legacy_sources": 105,
+        "active": 70,
+        "released": 35,
+        "original_history_unchanged": true,
+        "repeat_upgrade_unchanged": true,
+        "restrict_foreign_keys": 10,
+        "assertions": 21
+      },
+      "rr": [
+        {
+          "phase": "rr-offline",
+          "result": "rejected",
+          "ordinary_snapshot_remained_stale": true,
+          "assertions": 4
+        },
+        {
+          "phase": "rr-peer",
+          "real_actions": true,
+          "result": "settled-and-reversed",
+          "assertions": 1
+        }
+      ],
+      "unique": [
+        {
+          "phase": "cross-owner-registry",
+          "result": "claimed",
+          "assertions": 0
+        },
+        {
+          "phase": "cross-owner-registry",
+          "result": "rejected",
+          "assertions": 0
+        }
+      ],
+      "wallet_credit": [
+        {
+          "phase": "wallet-credit",
+          "result": "applied",
+          "ledger_id": 152,
+          "assertions": 0
+        },
+        {
+          "phase": "wallet-credit",
+          "result": "applied",
+          "ledger_id": 153,
+          "assertions": 0
+        },
+        {
+          "phase": "wallet-credit",
+          "result": "applied",
+          "ledger_id": 155,
+          "assertions": 0
+        },
+        {
+          "phase": "wallet-credit",
+          "result": "applied",
+          "ledger_id": 154,
+          "assertions": 0
+        },
+        {
+          "phase": "wallet-credit",
+          "result": "applied",
+          "ledger_id": 157,
+          "assertions": 0
+        },
+        {
+          "phase": "wallet-credit",
+          "result": "applied",
+          "ledger_id": 156,
+          "assertions": 0
+        }
+      ],
+      "wallet_debit": [
+        {
+          "phase": "wallet-debit",
+          "result": "applied",
+          "ledger_id": 158,
+          "assertions": 0
+        },
+        {
+          "phase": "wallet-debit",
+          "result": "rejected",
+          "assertions": 0
+        }
+      ],
+      "wallet_replay": [
+        {
+          "phase": "wallet-replay",
+          "result": "applied",
+          "ledger_id": 159,
+          "assertions": 0
+        },
+        {
+          "phase": "wallet-replay",
+          "result": "applied",
+          "ledger_id": 159,
+          "assertions": 0
+        }
+      ],
+      "final": {
+        "phase": "final",
+        "wallet_credit": "13.00",
+        "wallet_debit": "0.25",
+        "wallet_replay": "0.50",
+        "one_claim_per_receipt": true,
+        "released_source_retained": true,
+        "history_index": "collection_reference_lookup",
+        "assertions": 14
+      },
+      "assertions": 46,
+      "status": "PASS",
+      "validation_scope": {
+        "legacy_upgrade": "Real settlement/reversal Actions generate 105 sources; new two tables removed to emulate old schema; actual 000020 up called twice; original users/invoices/commissions/ledger/settlements/reversals/audits/events hashes unchanged.",
+        "rr_interleaving": "Real receivable settlement+full reversal by peer; offline side exercises real registry helper under explicit RR transaction, not full offline invoice posting. Ordinary consistent read remains zero; locked current read rejects.",
+        "cross_owner_unique": "Synthetic FK-backed invoice/receivable source rows plus real registry helpers in concurrent transactions. Proves shared registry arbitration, not complete posting transaction.",
+        "wallet_concurrency": "Real AdjustCustomerWalletAction with separate authorized actors. Six credits preserve all updates; competing debits cannot overdraw; concurrent same-key replay returns one ledger.",
+        "external_actions": "No supplier calls, real notifications or preview database used."
+      }
+    },
+    "mysql_cleanup": {
+      "container_removed": true,
+      "container_absent": true,
+      "workers_stopped": true
+    },
+    "preview": {
+      "migration": "2026_11_20_000020_add_manual_financial_receipts",
+      "backup_and_isolated_upgrade_before_migration": true,
+      "preserved_existing_business_tables": 57,
+      "new_tables": 2,
+      "existing_business_table_data_changed": false,
+      "role_update": {
+        "admin_id": 3,
+        "added": [
+          "finance-wallet-adjuster",
+          "finance-offline-receipt"
+        ],
+        "admin_2_and_others_unchanged": true
+      },
+      "consumers_refreshed_and_running": true,
+      "http_health_permission_checks_passed": 9,
+      "preview_financial_writes_performed": false
+    }
+  },
+  "screenshots": [
+    {
+      "file": "unpaid-invoice-1440-light.png",
+      "width": 1440,
+      "height": 2545,
+      "sha256": "ab46a9c3e9845feb91754f726e1dbf8b5233acd3dd90dab7795c572a3fe122df"
+    },
+    {
+      "file": "wallet-customer-1440-dark.png",
+      "width": 1440,
+      "height": 2343,
+      "sha256": "dba1ca372a098c5de0082278edf898e6a9d4a907fe1f8affd13ba2abb51c5f72"
+    },
+    {
+      "file": "wallet-dialog-1440-light.png",
+      "width": 1440,
+      "height": 1000,
+      "sha256": "2a291c3074c94fc58fc3ff4795ad71dcb481ceb99f61219933db4aa0941cca75"
+    },
+    {
+      "file": "offline-dialog-390-dark.png",
+      "width": 390,
+      "height": 844,
+      "sha256": "cccd950c0d20710f9c802fb07bfc42301e98375a353f812a504335a6c844e2ef"
+    },
+    {
+      "file": "wallet-validation-390-dark.png",
+      "width": 390,
+      "height": 844,
+      "sha256": "c945e9d5e564bff9cfd8ca0692a5e27f7bea612d0531fbb0ce1ee871e272dc73"
+    },
+    {
+      "file": "offline-validation-390-dark.png",
+      "width": 390,
+      "height": 844,
+      "sha256": "4f1f0678366e0a34dedd23478f404fc07c43f5841614b636c31b90298aed4042"
+    },
+    {
+      "file": "paid-invoice-1440-light.png",
+      "width": 1440,
+      "height": 2764,
+      "sha256": "4f979c78cb81dd90beebca83d14e98d2db750b304aed0297d459e609e883e71e"
+    },
+    {
+      "file": "paid-invoice-390-dark.png",
+      "width": 390,
+      "height": 844,
+      "sha256": "4035854e57f42a1242a1de38dbd5c0cbcd6ff5665ca8712cc294cf67967dd0a0"
+    },
+    {
+      "file": "receipt-details-1440-light.png",
+      "width": 1440,
+      "height": 1000,
+      "sha256": "7ec4aed2243665af08dfe7fd09c4ba905a3962e08c58a77c9a27348795ffbe8d"
+    },
+    {
+      "file": "receipt-details-390-dark.png",
+      "width": 390,
+      "height": 844,
+      "sha256": "76306d2a2f504042b684b590c043d228cc6b518874d88e7be0e671b3ca3d17fe"
+    }
+  ],
+  "limits": [
+    "The existing Filament shell requested ui-avatars.com for default avatars; no supplier or payment API was called and no external SMTP was used.",
+    "Browser and HTTP checks prove isolated local posting and queued fulfillment facts; no supplier fulfillment worker ran.",
+    "The paid notification event was persisted once; external mail/SMS delivery was not exercised.",
+    "Some validation feedback retains Laravel default English messages.",
+    "MySQL RR and cross-owner concurrency scope is stated in root_checks.mysql.validation_scope; helper-level arbitration is not a claim of full offline-posting concurrent execution.",
+    "The full suite predates the final small template-only no-reference-refill change; the final 35-case targeted suite and browser validation cover that change."
+  ],
+  "cleanup": {
+    "c3_http_stopped": true,
+    "c3_smtp_stopped": true,
+    "temporary_database_storage_and_credential_metadata_removed": true,
+    "shared_preview_health": 200,
+    "named_browser_closed": true,
+    "repository_playwright_artifacts_removed": true,
+    "recorded_browser_pid_absent": true
+  }
+}

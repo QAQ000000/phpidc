@@ -1,6 +1,6 @@
 <x-filament-panels::page>
 @include('filament.admin-ui-styles')
-<link rel="stylesheet" href="/css/admin-customers.css?v=20261120-c2">
+<link rel="stylesheet" href="/css/admin-customers.css?v=20261120-c3">
 @php
     $closed = $customer->trashed() || $customer->anonymized_at !== null;
     $disabled = $customer->disabled_at !== null;
@@ -8,11 +8,15 @@
     $restoreProfile = $management['profile'] && $restoreContext === 'customer-profile';
     $restoreReset = $management['password_reset'] && $restoreContext === 'customer-password-reset';
     $restoreAccess = $management['access'] && $restoreContext === 'customer-access';
+    $restoreWallet = $walletAdjustment && $restoreContext === 'wallet-adjust';
     $oldValue = function ($key, $default = '') {
         $value = old($key, $default);
         return is_scalar($value) || $value === null ? $value : $default;
     };
     $profileValue = fn ($key, $default = '') => $restoreProfile ? $oldValue($key, $default) : $default;
+    $walletValue = fn ($key, $default = '') => $restoreWallet ? $oldValue($key, $default) : $default;
+    $walletRequest = $walletValue('request_id');
+    $walletRequest = is_string($walletRequest) && \Illuminate\Support\Str::isUlid($walletRequest) ? $walletRequest : (string) \Illuminate\Support\Str::ulid();
     $instanceLabels = ['Pending' => '待开通', 'Active' => '运行中', 'Suspended' => '已暂停', 'Cancelled' => '已取消', 'Fraud' => '异常', 'Deleted' => '已删除', 'ProvisionFailed' => '开通失败'];
     $invoiceLabels = ['Unpaid' => '待付款', 'Paid' => '已付款', 'Refunded' => '已退款', 'Cancelled' => '已取消', 'Expired' => '已过期'];
     $kycLabels = ['pending' => '待核对', 'verified' => '已认证', 'failed' => '未通过'];
@@ -22,7 +26,7 @@
 @endphp
 <div class="admin-ui admin-customers-page" x-data>
     @if(session('customer_status'))<p role="status" class="admin-customers-feedback">{{ session('customer_status') }}</p>@endif
-    @if($errors->any() && ! $restoreProfile && ! $restoreReset && ! $restoreAccess)<div role="alert" class="admin-customers-feedback">@foreach($errors->all() as $error)<p>{{ $error }}</p>@endforeach</div>@endif
+    @if($errors->any() && ! $restoreProfile && ! $restoreReset && ! $restoreAccess && ! $restoreWallet)<div role="alert" class="admin-customers-feedback">@foreach($errors->all() as $error)<p>{{ $error }}</p>@endforeach</div>@endif
     <header class="admin-ui-heading"><div><p>客户资料与本地业务记录，各区块独立分页；管理操作按权限开放。</p></div><div class="admin-ui-actions"><a class="admin-ui-button" href="/admin/customers{{ $closed ? '?status=closed' : ($disabled ? '?status=disabled' : '') }}">返回客户列表</a>@if($permissions['access'] && ! $closed)<a class="admin-ui-button" href="/admin/access?user_id={{ $customer->id }}">账户角色</a>@endif</div></header>
     <x-admin.card id="customer-profile" :title="'客户 #'.$customer->id">
         @if(in_array(true, $management, true))
@@ -40,6 +44,7 @@
             @if($permissions['finance'])<div class="admin-customers-metric"><dt>可用余额</dt><dd data-customer-metric="credit">{{ $customer->credit }}<small>CNY</small></dd></div><div class="admin-customers-metric"><dt>账单冻结</dt><dd data-customer-metric="frozen_credit">{{ $customer->frozen_credit }}<small>CNY</small></dd></div><div class="admin-customers-metric"><dt>结清冻结</dt><dd data-customer-metric="wallet_clearance_frozen">{{ $customer->wallet_clearance_frozen }}<small>CNY</small></dd></div>@endif
             @if($permissions['services'])<div class="admin-customers-metric"><dt>本地有效服务</dt><dd data-customer-metric="active_services">{{ $customer->active_services_count }}</dd></div>@endif
         </dl>@endif
+        @if($walletAdjustment)<div class="admin-customers-wallet-actions"><button type="button" class="admin-ui-button" aria-haspopup="dialog" aria-controls="customer-wallet-adjust" x-on:click="document.getElementById('customer-wallet-adjust').showModal()">钱包加扣款</button><span>仅调整可用余额，不改变冻结、佣金或既有账单。</span></div>@endif
         @if($permissions['finance'])<p class="admin-customers-notice">钱包三列保留各自含义；本页未执行应收核验，不据此判断客户是否欠款。</p>@endif
         @if($closed)<p class="admin-customers-notice">已注销账户仅保留匿名化资料及历史业务事实。</p>@endif
         @if($disabled && ! $closed)<p class="admin-customers-notice">此账户已停用访问；余额、账单和服务保留，已付款履约及自动生命周期继续按原业务处理。</p>@endif
@@ -66,7 +71,7 @@
     </x-admin.card>
     <x-admin.card id="customer-ledger" title="资金流水" description="仅展示原流水事实，金额方向由流水类型决定。"><x-slot:actions><a class="admin-ui-link" href="/admin/finance/ledger?user_id={{ $customer->id }}">查看全部流水</a></x-slot:actions>
         <x-admin.table label="客户资金流水"><x-slot:head><tr><th scope="col">流水 / 时间</th><th scope="col">类型 / 账单</th><th scope="col" class="admin-ui-number">金额</th><th scope="col" class="admin-ui-number">变动后可用 / 账单冻结</th></tr></x-slot:head>
-            @forelse($ledger as $entry)<tr data-customer-ledger="{{ $entry->id }}"><td>#{{ $entry->id }}<span class="admin-ui-meta">{{ $entry->created_at?->format('Y-m-d H:i') }}</span></td><td>{{ $entry->type->value }}@if($entry->invoice_id)<span class="admin-ui-meta"><a class="admin-ui-link" href="/admin/finance/invoice?invoice_id={{ $entry->invoice_id }}">账单 #{{ $entry->invoice_id }}</a></span>@endif</td><td class="admin-ui-number admin-ui-nowrap">{{ $entry->amount }} CNY</td><td class="admin-ui-number admin-ui-nowrap">{{ $entry->balance_after ?? '—' }} / {{ $entry->frozen_after ?? '—' }}</td></tr>
+            @forelse($ledger as $entry)<tr data-customer-ledger="{{ $entry->id }}"><td>#{{ $entry->id }}<span class="admin-ui-meta">{{ $entry->created_at?->format('Y-m-d H:i') }}</span></td><td>{{ match($entry->type->value) { 'wallet_adjust_credit' => '钱包加款', 'wallet_adjust_debit' => '钱包扣款', default => $entry->type->value } }}@if($entry->invoice_id)<span class="admin-ui-meta"><a class="admin-ui-link" href="/admin/finance/invoice?invoice_id={{ $entry->invoice_id }}">账单 #{{ $entry->invoice_id }}</a></span>@endif</td><td class="admin-ui-number admin-ui-nowrap">{{ $entry->amount }} CNY</td><td class="admin-ui-number admin-ui-nowrap">{{ $entry->balance_after ?? '—' }} / {{ $entry->frozen_after ?? '—' }}</td></tr>
             @empty<tr><td colspan="4" class="admin-ui-empty"><strong>暂无流水记录</strong></td></tr>@endforelse
         </x-admin.table><x-admin.pagination :paginator="$ledger" />
     </x-admin.card>
@@ -114,6 +119,19 @@
     </x-admin.card>
     @endif
 
+    @if($walletAdjustment)
+    <x-admin.dialog id="customer-wallet-adjust" title="客户钱包加扣款" description="用于补差、补偿或纠错，只改变可用余额；不代表充值、退款或应收清偿。扣款不能超过可用余额。" :show-errors="$restoreWallet" x-init="{{ $restoreWallet ? '$nextTick(() => $el.showModal())' : '' }}">
+        <form class="admin-customers-form" method="post" action="/admin/customers/{{ $customer->id }}/wallet-adjust">@csrf
+            <input type="hidden" name="_admin_form" value="wallet-adjust"><input type="hidden" name="customer_id" value="{{ $customer->id }}"><input type="hidden" name="request_id" value="{{ $walletRequest }}"><input type="hidden" name="currency" value="CNY">
+            <p class="admin-customers-wide">客户 #{{ $customer->id }} · {{ $customer->name }} · 当前可用 {{ $customer->credit }} CNY</p>
+            <label>调整方向<select name="direction" required><option value="credit" @selected($walletValue('direction') !== 'debit')>增加可用余额</option><option value="debit" @selected($walletValue('direction') === 'debit')>扣减可用余额</option></select></label>
+            <label>金额（CNY）<input name="amount" type="text" inputmode="decimal" pattern="[0-9]{1,10}\.[0-9]{2}" placeholder="0.00" required maxlength="13" value="{{ $walletValue('amount') }}"></label>
+            <label class="admin-customers-wide">备注（可选）<input name="reason" maxlength="255" value="{{ $walletValue('reason') }}"></label>
+            <label class="admin-customers-wide"><span><input type="checkbox" name="confirm" value="1" required> 已核对客户、方向及金额，确认仅调整可用余额。</span></label>
+            <div class="admin-customers-form-actions admin-customers-wide"><button class="admin-ui-button admin-ui-button-primary">确认加扣款</button><button type="button" class="admin-ui-button" x-on:click="$el.closest('dialog').close()">取消</button></div>
+        </form>
+    </x-admin.dialog>
+    @endif
     @if($management['profile'])
     <x-admin.dialog id="customer-profile-editor" title="编辑客户资料" description="邮箱或手机号改变后需要重新验证，原有登录会话将退出；仅修改姓名不会退出登录。" :show-errors="$restoreProfile" x-init="{{ $restoreProfile ? '$nextTick(() => $el.showModal())' : '' }}">
         <form class="admin-customers-form" method="post" action="/admin/customers/{{ $customer->id }}/profile">@csrf

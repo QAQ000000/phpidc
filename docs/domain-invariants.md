@@ -122,7 +122,9 @@ All current wallet and affiliate balance transitions below are denominated in CN
 | `wallet_clearance_hold` | no | available wallet → independent clearance reservation |
 | `wallet_clearance_paid` | no | clearance reservation consumed by confirmed external payment |
 | `wallet_clearance_release` | no | clearance reservation → available wallet after cancellation before execution or verified nonpayment |
-| `adjustment` | per sign of context | admin manual adjustment, requires `audit_logs` row |
+| `wallet_adjust_credit` | yes | administrator correction credits available CNY wallet only |
+| `wallet_adjust_debit` | no | administrator correction debits available CNY wallet only |
+| `adjustment` | historical context only | admin manual adjustment, requires `audit_logs` row |
 
 There is no "frozen_credit deduction" type. Payment of the credit portion is `credit_settle`.
 
@@ -170,6 +172,12 @@ users → invoices → payment_attempts → instances → redemption_codes → f
 Epay merchant selection additionally takes an application-wide configuration metadata row lock **before** this financial lock sequence. Configuration changes and attempt creation serialize on it; no caller may acquire it after financial row locks. Callback credential resolution releases it before the callback settlement transaction. It does not authorize money writes or HTTP under a transaction.
 
 **INV-L2 — Single writer for money.** `HandlePaymentCallbackAction`, `CreateComboInvoiceAction`, `ExpireUnpaidInvoicesAction`, `RefundInvoiceAction` and `RetryFulfillmentTaskAction` are the only writers of invoice/wallet state. Drivers never write them.
+
+**Human-approved C3 financial fallback (2026-11-20):** `AdjustCustomerWalletAction` additionally writes available `credit` only through explicit `wallet_adjust_credit`/`wallet_adjust_debit`, nonnegative CNY amount and unique `adjust:{ULID}`. Lock original owner plus actual administrator in ascending ID order, reauthorize finance.view and finance.wallet-adjust, preserve both frozen columns/affiliate/receivables/invoices, refuse overdraft and enforce complete WalletCapacity. Same-key canonical intent returns the original ledger; conflicts reject. New adjustments target ordinary nonclosed customers only; disabled access does not prevent an authorized financial correction. Audits are atomic; no synthetic deposit/refund or automatic receivable settlement is created.
+
+`RecordOfflineInvoiceReceiptAction` additionally settles a current unexpired CNY Unpaid new_order/renew/upgrade with no payment attempts/callbacks, exact positive original gateway_amount and fully verified original wallet freeze. The standalone offline receipt preserves original allocation, source owner/admin, actual receipt channel/reference/time, immutable payment/settlement/task links and encrypted evidence. Consume credit_applied frozen once, append existing settle/payment keys, mark Paid and create original fulfillment and notification outbox atomically; afterCommit dispatch only. No gateway/callback/profile is fabricated or edited. The original real callback decision table and total_amount full-refund contract remain; refunds verify the new receipt's settlement source without rewriting old receipts.
+
+The `external_collection_receipts` registry prevents one active incoming receipt from being claimed by both offline invoices and external affiliate-receivable settlement, including across owners. It is separate from outgoing payout receipts. Existing legitimate receivable claims are registered before enabling the new workflow; incomplete/conflicting evidence fails migration. Only the original complete receivable reversal releases that claim, retaining history and original correction rules; offline invoices cannot reuse a historical receivable reference. Unique active keys are the durable concurrency backstop, acquired after financial evidence locks. See `admin-financial-fallback-c3-contract-2026-11-20.md` for the four implementation boundaries.
 
 **Human-approved W2 / N01–N02 (2026-11-18):** `ProcessWalletClearanceAction` is additionally a wallet writer for the three explicit clearance transitions only. Amounts are CNY 0.01–10000.00, fees borne by the merchant, with at most one pending/reserved/processing/unknown request per original user. Ordinary requests require the owner's current password and confirmation. A closed user's clearance requires finance reconciliation authority and encrypted evidence of rights to the original user ID and a verified original wallet credit, never a reused contact identifier. No arbitrary credit, invoice reopening or account revival is permitted.
 

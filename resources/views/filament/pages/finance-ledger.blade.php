@@ -8,13 +8,13 @@
     <x-admin.filters action="/admin/finance/ledger">
         <label>客户 ID<input name="user_id" type="number" min="1" value="{{ $filters['user_id'] }}"></label>
         <label>账单 ID<input name="invoice_id" type="number" min="1" value="{{ $filters['invoice_id'] }}"></label>
-        <label>流水类型<select name="type"><option value="">全部</option>@foreach($types as $type)<option value="{{ $type->value }}" @selected($filters['type'] === $type->value)>{{ $type->value }}</option>@endforeach</select></label>
+        <label>流水类型<select name="type"><option value="">全部</option>@foreach($types as $type)<option value="{{ $type->value }}" @selected($filters['type'] === $type->value)>{{ match($type->value) { 'wallet_adjust_credit' => '钱包加款', 'wallet_adjust_debit' => '钱包扣款', default => $type->value } }}</option>@endforeach</select></label>
         <label>回调结果<select name="outcome"><option value="">全部</option>@foreach($outcomes as $outcome)<option value="{{ $outcome->value }}" @selected($filters['outcome'] === $outcome->value)>{{ $outcome->value }}</option>@endforeach</select></label>
     </x-admin.filters>
     <x-admin.table label="财务流水"><x-slot:head><tr><th scope="col">流水 / 客户</th><th scope="col" class="admin-ui-number">类型 / 金额</th><th scope="col" class="admin-ui-number">钱包 / 冻结余额</th><th scope="col">幂等引用 / 佣金应收</th></tr></x-slot:head>
         @forelse($ledger as $entry)<tr>
             <td>#{{ $entry->id }} · 客户 #{{ $entry->user_id }}@if($entry->invoice_id)<span class="admin-ui-meta"><a class="admin-ui-link" href="/admin/finance/invoice?invoice_id={{ $entry->invoice_id }}">账单 #{{ $entry->invoice_id }}</a></span>@endif<span class="admin-ui-meta">{{ $entry->created_at }}</span></td>
-            <td class="admin-ui-number admin-ui-nowrap">{{ $entry->amount }} {{ $entry->meta['currency'] ?? '' }}<span class="admin-ui-meta">{{ $entry->type->value }}</span></td>
+            <td class="admin-ui-number admin-ui-nowrap">{{ $entry->amount }} {{ $entry->meta['currency'] ?? '' }}<span class="admin-ui-meta">{{ match($entry->type->value) { 'wallet_adjust_credit' => '钱包加款', 'wallet_adjust_debit' => '钱包扣款', default => $entry->type->value } }}</span></td>
             <td class="admin-ui-number admin-ui-nowrap">{{ $entry->balance_after ?? '—' }} / {{ $entry->frozen_after ?? '—' }}</td>
             <td>{{ $entry->reference_key }}@if($entry->type === \App\Enums\TransactionType::AFFILIATE_CLAWBACK)@php($projection = $receivables->get($entry->id))<p class="admin-operations-note">扣回 {{ $entry->meta['recovered_amount'] ?? '—' }} · 应收 {{ $projection['principal'] }}（原始） · 剩余 {{ $projection['valid'] ? $projection['remaining'] : '证据异常，须核对' }}</p>@endif</td>
         </tr>@empty<tr><td colspan="4" class="admin-ui-empty"><strong>没有匹配的流水。</strong></td></tr>@endforelse

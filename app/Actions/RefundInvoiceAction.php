@@ -19,6 +19,7 @@ use App\Models\User;
 use App\Services\NotificationManager;
 use App\Support\AdminAuditContext;
 use App\Support\Money;
+use App\Support\OfflineInvoiceReceiptRules;
 use App\Support\ReceivableRevision;
 use App\Support\SettlementCurrency;
 use App\Support\WalletCapacity;
@@ -98,6 +99,7 @@ class RefundInvoiceAction
             foreach ($tasks as $task) {
                 $task->update(['status' => FulfillmentTaskStatus::STALE, 'locked_by' => null, 'locked_at' => null, 'lease_expires_at' => null]);
             }
+            $offlineSource = app(OfflineInvoiceReceiptRules::class)->refundSource($locked);
             if ($commission !== null) {
                 $this->clawback($commission, $referrer, $locked);
             }
@@ -113,7 +115,7 @@ class RefundInvoiceAction
                 'amount' => $locked->total_amount, 'balance_after' => $buyer->credit, 'frozen_after' => $buyer->frozen_credit,
                 'reference_key' => 'refund:'.$locked->id, 'remark' => $reason,
                 'meta' => ['mode' => $mode, 'currency' => $locked->currency, 'keep_service' => $keepService, 'actor_id' => $operator->id,
-                    'delivered_card_loss' => $deliveredCard, 'external_refund_confirmed' => $mode === 'external_record']]);
+                    'delivered_card_loss' => $deliveredCard, 'external_refund_confirmed' => $mode === 'external_record', ...$offlineSource]]);
             // INV-R3: external expense already records the loss; wallet refunds need a separate noncash loss record.
             if ($deliveredCard && $mode === 'refund_wallet') {
                 FinancialTransaction::create(['user_id' => $buyer->id, 'invoice_id' => $locked->id, 'type' => TransactionType::EXPENSE,

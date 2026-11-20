@@ -12,6 +12,7 @@ use App\Models\User;
 use App\Services\AffiliateReceivableBalance;
 use App\Services\NotificationManager;
 use App\Services\ReceivableAdmission;
+use App\Support\ExternalCollectionReceipts;
 use App\Support\Money;
 use App\Support\OperationsAudit;
 use App\Support\ReceivableOperation;
@@ -112,6 +113,7 @@ class RecordAffiliateReceivableSettlementAction
                     'external_channel' => $data['external_channel'], 'external_reference' => $data['external_reference'],
                     'active_receipt_key' => $receipt, 'request_id' => $data['request_id'], 'ledger_transaction_id' => $ledger->id,
                     'corrects_settlement_id' => $corrects?->id, 'processed_by' => $actor->id, 'reason' => $data['reason'], 'received_at' => $data['received_at']]);
+                app(ExternalCollectionReceipts::class)->claimReceivable($entry);
                 app(ReceivableRevision::class)->bump($owner);
                 if (isset($correctionOwner) && $correctionOwner->id !== $owner->id) {
                     app(ReceivableRevision::class)->bump($correctionOwner);
